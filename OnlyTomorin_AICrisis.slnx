@@ -10,9 +10,9 @@
   <Project Path="Assembly-CSharp-firstpass.csproj" />
   <Project Path="Mirror.Components.csproj" />
   <Project Path="Telepathy.csproj" />
+  <Project Path="Assembly-CSharp-Editor.csproj" />
   <Project Path="Unity.Mirror.CodeGen.csproj" />
   <Project Path="Mirror.Authenticators.csproj" />
-  <Project Path="Assembly-CSharp-Editor.csproj" />
   <Project Path="EncryptionTransportEditor.csproj" />
   <Project Path="Mirror.CompilerSymbols.csproj" />
 </Solution>

@@ -1,0 +1,184 @@
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
+
+namespace TomorinTrial
+{
+    public sealed partial class TrialHud : MonoBehaviour
+    {
+        readonly Color ivory=new Color(.90f,.87f,.78f),gold=new Color(.76f,.58f,.31f),muted=new Color(.52f,.58f,.59f),black=new Color(.018f,.027f,.032f,.94f);
+        TrialGame game;
+        Canvas canvas;
+        Font font;
+        Sprite barSprite;
+        RectTransform root,menu,bossPanel,lockMarker,enemyPanel;
+        UnityEngine.UI.Image health,stamina,bossHealth,enemyHealth,posture;
+        UnityEngine.UI.Text hpText,flaskText,objectiveText,promptText,noticeText,bossName,menuTitle,menuSubtitle,menuCaption,mainButtonLabel,enemyName;
+        UnityEngine.UI.Button mainButton,secondaryButton;
+        UnityEngine.UI.Text dangerText;
+        UnityEngine.UI.Text bossSkill;
+        UnityEngine.UI.Image markerImage;
+        Camera view;
+        int shownHealth=-1,shownStamina=-1,shownFlasks=-1,shownGuards=-1;
+        bool shownGate;
+        string shownBossName,shownSkill;
+        GameObject titleBrand,footer,stats;
+        float noticeUntil;
+        string notice="";
+        TrialMode lastMode=(TrialMode)(-1);
+
+        public void Initialize(TrialGame owner)
+        {
+            game=owner;view=owner.CameraRig.View;
+            font=Font.CreateDynamicFontFromOSFont(new[]{"Microsoft YaHei UI","Microsoft YaHei","SimHei","Arial"},32);
+            if(!font)font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            barSprite=Sprite.Create(Texture2D.whiteTexture,new Rect(0,0,1,1),new Vector2(.5f,.5f),1);
+            var obj=new GameObject("雾庭 · Interface",typeof(RectTransform),typeof(Canvas),typeof(UnityEngine.UI.CanvasScaler),typeof(UnityEngine.UI.GraphicRaycaster));obj.transform.SetParent(transform,false);
+            canvas=obj.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=20;
+            var scaler=obj.GetComponent<UnityEngine.UI.CanvasScaler>();scaler.uiScaleMode=UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1600,900);scaler.matchWidthOrHeight=.5f;
+            root=obj.GetComponent<RectTransform>();
+            if(!FindFirstObjectByType<EventSystem>())new GameObject("EventSystem",typeof(EventSystem),typeof(InputSystemUIInputModule)).transform.SetParent(transform,false);
+
+            stats=Panel("Vitals",root,new Vector2(0,1),new Vector2(42,-32),new Vector2(350,111),new Color(0,0,0,.13f)).gameObject;
+            var s=stats.GetComponent<RectTransform>();
+            Label("Name",s,"凑企鹅",new Vector2(0,1),new Vector2(18,-12),new Vector2(310,26),16,ivory);
+            health=Bar("Vitality",s,new Vector2(18,-48),new Vector2(300,10),new Color(.68f,.16f,.12f));
+            stamina=Bar("Resolve",s,new Vector2(18,-69),new Vector2(260,6),new Color(.55f,.68f,.43f));
+            hpText=Label("Vitality count",s,"",new Vector2(0,1),new Vector2(18,-83),new Vector2(300,19),12,muted);
+            objectiveText=Label("Objective",root,"",new Vector2(1,1),new Vector2(-400,-37),new Vector2(350,45),16,ivory,TextAnchor.UpperRight);
+
+            flaskText=Label("Spirit dew",root,"",new Vector2(0,0),new Vector2(50,99),new Vector2(310,34),23,gold);
+            promptText=Label("Interact",root,"",new Vector2(.5f,0),new Vector2(-320,119),new Vector2(640,40),20,ivory,TextAnchor.MiddleCenter);
+            noticeText=Label("Announcement",root,"",new Vector2(.5f,.67f),new Vector2(-260,0),new Vector2(520,32),19,gold,TextAnchor.MiddleCenter);
+
+            bossPanel=Panel("Boss",root,new Vector2(.5f,0),new Vector2(-440,65),new Vector2(880,55),Color.clear);
+            bossName=Label("Boss name",bossPanel,"大肥鱼 · DeepSeek",new Vector2(.5f,1),new Vector2(-330,0),new Vector2(660,28),20,ivory,TextAnchor.MiddleCenter);
+            bossSkill=Label("Boss move",bossPanel,"",new Vector2(.5f,1),new Vector2(-330,38),new Vector2(660,28),18,gold,TextAnchor.MiddleCenter);
+            bossHealth=Bar("Boss vitality",bossPanel,new Vector2(0,-36),new Vector2(880,8),new Color(.61f,.12f,.085f));
+            posture=Bar("Boss posture",bossPanel,new Vector2(140,-51),new Vector2(600,3),gold);
+            lockMarker=Panel("Lock diamond",root,new Vector2(.5f,.5f),Vector2.zero,new Vector2(12,12),gold);lockMarker.localRotation=Quaternion.Euler(0,0,45);
+            markerImage=lockMarker.GetComponent<UnityEngine.UI.Image>();
+            dangerText=Label("Peril warning",root,"危",new Vector2(.5f,.5f),Vector2.zero,new Vector2(110,90),52,new Color(1,.12f,.055f),TextAnchor.MiddleCenter);
+            enemyPanel=Panel("Enemy vitality",root,new Vector2(.5f,.5f),Vector2.zero,new Vector2(160,32),Color.clear);
+            enemyName=Label("Enemy name",enemyPanel,"蚀影剑卫",new Vector2(0,1),Vector2.zero,new Vector2(160,23),13,ivory,TextAnchor.MiddleCenter);
+            enemyHealth=Bar("Enemy health",enemyPanel,new Vector2(0,-26),new Vector2(160,4),new Color(.70f,.23f,.13f));
+
+            menu=Panel("Menu scrim",root,new Vector2(0,1),Vector2.zero,new Vector2(675,900),black);
+            menu.anchorMax=new Vector2(0,1);menu.sizeDelta=new Vector2(675,900);
+            titleBrand=Label("Brand",menu,"只鹅",new Vector2(0,1),new Vector2(65,-76),new Vector2(550,30),17,gold).gameObject;
+            Panel("Gold rule",menu,new Vector2(0,1),new Vector2(66,-135),new Vector2(65,2),gold);
+            menuTitle=Label("Title",menu,"残火 · 雾庭",new Vector2(0,1),new Vector2(60,-193),new Vector2(550,110),62,ivory);
+            menuSubtitle=Label("Subtitle",menu,"",new Vector2(0,1),new Vector2(66,-324),new Vector2(540,55),23,ivory);
+            menuCaption=Label("Description",menu,"击败三名剑卫，进入庭心。",new Vector2(0,1),new Vector2(66,-380),new Vector2(530,210),18,muted);
+            mainButton=Button("Begin",menu,new Vector2(66,-647),new Vector2(420,61),"踏入雾庭   →",()=>PrimaryAction());mainButtonLabel=mainButton.GetComponentInChildren<UnityEngine.UI.Text>();
+            secondaryButton=Button("Boss challenge or title",menu,new Vector2(66,-722),new Vector2(420,47),"直接挑战大肥鱼",()=>{if(game.Mode==TrialMode.Title)game.StartBossChallenge();else game.ReturnToTitle();});
+            footer=Label("Menu footer",menu,"Enter / A",new Vector2(0,1),new Vector2(66,-800),new Vector2(550,30),13,muted).gameObject;
+            InitializeArtwork();
+        }
+
+        void PrimaryAction()
+        {
+            if(TrialNetworkManager.SessionActive && game.Mode==TrialMode.Victory){game.ReturnToTitle();return;}
+            switch(game.Mode)
+            {case TrialMode.Title:game.StartTrial();break;case TrialMode.Paused:game.Resume();break;case TrialMode.Dead:game.Respawn();break;case TrialMode.Victory:game.RestartTrial();break;}
+        }
+
+        void Update()
+        {
+            if(!game || !game.Ready)return;
+            UpdateArtwork();
+            health.fillAmount=game.Player.Health/game.Player.MaxHealth;stamina.fillAmount=game.Player.Stamina/game.Player.MaxStamina;
+            int hp=Mathf.CeilToInt(game.Player.Health),sp=Mathf.CeilToInt(game.Player.Stamina);
+            if(hp!=shownHealth || sp!=shownStamina)
+            {shownHealth=hp;shownStamina=sp;hpText.text=$"{hp} / {game.Player.MaxHealth:0}";}
+            if(game.Player.Flasks!=shownFlasks){shownFlasks=game.Player.Flasks;flaskText.text=shownFlasks.ToString();}
+            if(shownGuards!=game.DefeatedGuards || shownGate!=game.GateOpen)
+            {shownGuards=game.DefeatedGuards;shownGate=game.GateOpen;objectiveText.text=game.GateOpen?"庭门已开":"剑卫  "+shownGuards+" / 3";}
+            promptText.text=game.Mode==TrialMode.Playing && Vector3.Distance(game.Player.transform.position,game.World.ShrinePosition)<2.6f?"E / A  休息（敌人重生）":"";
+            noticeText.text=game.Mode==TrialMode.Playing && Time.unscaledTime<noticeUntil?notice:"";
+            var boss=game.Enemies[game.Enemies.Count-1];
+            bool showBoss=boss.Alive && boss.Awakened && game.Mode==TrialMode.Playing;
+            bossPanel.gameObject.SetActive(showBoss);
+            objectiveText.gameObject.SetActive(game.Mode==TrialMode.Playing&&!showBoss);
+            bossHealth.fillAmount=boss.Health/boss.MaxHealth;posture.fillAmount=boss.Posture/100;
+            string nextName=boss.PhaseTwo?"大肥鱼 · 深海觉醒":"大肥鱼 · DeepSeek";
+            if(shownBossName!=nextName){shownBossName=nextName;bossName.text=nextName;}
+            string nextSkill=boss.Boss && boss.WindingUp?boss.Boss.SkillName:"";
+            if(shownSkill!=nextSkill){shownSkill=nextSkill;bossSkill.text=nextSkill;}
+            bossSkill.color=boss.Unblockable?new Color(1,.29f,.17f):gold;
+            dangerText.gameObject.SetActive(showBoss && boss.WindingUp && boss.Unblockable);
+            if(dangerText.gameObject.activeSelf)ScreenPosition(dangerText.rectTransform,boss.transform.position+Vector3.up*3.3f);
+            TrialEnemy target=game.Player.Locked?game.Player.Target:game.NearestEnemy(game.Player.transform.position,7);
+            bool showEnemy=target && !target.IsBoss && target.Alive && game.Mode==TrialMode.Playing;
+            enemyPanel.gameObject.SetActive(showEnemy);
+            lockMarker.gameObject.SetActive(game.Player.Locked && game.Mode==TrialMode.Playing);
+            if(showEnemy)
+            {ScreenPosition(enemyPanel,target.transform.position+Vector3.up*2.4f);enemyHealth.fillAmount=target.Health/target.MaxHealth;enemyName.text=target.Vulnerable?"破绽":"";}
+            if(game.Player.Locked)
+            {
+                ScreenPosition(lockMarker,game.Player.Target.transform.position+Vector3.up*1.35f);
+                markerImage.color=game.Player.Target.WindingUp?(game.Player.Target.Unblockable?new Color(1,.12f,.06f):new Color(1,.83f,.37f)):gold;
+            }
+            if(game.Mode!=lastMode){lastMode=game.Mode;RefreshMenu();}
+        }
+
+        void ScreenPosition(RectTransform ui,Vector3 world)
+        {
+            Vector3 point=view.WorldToScreenPoint(world);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(root,point,null,out var local);
+            ui.anchoredPosition=local;ui.localScale=point.z>0?Vector3.one:Vector3.zero;
+        }
+
+        void RefreshMenu()
+        {
+            bool show=game.Mode!=TrialMode.Playing;menu.gameObject.SetActive(show);
+            stats.SetActive(!show);objectiveText.gameObject.SetActive(!show);
+            secondaryButton.gameObject.SetActive(game.Mode==TrialMode.Paused || game.Mode==TrialMode.Title);
+            secondaryButton.GetComponentInChildren<UnityEngine.UI.Text>().text=game.Mode==TrialMode.Title?"直接挑战大肥鱼   →":"返回标题";
+            footer.SetActive(game.Mode==TrialMode.Title);
+            mainButton.interactable=true;
+            menuSubtitle.text="";
+            if(game.Mode==TrialMode.Title)
+            {menuTitle.text="雾庭";menuCaption.text="击败三名剑卫，进入庭心。";mainButtonLabel.text="进入";}
+            if(game.Mode==TrialMode.Paused)
+            {menuTitle.text="暂停";menuCaption.text="WASD  移动      Shift  疾跑\n左键 / J  轻斩      Q  重斩\n右键 / K  格挡      Space  闪避\nR  灵露      Tab  锁定      E  休息\n\n手柄：X 轻斩 · RB 重斩 · LB 格挡\nB 闪避 · ↑ 灵露 · RS 锁定";mainButtonLabel.text="继续";}
+            if(game.Mode==TrialMode.Dead)
+            {menuTitle.text="败北";menuCaption.text="";mainButtonLabel.text="重来";}
+            if(game.Mode==TrialMode.Victory)
+            {menuTitle.text="通关";menuCaption.text=$"{Mathf.FloorToInt(game.PlaySeconds/60):00}:{Mathf.FloorToInt(game.PlaySeconds%60):00}    倒下 {game.Deaths} 次";mainButtonLabel.text="再来一次";}
+            if(TrialNetworkManager.SessionActive)
+            {
+                if(game.Mode==TrialMode.Victory)mainButtonLabel.text="返回主界面";
+                if(game.Mode==TrialMode.Paused)menuCaption.text+="\n\n联机时游戏仍在运行。";
+            }
+        }
+
+        public void Notify(string message,float duration){notice=message;noticeUntil=Time.unscaledTime+duration;}
+
+        RectTransform Panel(string label,RectTransform parent,Vector2 anchor,Vector2 pos,Vector2 size,Color tint)
+        {
+            var obj=new GameObject(label,typeof(RectTransform),typeof(UnityEngine.UI.Image));var t=obj.GetComponent<RectTransform>();t.SetParent(parent,false);t.anchorMin=t.anchorMax=anchor;t.pivot=new Vector2(0,1);t.anchoredPosition=pos;t.sizeDelta=size;
+            var image=obj.GetComponent<UnityEngine.UI.Image>();image.color=tint;image.raycastTarget=false;return t;
+        }
+        UnityEngine.UI.Text Label(string label,RectTransform parent,string text,Vector2 anchor,Vector2 pos,Vector2 size,int fontSize,Color tint,TextAnchor align=TextAnchor.UpperLeft)
+        {
+            var obj=new GameObject(label,typeof(RectTransform),typeof(UnityEngine.UI.Text));var t=obj.GetComponent<RectTransform>();t.SetParent(parent,false);t.anchorMin=t.anchorMax=anchor;t.pivot=new Vector2(0,1);t.anchoredPosition=pos;t.sizeDelta=size;
+            var value=obj.GetComponent<UnityEngine.UI.Text>();value.font=font;value.text=text;value.fontSize=fontSize;value.color=tint;value.alignment=align;value.raycastTarget=false;value.supportRichText=true;value.horizontalOverflow=HorizontalWrapMode.Wrap;value.verticalOverflow=VerticalWrapMode.Overflow;return value;
+        }
+        UnityEngine.UI.Image Bar(string label,RectTransform parent,Vector2 pos,Vector2 size,Color tint)
+        {
+            var background=Panel(label+" background",parent,new Vector2(0,1),pos,size,new Color(.11f,.12f,.12f,.92f));
+            var foreground=Panel(label,background,new Vector2(0,1),new Vector2(1,-1),size-new Vector2(2,2),tint).GetComponent<UnityEngine.UI.Image>();
+            foreground.type=UnityEngine.UI.Image.Type.Filled;foreground.fillMethod=UnityEngine.UI.Image.FillMethod.Horizontal;foreground.fillOrigin=0;
+            foreground.sprite=barSprite;return foreground;
+        }
+        UnityEngine.UI.Button Button(string label,RectTransform parent,Vector2 pos,Vector2 size,string caption,UnityEngine.Events.UnityAction click)
+        {
+            var rect=Panel(label,parent,new Vector2(0,1),pos,size,new Color(.19f,.16f,.115f,.96f));rect.GetComponent<UnityEngine.UI.Image>().raycastTarget=true;
+            var button=rect.gameObject.AddComponent<UnityEngine.UI.Button>();var colors=button.colors;colors.normalColor=Color.white;colors.highlightedColor=new Color(1.25f,1.15f,.95f);colors.pressedColor=new Color(.8f,.68f,.42f);button.colors=colors;button.onClick.AddListener(click);
+            Panel("Button edge",rect,new Vector2(0,1),Vector2.zero,new Vector2(3,size.y),gold);
+            Label("Caption",rect,caption,new Vector2(0,1),new Vector2(23,-14),size-new Vector2(38,10),22,ivory);return button;
+        }
+        void OnDestroy(){if(font)Destroy(font);if(barSprite)Destroy(barSprite);}
+    }
+}
