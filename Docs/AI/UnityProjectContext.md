@@ -24,3 +24,21 @@
 - Unity Pipeline 0.9.1-exp.1 is installed for local Editor control, on loopback port 18080 because the default port range failed on this machine. No runtime service is enabled.
 - Validation: Unity compilation passed without errors or warnings; 21 real-input Play Mode checks passed. See Docs/PLAY.md and Docs/VALIDATION.md for details and final build evidence.
 - During work, EditorSettings enterPlayModeOptions was changed externally from 0 to 3. This agent did not change or revert that preference.
+
+## Current combat networking (2026-11-02)
+
+- Startup menu is InkStart; gameplay is AshenCourt. TrialNetworkManager uses the vendored Mirror/Telepathy TCP transport. The host simulates actors and combat; clients send controls and render world snapshots.
+- TrialCombatEvent carries player ownership and transient parry/block/guard-break/death feedback. World effects are shared; HUD and camera effects belong to the identified local player. Combat authority remains on the host.
+- Input edges send immediately; movement changes target 60 Hz with idle 10 Hz heartbeat. World snapshots target 30 Hz, contain only active boss hazards, and skip the host's local connection. Client action clocks advance at most 100 ms beyond the last received snapshot.
+- TrialGame remembers entering network simulation and does not fall back to standalone simulation while disconnection loads the menu.
+- Combat network regression tool: Assets/Editor/Trial/TrialNetworkValidation.cs. Evidence and limits: Docs/COMBAT_NETWORK_VALIDATION.md. No network package/settings migration was required.
+
+## Courtyard / arena and combat feel update (2026-11-02)
+
+- Shared runtime level list: InkLevelSelection partial extends InkMainMenu. Solo offers Courtyard (Boss: Big Fish); LAN dropdown opens the same list with Arena first. Both solo and co-op Courtyard start before the three guards; only editor/debug StartBossChallenge skips them.
+- Host owns run-boon offers/validation, PvP damage, scores and respawn. TrialRunBoons defines modest player and boss modifiers. TrialHudRunChoices renders choices and other-player nameplates; local nickname replaces the fixed name in the vitality HUD.
+- Boss health is 1400 times room population, preserving remaining health percentage on joins/leaves. No four-player cap; TrialPayloadParts splits large rosters/snapshots under Telepathy's message limit.
+- Boss has reactive and chained skills, moving-blade tail collision, separate front/rear safety sectors, low-health frenzy, and dynamic player marks. DeepSeek.fbx is replaced with the user-provided NewDeepSeek binary while preserving asset GUID; phase two drives the real TiePen blend shape.
+- TrialImpactEffects adds pooled silhouette afterimages, slash/ring lines, stronger hit/clash/kill audio, original synthesized music, controller haptics and a short countercut slow-motion cue. Actor hit holds use unscaled time and are cleared on restore/reset. Online pause remains local; the authoritative countercut cue produces the shared short slow motion.
+- Keyboard/gamepad prompts follow the most recently used gameplay input. Roll rotation follows the actual ground-plane dodge direction, which is included in network state. Camera shoulder collision and close-range local-renderer hiding prevent viewing inside the local model.
+- New validation entry points: TrialCombatFeelValidation and TrialEncounterValidation, sharing the existing real-TCP validation harness. Current behavior and verification limits are documented in Docs/ENCOUNTER_FEEL_VALIDATION.md.

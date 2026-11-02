@@ -4,7 +4,7 @@ using UnityEngine.Rendering;
 
 namespace TomorinTrial
 {
-    public enum DeepFishSkill { None, TailSweep, TidalCharge, BellySlam, BubbleBarrage, Maelstrom, Enrage }
+    public enum DeepFishSkill { None, TailSweep, TidalCharge, BellySlam, BubbleBarrage, Maelstrom, Enrage, ReverseTail, RiptideRush, DelayedSlam, AbyssRain }
 
     // Fixed-size hazards and reused telegraphs keep the encounter bounded and allocation-free.
     public sealed class TrialBoss : MonoBehaviour
@@ -12,23 +12,31 @@ namespace TomorinTrial
         public DeepFishSkill Skill { get; private set; }
         public float SkillProgress => duration>0?Mathf.Clamp01(age/duration):0;
         public bool Enraged { get; private set; }
-        public bool WindingUp => Skill!=DeepFishSkill.None && SkillProgress<ImpactPoint;
-        public bool Unblockable => Skill==DeepFishSkill.TidalCharge || Skill==DeepFishSkill.BellySlam || Skill==DeepFishSkill.Maelstrom || Skill==DeepFishSkill.Enrage;
+        public bool Frenzied { get; private set; }
+        public TrialBossBoon Boon {get;private set;}
+        public void RollBoon(){Boon=(TrialBossBoon)Random.Range(1,4);}
+        public void ClearBoon(){Boon=TrialBossBoon.None;}
+        public bool WindingUp => Skill!=DeepFishSkill.None && (Skill==DeepFishSkill.RiptideRush?(SkillProgress<.20f || SkillProgress>=.46f && SkillProgress<.67f):Skill==DeepFishSkill.ReverseTail?(SkillProgress<.30f || SkillProgress>=.43f && SkillProgress<.66f):Skill==DeepFishSkill.AbyssRain?(SkillProgress<.40f || SkillProgress>=.5f && SkillProgress<.82f):SkillProgress<ImpactPoint);
+        public bool Unblockable => Skill==DeepFishSkill.TidalCharge || Skill==DeepFishSkill.BellySlam || Skill==DeepFishSkill.Maelstrom || Skill==DeepFishSkill.Enrage || Skill==DeepFishSkill.RiptideRush || Skill==DeepFishSkill.DelayedSlam || Skill==DeepFishSkill.AbyssRain;
+        public bool CanBeDeflected=>Skill==DeepFishSkill.TailSweep || Skill==DeepFishSkill.ReverseTail || Skill==DeepFishSkill.TidalCharge || Skill==DeepFishSkill.RiptideRush;
         public Transform Visual { get; private set; }
         public string SkillName => NameOf(Skill);
         public int AttacksStarted { get; private set; }
         public int ActiveHazards { get {int n=0;foreach(var h in hazards)if(h.active)n++;return n;} }
-        float ImpactPoint => Skill==DeepFishSkill.BellySlam?.54f:Skill==DeepFishSkill.Maelstrom?.48f:.36f;
+        float ImpactPoint => Skill==DeepFishSkill.DelayedSlam?.72f:Skill==DeepFishSkill.BellySlam?.54f:Skill==DeepFishSkill.Maelstrom?.42f:Skill==DeepFishSkill.BubbleBarrage?.30f:Skill==DeepFishSkill.Enrage?.55f:.36f;
         TrialEnemy fighter;
         TrialGame game;
         float age,duration,cooldown=1.2f;
-        int sequence,waves;
+        int sequence,waves,variant,comboDepth,markCount;
+        float reactiveCooldown;
+        Vector3[] marks=new Vector3[4];
+        LineRenderer[] markWarnings=new LineRenderer[4];
         bool landed;
         Vector3 aim,origin,heading;
         LineRenderer warning,fill,sweep;
         Material water,bubble;
         readonly Vector3[] ringPoints=new Vector3[65];
-        readonly Hazard[] hazards=new Hazard[32];
+        readonly Hazard[] hazards=new Hazard[64];
         readonly TrialPlayer[] soloTarget=new TrialPlayer[1];
         readonly HashSet<TrialPlayer> contacted=new HashSet<TrialPlayer>();
         IEnumerable<TrialPlayer> Targets=>Mirror.NetworkServer.active?TrialNetworkManager.Current.Players:soloTarget;
@@ -61,6 +69,7 @@ namespace TomorinTrial
             water.SetInt("_SrcBlend",(int)BlendMode.SrcAlpha);water.SetInt("_DstBlend",(int)BlendMode.OneMinusSrcAlpha);water.SetInt("_ZWrite",0);water.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
             bubble=new Material(water){name="DeepSeek · cyan bubbles"};bubble.SetColor("_BaseColor",new Color(.13f,.8f,1,.78f));
             warning=Line("Skill boundary",.10f);fill=Line("Skill charge",.045f);sweep=Line("Tail arc",.20f);
+            for(int i=0;i<markWarnings.Length;i++)markWarnings[i]=Line("Abyss rain target "+i,.12f);
             for(int i=0;i<hazards.Length;i++)
             {
                 var obj=GameObject.CreatePrimitive(PrimitiveType.Sphere);obj.name="Pooled tide bubble "+i;obj.layer=2;
@@ -88,32 +97,35 @@ namespace TomorinTrial
                 case DeepFishSkill.BubbleBarrage:return "深海泡泡阵";
                 case DeepFishSkill.Maelstrom:return "涡流三重奏";
                 case DeepFishSkill.Enrage:return "深海觉醒";
+                case DeepFishSkill.ReverseTail:return "回身断潮 · 二连摆尾";
+                case DeepFishSkill.RiptideRush:return "折返猎杀 · 二连冲撞";
+                case DeepFishSkill.DelayedSlam:return "虚晃鱼跃 · 延迟重砸";
+                case DeepFishSkill.AbyssRain:return "深渊点名 · 双轮落潮";
                 default:return "";
             }
         }
 
         public TrialBossState CaptureNetwork()
         {
-            var state=new TrialBossState{skill=(byte)Skill,age=age,duration=duration,aim=aim,origin=origin,heading=heading,enraged=Enraged,hazards=new TrialHazardState[hazards.Length]};
-            for(int i=0;i<hazards.Length;i++){var h=hazards[i];state.hazards[i]=new TrialHazardState{active=h.active,wave=h.shockwave,position=h.position,radius=h.radius};}
+            int active=ActiveHazards;
+            var state=new TrialBossState{skill=(byte)Skill,age=age,duration=duration,aim=aim,origin=origin,heading=heading,enraged=Enraged,frenzied=Frenzied,variant=variant,boon=Boon,marks=markCount==0?System.Array.Empty<Vector3>():new Vector3[markCount],hazards=active==0?System.Array.Empty<TrialHazardState>():new TrialHazardState[active]};
+            for(int i=0;i<markCount;i++)state.marks[i]=marks[i];
+            int index=0;
+            foreach(var h in hazards)if(h.active)state.hazards[index++]=new TrialHazardState{active=true,wave=h.shockwave,position=h.position,radius=h.radius};
             return state;
         }
         public void ApplyNetwork(TrialBossState state)
         {
-            Skill=(DeepFishSkill)state.skill;age=state.age;duration=state.duration;aim=state.aim;origin=state.origin;heading=state.heading;Enraged=state.enraged;
+            Skill=(DeepFishSkill)state.skill;age=state.age;duration=state.duration;aim=state.aim;origin=state.origin;heading=state.heading;Enraged=state.enraged;Frenzied=state.frenzied;variant=state.variant;
+            Boon=state.boon;
+            EnsureMarks(state.marks==null?0:state.marks.Length);markCount=state.marks==null?0:state.marks.Length;for(int i=0;i<markCount;i++)marks[i]=state.marks[i];
             Color tint=Unblockable?new Color(1,.19f,.12f,.9f):new Color(1,.77f,.25f,.9f);
-            warning.enabled=fill.enabled=sweep.enabled=false;
-            if(WindingUp)
+            HideWarnings();DrawTelegraphs(tint);
+            DrawActiveSweep();
+            int count=state.hazards==null?0:Mathf.Min(hazards.Length,state.hazards.Length);
+            for(int i=0;i<hazards.Length;i++)
             {
-                if(Skill==DeepFishSkill.TidalCharge)DrawCharge(tint);
-                else if(Skill==DeepFishSkill.BellySlam){Circle(warning,aim,4.2f,tint);Circle(fill,aim,4.2f*Mathf.Clamp01(SkillProgress/.54f),tint);}
-                else if(Skill==DeepFishSkill.TailSweep)Arc(warning,transform.position,4.1f,-115,115,tint);
-                else Circle(warning,transform.position,Skill==DeepFishSkill.Maelstrom?9:2.3f,tint);
-            }
-            if(state.hazards==null)return;
-            for(int i=0;i<Mathf.Min(hazards.Length,state.hazards.Length);i++)
-            {
-                var h=hazards[i];var remote=state.hazards[i];h.active=remote.active;h.shockwave=remote.wave;
+                var h=hazards[i];var remote=i<count?state.hazards[i]:default;h.active=remote.active;h.shockwave=remote.wave;
                 h.visual.gameObject.SetActive(remote.active&&!remote.wave);h.ring.enabled=remote.active&&remote.wave;
                 if(remote.active){h.visual.position=remote.position;h.visual.localScale=Vector3.one*(remote.radius*2);if(remote.wave)Circle(h.ring,remote.position,remote.radius,new Color(.18f,.85f,1,Mathf.Clamp01(1-remote.radius/15)));}
             }
@@ -122,14 +134,18 @@ namespace TomorinTrial
         public void Tick(float dt)
         {
             if(!fighter.Alive){CancelAttack();return;}
+            if(fighter.CombatFrozen)return;
             if(!game.CombatTarget.Alive){CancelAttack();fighter.BossMotion(0);return;}
             TickHazards(dt);
+            reactiveCooldown=Mathf.Max(0,reactiveCooldown-dt);
             if(!fighter.Awakened){fighter.BossMotion(0);return;}
             if(game.CombatTarget.transform.position.z<15 || Vector3.Distance(game.CombatTarget.transform.position,transform.position)>27)
             {fighter.ResetFighter();return;}
             if(fighter.Vulnerable)
             {if(Skill!=DeepFishSkill.None)CancelAttack();if(fighter.ActionTime>=fighter.ActionDuration)fighter.BossBegin(FighterAction.Free,0);return;}
             if(!Enraged && fighter.PhaseTwo){Enraged=true;StartSkill(DeepFishSkill.Enrage);}
+            if(!Frenzied && fighter.Health<fighter.MaxHealth*.25f)
+            {Frenzied=true;game.Hud.Notify("深渊狂潮 · 小心连续变招",2);}
             if(Skill!=DeepFishSkill.None){TickSkill(dt);return;}
             cooldown-=dt;
             var delta=game.CombatTarget.transform.position-transform.position;delta.y=0;
@@ -137,12 +153,19 @@ namespace TomorinTrial
             fighter.BossFace(delta,190,dt);fighter.BossMotion(0);
             if(cooldown<=0 && distance<19)
             {
-                // A deterministic rotation prevents repeated rolls and guarantees every move is used.
+                // React to back-hugging and healing, then rotate through distinct patterns.
                 DeepFishSkill choice;
-                switch(sequence++%5)
-                {case 0:choice=distance<5?DeepFishSkill.TailSweep:DeepFishSkill.TidalCharge;break;
-                 case 1:choice=DeepFishSkill.BubbleBarrage;break;case 2:choice=DeepFishSkill.BellySlam;break;
-                 case 3:choice=DeepFishSkill.TailSweep;break;default:choice=Enraged?DeepFishSkill.Maelstrom:DeepFishSkill.TidalCharge;break;}
+                if(reactiveCooldown<=0 && distance<5.5f && Vector3.Angle(transform.forward,delta)>100)
+                {choice=DeepFishSkill.ReverseTail;reactiveCooldown=5;}
+                else if(reactiveCooldown<=0 && game.CombatTarget.Action==FighterAction.Heal)
+                {choice=DeepFishSkill.AbyssRain;reactiveCooldown=5;}
+                else switch(sequence++%8)
+                {case 0:choice=distance<5?DeepFishSkill.ReverseTail:DeepFishSkill.RiptideRush;break;
+                 case 1:choice=DeepFishSkill.BubbleBarrage;break;case 2:choice=DeepFishSkill.DelayedSlam;break;
+                 case 3:choice=DeepFishSkill.TailSweep;break;case 4:choice=DeepFishSkill.AbyssRain;break;
+                 case 5:choice=DeepFishSkill.RiptideRush;break;case 6:choice=DeepFishSkill.BellySlam;break;
+                 default:choice=Enraged?DeepFishSkill.Maelstrom:DeepFishSkill.BubbleBarrage;break;}
+                comboDepth=0;
                 StartSkill(choice);return;
             }
             if(distance>3.8f)
@@ -157,14 +180,16 @@ namespace TomorinTrial
         public void StartSkill(DeepFishSkill next)
         {
             if(!fighter.Alive || next==DeepFishSkill.None)return;
-            HideWarnings();Skill=next;age=0;waves=0;landed=false;contacted.Clear();AttacksStarted++;
+            HideWarnings();Skill=next;age=0;waves=0;markCount=0;variant=AttacksStarted%2;landed=false;contacted.Clear();AttacksStarted++;
             origin=transform.position;aim=game.CombatTarget.transform.position;
             aim.x=Mathf.Clamp(aim.x,-10.5f,10.5f);aim.z=Mathf.Clamp(aim.z,18,32);aim.y=0;
             heading=Vector3.ProjectOnPlane(aim-origin,Vector3.up).normalized;
             if(heading.sqrMagnitude<.01f)heading=transform.forward;
             fighter.BossFace(heading,36000,.02f);
-            duration=next==DeepFishSkill.TailSweep?1.75f:next==DeepFishSkill.TidalCharge?2.1f:next==DeepFishSkill.BellySlam?2.65f:next==DeepFishSkill.BubbleBarrage?2.7f:next==DeepFishSkill.Maelstrom?3.5f:2.1f;
-            if(Enraged && next!=DeepFishSkill.Enrage)duration*=.88f;
+            duration=next==DeepFishSkill.ReverseTail?3.3f:next==DeepFishSkill.RiptideRush?3.6f:next==DeepFishSkill.DelayedSlam?3.15f:next==DeepFishSkill.AbyssRain?4.2f:next==DeepFishSkill.TailSweep?1.9f:next==DeepFishSkill.TidalCharge?2f:next==DeepFishSkill.BellySlam?2.5f:next==DeepFishSkill.BubbleBarrage?2.7f:next==DeepFishSkill.Maelstrom?3.5f:2.1f;
+            if(next!=DeepFishSkill.Enrage)duration*=Mathf.Max(.80f,1-.06f*(game.PartySize-1))*(Frenzied?.78f:Enraged?.86f:1);
+            if(Boon==TrialBossBoon.SwiftCurrent)duration/=1.06f;
+            if(next==DeepFishSkill.AbyssRain)CaptureMarks();
             fighter.BossBegin(Unblockable?FighterAction.Heavy:FighterAction.Light,duration);
             game.Effects.Sound("warning",transform.position,Unblockable?.65f:1.1f);
         }
@@ -174,20 +199,41 @@ namespace TomorinTrial
             age+=dt;float p=SkillProgress;
             fighter.BossMotion(0);
             Color tint=Unblockable?new Color(1,.19f,.12f,.9f):new Color(1,.77f,.25f,.9f);
-            if(WindingUp)
+            warning.enabled=fill.enabled=false;
+            DrawTelegraphs(tint);
+            if(Skill==DeepFishSkill.ReverseTail)
             {
-                if(Skill==DeepFishSkill.TidalCharge)DrawCharge(tint);
-                else if(Skill==DeepFishSkill.BellySlam){Circle(warning,aim,4.2f,tint);Circle(fill,aim,4.2f*Mathf.Clamp01(p/.54f),tint);}
-                else if(Skill==DeepFishSkill.TailSweep){Arc(warning,transform.position,4.1f,-115,115,tint);Arc(fill,transform.position,4.1f*Mathf.Clamp01(p/.36f),-115,115,tint);}
-                else Circle(warning,transform.position,Skill==DeepFishSkill.Maelstrom?9:2.3f,tint);
+                if(p>=.30f && p<.43f)SweepContact(4.3f,-110,110,.30f,.43f,30,dt);
+                if(p>=.43f && waves==0){waves=1;contacted.Clear();sweep.enabled=false;}
+                if(p>=.66f && p<.80f)SweepContact(4.3f,70,290,.66f,.80f,34,dt);
+                if(p>=.80f)sweep.enabled=false;
             }
-            else {warning.enabled=fill.enabled=false;}
+            if(Skill==DeepFishSkill.RiptideRush)
+            {
+                if(p>=.46f && waves==0)
+                {waves=1;contacted.Clear();origin=transform.position;aim=game.CombatTarget.transform.position;heading=Vector3.ProjectOnPlane(aim-origin,Vector3.up).normalized;fighter.BossFace(heading,36000,.02f);}
+                if(p>=.20f && p<.42f || p>=.67f && p<.89f)
+                {fighter.BossMove(heading*(Enraged?19:17),dt);Contact(1.9f,120,40,true);}
+            }
+            if(Skill==DeepFishSkill.DelayedSlam)
+            {
+                // Track only during the feint; the final landing point has a clear escape window.
+                if(p<.38f){aim=ClampArena(game.CombatTarget.transform.position);heading=Vector3.ProjectOnPlane(aim-transform.position,Vector3.up).normalized;fighter.BossFace(heading,180,dt);}
+                if(p>.42f && p<.72f){var destination=Vector3.Lerp(origin,aim,Mathf.SmoothStep(0,1,(p-.42f)/.30f));fighter.BossMove((destination-transform.position)/Mathf.Max(dt,.001f),dt);}
+                if(p>=.72f && !landed){landed=true;Area(aim,4.7f,51);Impact(aim);SpawnWave(aim,8);}
+            }
+            if(Skill==DeepFishSkill.AbyssRain)
+            {
+                if(p<.16f || p>=.5f && p<.57f)CaptureMarks();
+                if(waves==0 && p>=.4f){DetonateMarks();waves=1;}
+                if(waves==1 && p>=.5f){CaptureMarks();waves=2;}
+                if(waves==2 && p>=.82f){DetonateMarks();waves=3;}
+            }
             if(Skill==DeepFishSkill.TailSweep)
             {
                 if(p>=.36f && p<=.64f)
                 {
-                    Arc(sweep,transform.position+Vector3.up*.8f,3.6f,Mathf.Lerp(-115,90,(p-.36f)/.28f),Mathf.Lerp(-85,120,(p-.36f)/.28f),new Color(.25f,.9f,1,.9f));
-                    Contact(4.1f,120,30,false);
+                    SweepContact(4.1f,-110,110,.36f,.64f,30,dt);
                 }
                 else sweep.enabled=false;
             }
@@ -200,15 +246,80 @@ namespace TomorinTrial
                 if(p>=.54f && !landed)
                 {landed=true;Area(aim,4.2f,45);Impact(aim);SpawnWave(aim,Enraged?9:7);}
             }
-            if(Skill==DeepFishSkill.BubbleBarrage && waves<3 && p>=.36f+waves*.14f)
+            if(Skill==DeepFishSkill.BubbleBarrage && waves<(Frenzied?4:3) && p>=.30f+waves*.14f)
             {ShootFan(waves++);game.Effects.Sound("swing",transform.position,.65f);}
-            if(Skill==DeepFishSkill.Maelstrom && waves<3 && p>=.48f+waves*.12f)
+            if(Skill==DeepFishSkill.Maelstrom && waves<(Frenzied?4:3) && p>=.42f+waves*.13f)
             {SpawnWave(transform.position,7.8f+waves*.8f);waves++;game.Effects.Sound("warning",transform.position,.75f);}
             if(Skill==DeepFishSkill.Enrage && !landed && p>=.55f)
             {landed=true;game.Effects.Burst(transform.position+Vector3.up,Color.cyan,65);game.CameraRig.Kick(.35f);}
             // A parry can cancel the skill inside Contact; preserve the resulting stagger.
             if(Skill!=DeepFishSkill.None && age>=duration)
-            {Skill=DeepFishSkill.None;fighter.BossBegin(FighterAction.Free,0);cooldown=Enraged?.85f:1.15f;HideWarnings();}
+            {
+                var previous=Skill;Skill=DeepFishSkill.None;fighter.BossBegin(FighterAction.Free,0);HideWarnings();
+                if(Enraged && comboDepth<(Frenzied?2:1) && previous!=DeepFishSkill.Enrage && previous!=DeepFishSkill.AbyssRain)
+                {comboDepth++;StartSkill(previous==DeepFishSkill.BubbleBarrage?DeepFishSkill.RiptideRush:previous==DeepFishSkill.BellySlam || previous==DeepFishSkill.DelayedSlam?DeepFishSkill.ReverseTail:DeepFishSkill.AbyssRain);return;}
+                comboDepth=0;cooldown=(Frenzied?.40f:Enraged?.60f:.85f)/ (1+.09f*(game.PartySize-1));
+            }
+        }
+
+        static Vector3 ClampArena(Vector3 point){point.x=Mathf.Clamp(point.x,-10.5f,10.5f);point.z=Mathf.Clamp(point.z,18,32);point.y=0;return point;}
+        void EnsureMarks(int capacity)
+        {
+            if(capacity<=marks.Length)return;
+            int previous=marks.Length;System.Array.Resize(ref marks,capacity);System.Array.Resize(ref markWarnings,capacity);
+            for(int i=previous;i<capacity;i++)markWarnings[i]=Line("Abyss rain target "+i,.12f);
+        }
+        void CaptureMarks(){EnsureMarks(game.PartySize);markCount=0;foreach(var target in Targets)if(target && target.Alive && !target.ChoosingBoon && markCount<marks.Length)marks[markCount++]=ClampArena(target.transform.position);}
+        void DetonateMarks()
+        {
+            // Overlapping circles damage each player once; stacking cannot multiply an unavoidable hit.
+            contacted.Clear();
+            for(int i=0;i<markCount;i++)
+            {
+                Impact(marks[i]);SpawnWave(marks[i],5.2f);
+                foreach(var target in Targets)
+                    if(target && target.Alive && !contacted.Contains(target) && Vector3.ProjectOnPlane(target.transform.position-marks[i],Vector3.up).sqrMagnitude<6.76f && !Blocked(marks[i],target.transform.position))
+                    {contacted.Add(target);target.ReceiveHit(fighter,36,30,true);}
+            }
+        }
+        void DrawTelegraphs(Color tint)
+        {
+            foreach(var line in markWarnings)line.enabled=false;
+            if(!WindingUp)return;
+            if(Skill==DeepFishSkill.AbyssRain)
+            {for(int i=0;i<markCount;i++)Circle(markWarnings[i],marks[i],2.6f,tint);return;}
+            if(Skill==DeepFishSkill.TidalCharge || Skill==DeepFishSkill.RiptideRush)DrawCharge(tint);
+            else if(Skill==DeepFishSkill.BellySlam || Skill==DeepFishSkill.DelayedSlam)
+            {float radius=Skill==DeepFishSkill.DelayedSlam?4.7f:4.2f;Circle(warning,aim,radius,tint);Circle(fill,aim,radius*Mathf.Clamp01(SkillProgress/ImpactPoint),tint);}
+            else if(Skill==DeepFishSkill.ReverseTail)Arc(warning,transform.position,4.3f,SkillProgress<.43f?-110:70,SkillProgress<.43f?110:290,tint);
+            else if(Skill==DeepFishSkill.TailSweep){Arc(warning,transform.position,4.1f,-110,110,tint);Arc(fill,transform.position,4.1f*Mathf.Clamp01(SkillProgress/.36f),-110,110,tint);}
+            else Circle(warning,transform.position,Skill==DeepFishSkill.Maelstrom?9:2.3f,tint);
+        }
+        void DrawActiveSweep()
+        {
+            float p=SkillProgress;
+            if(Skill==DeepFishSkill.TailSweep && p>=.36f && p<=.64f)
+            {float angle=Mathf.Lerp(-110,110,Mathf.InverseLerp(.36f,.64f,p));Arc(sweep,transform.position+Vector3.up*.8f,4.1f,angle-7,angle+7,Color.cyan);}
+            if(Skill==DeepFishSkill.ReverseTail && (p>=.30f && p<.43f || p>=.66f && p<.80f))
+            {float angle=p<.43f?Mathf.Lerp(-110,110,Mathf.InverseLerp(.30f,.43f,p)):Mathf.Lerp(70,290,Mathf.InverseLerp(.66f,.80f,p));Arc(sweep,transform.position+Vector3.up*.8f,4.3f,angle-7,angle+7,Color.cyan);}
+        }
+        void SweepContact(float radius,float from,float to,float begin,float end,float damage,float dt)
+        {
+            float current=Mathf.Lerp(from,to,Mathf.InverseLerp(begin,end,SkillProgress));
+            float previous=Mathf.Lerp(from,to,Mathf.InverseLerp(begin,end,(age-dt)/duration));
+            Arc(sweep,transform.position+Vector3.up*.8f,radius,current-7,current+7,new Color(.25f,.9f,1,.95f));
+            foreach(var target in Targets)
+            {
+                if(!target || !target.Alive || contacted.Contains(target))continue;
+                var delta=Vector3.ProjectOnPlane(target.transform.position-transform.position,Vector3.up);
+                if(delta.magnitude>radius+.28f || Blocked(transform.position,target.transform.position))continue;
+                float angle=Vector3.SignedAngle(transform.forward,delta,Vector3.up);
+                if(from>=0)angle=Mathf.Repeat(angle,360);
+                float margin=Mathf.Asin(Mathf.Clamp01(.45f/Mathf.Max(.45f,delta.magnitude)))*Mathf.Rad2Deg;
+                if(angle<previous-margin || angle>current+margin)continue;
+                contacted.Add(target);target.ReceiveHit(fighter,damage,30);
+                if(Skill==DeepFishSkill.None)break;
+            }
         }
 
         void Contact(float range,float angle,float damage,bool unblockable)
@@ -219,6 +330,7 @@ namespace TomorinTrial
                 var delta=target.transform.position-transform.position;delta.y=0;
                 if(delta.magnitude>range+.28f||Vector3.Angle(transform.forward,delta)>angle||Blocked(transform.position,target.transform.position))continue;
                 contacted.Add(target);landed=true;target.ReceiveHit(fighter,damage,30,unblockable);
+                if(Skill==DeepFishSkill.None)break;
             }
         }
         void Area(Vector3 point,float range,float damage)
@@ -230,11 +342,11 @@ namespace TomorinTrial
         void ShootFan(int wave)
         {
             var delta=Vector3.ProjectOnPlane(game.CombatTarget.transform.position-transform.position,Vector3.up).normalized;
-            int count=Enraged?9:7;
+            int count=(Enraged?9:7)+Mathf.Min(4,game.PartySize-1);
             for(int i=0;i<count;i++)
             {
                 var h=Available();if(h==null)break;
-                var direction=Quaternion.AngleAxis((i-(count-1)*.5f)*12+(wave==1?6:0),Vector3.up)*delta;
+                var direction=Quaternion.AngleAxis((i-(count-1)*.5f)*12+(variant==0?(wave%2==1?6:0):(wave-1)*9),Vector3.up)*delta;
                 h.position=transform.position+Vector3.up*.85f+direction*.9f;h.velocity=direction*(Enraged?7.5f:6.2f);
                 h.radius=.27f;h.age=0;h.hit=false;h.hitPlayers.Clear();h.active=true;h.shockwave=false;h.visual.gameObject.SetActive(true);
                 h.visual.position=h.position;h.visual.localScale=Vector3.one*.54f;h.ring.enabled=false;
@@ -291,22 +403,24 @@ namespace TomorinTrial
         void Arc(LineRenderer line,Vector3 center,float radius,float from,float to,Color tint,bool world=false)
         {
             float yaw=world?0:transform.eulerAngles.y;
+            bool sector=!world && to-from<359;
             for(int i=0;i<ringPoints.Length;i++)
-            {float a=(yaw+Mathf.Lerp(from,to,(float)i/(ringPoints.Length-1)))*Mathf.Deg2Rad;ringPoints[i]=center+new Vector3(Mathf.Sin(a)*radius,.10f,Mathf.Cos(a)*radius);}
+            {float fraction=sector?(float)Mathf.Clamp(i-1,0,62)/62:(float)i/(ringPoints.Length-1);float a=(yaw+Mathf.Lerp(from,to,fraction))*Mathf.Deg2Rad;ringPoints[i]=sector && (i==0 || i==64)?center+Vector3.up*.10f:center+new Vector3(Mathf.Sin(a)*radius,.10f,Mathf.Cos(a)*radius);}
             line.SetPositions(ringPoints);line.startColor=line.endColor=tint;line.enabled=true;
         }
         void DrawCharge(Color tint)
         {
-            Vector3 a=origin+Vector3.up*.10f,b=a+heading*11,side=Vector3.Cross(Vector3.up,heading)*1.25f;
+            float length=Skill==DeepFishSkill.RiptideRush?duration*.22f*(Enraged?19:17)+1.9f:duration*.33f*(Enraged?18:15)+1.9f;
+            Vector3 a=origin+Vector3.up*.10f,b=a+heading*length,side=Vector3.Cross(Vector3.up,heading)*1.9f;
             // Four corners are interpolated into the existing buffer; no per-frame allocation.
             for(int i=0;i<65;i++)
             {float p=i/16f;int edge=Mathf.Min(3,(int)p);float t=p-edge;Vector3 start=edge==0?a-side:edge==1?b-side:edge==2?b+side:a+side;Vector3 end=edge==0?b-side:edge==1?b+side:edge==2?a+side:a-side;ringPoints[i]=Vector3.Lerp(start,end,t);}
             warning.SetPositions(ringPoints);warning.startColor=warning.endColor=tint;warning.enabled=true;
         }
-        void HideWarnings(){if(warning)warning.enabled=false;if(fill)fill.enabled=false;if(sweep)sweep.enabled=false;}
+        void HideWarnings(){if(warning)warning.enabled=false;if(fill)fill.enabled=false;if(sweep)sweep.enabled=false;foreach(var line in markWarnings)if(line)line.enabled=false;}
         public void CancelAttack()
-        {Skill=DeepFishSkill.None;age=duration=0;cooldown=1.1f;HideWarnings();foreach(var h in hazards)if(h!=null)Release(h);}
-        public void ResetBoss(){CancelAttack();Enraged=false;sequence=waves=AttacksStarted=0;}
+        {Skill=DeepFishSkill.None;age=duration=0;markCount=comboDepth=0;cooldown=.9f;HideWarnings();foreach(var h in hazards)if(h!=null)Release(h);}
+        public void ResetBoss(){CancelAttack();Enraged=Frenzied=false;reactiveCooldown=0;sequence=waves=AttacksStarted=0;}
         void OnDestroy(){if(water)Destroy(water);if(bubble)Destroy(bubble);}
     }
 }

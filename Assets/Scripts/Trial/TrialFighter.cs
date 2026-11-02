@@ -11,16 +11,21 @@ namespace TomorinTrial
         public float Stamina { get; protected set; }
         public float MaxStamina { get; protected set; }
         public float Posture { get; protected set; }
+        public float PostureLimit { get; protected set; } = 100;
         public FighterAction Action { get; protected set; }
         public float ActionTime { get; protected set; }
         public float ActionDuration { get; protected set; }
         public int Combo { get; protected set; }
         public float MoveBlend { get; protected set; }
         public bool Guarding { get; protected set; }
+        float combatFreezeUntil;
+        public bool CombatFrozen=>Time.unscaledTime<combatFreezeUntil;
+        public void HoldCombat(float seconds){combatFreezeUntil=Mathf.Max(combatFreezeUntil,Time.unscaledTime+seconds);}
+        protected void ClearCombatHold(){combatFreezeUntil=0;}
         public bool Alive => Health > 0;
         public float Progress => ActionDuration > 0 ? Mathf.Clamp01(ActionTime / ActionDuration) : 0;
-        public bool AttackActive => (Action == FighterAction.Light || Action == FighterAction.Heavy) && Progress >= .33f && Progress <= .63f;
-        public bool Invulnerable => Action == FighterAction.Dodge && ActionTime >= .025f && ActionTime <= .32f;
+        public bool AttackActive => (Action == FighterAction.Light || Action == FighterAction.Heavy || (this is TrialPlayer && Action==FighterAction.Dodge && Combo==7)) && Progress >= .33f && Progress <= .63f;
+        public bool Invulnerable => Action == FighterAction.Dodge && ActionTime >= .025f && ActionTime <= .32f || this is TrialPlayer && (Action==FighterAction.Light && Combo==9 && Progress<.32f || Action==FighterAction.Heavy && Combo==10 && Progress<.48f);
         public Transform Visual { get; protected set; }
         public Transform Weapon { get; protected set; }
         protected TrialGame game;
@@ -34,7 +39,7 @@ namespace TomorinTrial
 
         public virtual TrialActorState CaptureNetwork(int id) => new TrialActorState
         {
-            id=id,position=transform.position,yaw=transform.eulerAngles.y,health=Health,stamina=Stamina,posture=Posture,
+            id=id,position=transform.position,yaw=transform.eulerAngles.y,health=Health,maxHealth=MaxHealth,stamina=Stamina,maxStamina=MaxStamina,posture=Posture,postureLimit=PostureLimit,
             action=(byte)Action,actionTime=ActionTime,duration=ActionDuration,combo=(byte)Combo,movement=MoveBlend,guard=Guarding
         };
         public virtual void ApplyNetwork(TrialActorState state,float dt)
@@ -44,12 +49,14 @@ namespace TomorinTrial
             float t=(transform.position-state.position).sqrMagnitude>16?1:1-Mathf.Exp(-22*dt);
             transform.position=Vector3.Lerp(transform.position,state.position,t);
             transform.rotation=Quaternion.Slerp(transform.rotation,Quaternion.Euler(0,state.yaw,0),t);
-            Health=state.health;Stamina=state.stamina;Posture=state.posture;
+            Health=state.health;if(state.maxHealth>0)MaxHealth=state.maxHealth;if(state.postureLimit>0)PostureLimit=state.postureLimit;Stamina=state.stamina;Posture=state.posture;
+            if(state.maxStamina>0)MaxStamina=state.maxStamina;
             Action=(FighterAction)state.action;ActionTime=state.actionTime;ActionDuration=state.duration;
-            Combo=state.combo;MoveBlend=state.movement;Guarding=state.guard;
+            Combo=state.combo;MoveBlend=Health>0?state.movement:0;Guarding=Health>0 && state.guard;
             if(trail)trail.emitting=AttackActive;
             if(game && game.Effects)
             {
+                if(Health<previousHealth)HoldCombat(Alive?.04f:.09f);
                 if(Health<previousHealth){game.Effects.Burst(transform.position+Vector3.up,new Color(1,.65f,.23f),18);game.Effects.Sound(Alive?"hit":"death",transform.position);}
                 if((Action==FighterAction.Light||Action==FighterAction.Heavy)&&(Action!=previousAction||Combo!=previousCombo))game.Effects.Sound("swing",transform.position);
             }
@@ -121,8 +128,8 @@ namespace TomorinTrial
             hitFlash = .16f;
             game.Effects.Burst(transform.position + Vector3.up * 1.05f, new Color(1,.65f,.23f), 18);
             game.Effects.Sound(Health <= 0 ? "death" : "hit", transform.position);
-            game.CameraRig.Kick(.13f);
-            if (Health <= 0) { Begin(FighterAction.Dead, 1.4f); motor.enabled = false; }
+            if(!TrialNetworkManager.SessionActive || this==game.Player || attacker==game.Player)game.CameraRig.Kick(.13f);
+            if (Health <= 0) { MoveBlend=0;Begin(FighterAction.Dead, 1.4f); motor.enabled = false; }
         }
     }
 }

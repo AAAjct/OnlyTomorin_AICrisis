@@ -3,11 +3,20 @@ using UnityEngine;
 
 namespace TomorinTrial
 {
-    public sealed class TrialPlayer : TrialFighter
+    public sealed partial class TrialPlayer : TrialFighter
     {
+        public const float BaseStamina=180;
         public int Flasks { get; private set; } = 3;
         public TrialEnemy Target { get; private set; }
-        public bool Locked => Target != null && Target.Alive;
+        public TrialPlayer DuelTarget { get; private set; }
+        public TrialFighter LockTarget => game.IsArena?(TrialFighter)DuelTarget:Target;
+        public bool Locked => LockTarget && LockTarget.Alive;
+        public int Kills { get; private set; }
+        public int Deaths { get; private set; }
+        float protectedUntil;
+        public bool SpawnProtected => Time.time<protectedUntil;
+        public void GrantSpawnProtection(){protectedUntil=Time.time+2;}
+        public void ResetScore(){Kills=Deaths=0;}
         public float GuardAge { get; private set; }
         public int SuccessfulDodges { get; private set; }
         public int SuccessfulParries { get; private set; }
@@ -15,20 +24,30 @@ namespace TomorinTrial
         public Vector2 LocalMotion { get; private set; }
         public bool Sprinting { get; private set; }
         public float TurnLean { get; private set; }
-        readonly HashSet<TrialEnemy> struck = new HashSet<TrialEnemy>();
+        readonly HashSet<TrialFighter> struck = new HashSet<TrialFighter>();
         float bufferedLight = -10, bufferedDodge = -10, bufferedHeavy = -10;
-        const float InputBuffer = .28f;
+        const float InputBuffer = .36f;
+        int chainCount;
+        float chainUntil;
         bool healingApplied;
         bool sprintExhausted;
         float hurtUntil;
         Vector3 dodgeDirection;
+        public Vector3 DodgeDirection=>dodgeDirection;
+        float blinkReadyUntil,nextGhostAt,nextReversalAt;
+        bool perfectDodgeAwarded;
+        Vector3 blinkDirection;
+        TrialFighter blinkTarget;
+        TrialEnemy reversalTarget;
+        public SkinnedMeshRenderer[] GhostSkins {get;private set;}
 
         public void Initialize(TrialGame owner, GameObject model)
         {
-            Configure(owner,160,120,.28f,1.72f);
+            Configure(owner,160,BaseStamina,.28f,1.72f);
             name = "Tomorin · 剑行者";
             Visual = Instantiate(model,transform).transform;
             Visual.name = "Tomorin";
+            GhostSkins=Visual.GetComponentsInChildren<SkinnedMeshRenderer>();
             foreach (var a in Visual.GetComponentsInChildren<Animator>()) a.enabled = false;
             foreach (var c in Visual.GetComponentsInChildren<Collider>()) Destroy(c);
             var meshes = Visual.GetComponentsInChildren<Renderer>();
@@ -44,16 +63,22 @@ namespace TomorinTrial
             animation.Initialize(this,Visual);
             Weapon = TrialWorld.Sword(animation.RightHand != null ? animation.RightHand : Visual,owner.World.Steel,owner.World.Gold,owner.World.Glow,false);
             animation.SetWeapon(Weapon);
+            var flask=new GameObject("灵露 · 手持药瓶").transform;flask.SetParent(transform,false);
+            TrialWorld.Part("Jade bottle",PrimitiveType.Sphere,flask,Vector3.zero,new Vector3(.12f,.17f,.12f),owner.World.Water);
+            TrialWorld.Part("Brass neck",PrimitiveType.Cylinder,flask,new Vector3(0,.10f,0),new Vector3(.06f,.035f,.06f),owner.World.Gold);
+            TrialWorld.Part("Spirit dew",PrimitiveType.Sphere,flask,new Vector3(0,-.025f,.01f),new Vector3(.10f,.10f,.10f),owner.World.Glow);
+            animation.SetFlask(flask);flask.gameObject.SetActive(false);
             animation.Pose(FighterAction.Free,0,0,0,false,0);
             trail = Weapon.GetComponentInChildren<TrailRenderer>();
         }
 
         public void Tick(float dt, TrialInput input)
         {
-            if (!Alive) return;
+            if (!Alive || ChoosingBoon || CombatFrozen) return;
             TickBase(dt);
             if (input.Lock) ToggleLock();
             if (Target && (!Target.Alive || Vector3.Distance(Target.transform.position,transform.position)>21)) Target=null;
+            if (DuelTarget && (!DuelTarget.Alive || Vector3.Distance(DuelTarget.transform.position,transform.position)>21)) DuelTarget=null;
             if (input.Attack) bufferedLight=Time.time;
             if (input.Dodge) bufferedDodge=Time.time;
             if (input.Heavy) bufferedHeavy=Time.time;
@@ -64,24 +89,43 @@ namespace TomorinTrial
                 if (Action == FighterAction.Dodge) Move(dodgeDirection * Mathf.Lerp(11.8f,3.2f,Progress),dt);
                 if (Action == FighterAction.Light || Action == FighterAction.Heavy)
                 {
-                    if (Progress < .28f) Turn(Locked?Target.transform.position-transform.position:MoveDirection(input),900,dt);
-                    if (Progress > .22f && Progress < .55f) Move(transform.forward * (Action==FighterAction.Heavy?3.4f:2.6f),dt);
+                    if (Progress < .28f) Turn(Locked?LockTarget.transform.position-transform.position:MoveDirection(input),900,dt);
+                    if(Combo==9 && Progress>.10f && Progress<.33f)
+                    {float step=18*dt;if(blinkTarget)step=Mathf.Min(step,Mathf.Max(0,Vector3.ProjectOnPlane(blinkTarget.transform.position-transform.position,Vector3.up).magnitude-1.1f));Move(blinkDirection*(step/Mathf.Max(.001f,dt)),dt);}
+                    else if(Combo==10 && reversalTarget && Progress>.12f && Progress<.36f && (reversalTarget.transform.position-transform.position).sqrMagnitude>3.2f)Move(transform.forward*11,dt);
+                    else if (Progress > .22f && Progress < .55f) Move(transform.forward * (Action==FighterAction.Heavy?3.4f:2.6f),dt);
+                    if((Combo==9 || Combo==10) && Progress<.6f && Time.unscaledTime>=nextGhostAt){game.Effects.Afterimage(this);nextGhostAt=Time.unscaledTime+.045f;}
                     if (AttackActive) HitEnemies();
-                    // Dodge cancels recovery, while the attack's wind-up and contact remain committed.
-                    if (Progress>(Action==FighterAction.Heavy?.66f:.58f) && Time.time-bufferedDodge<InputBuffer && TryDodge(input)) return;
-                    if (Action==FighterAction.Light && Combo<2 && Progress>.76f && Time.time-bufferedLight<.36f && StartAttack(false,Combo+1)) return;
+                    // Preserve contact, then accept defensive cancels and buffered branches.
+                    if (Progress>(Action==FighterAction.Heavy?.58f:.50f) && Time.time-bufferedDodge<InputBuffer && TryDodge(input)) return;
+                    if (Progress>.58f && input.Guard && Stamina>1)
+                    { Begin(FighterAction.Free,0); Guarding=true; GuardAge=0; return; }
+                    if (Action==FighterAction.Light && Progress>.64f)
+                    {
+                        if(Time.time-bufferedHeavy<InputBuffer && StartAttack(true,Combo+1))return;
+                        if(Combo<3 && Time.time-bufferedLight<InputBuffer && StartAttack(false,Combo+1))return;
+                    }
+                }
+                if(Action==FighterAction.Dodge)
+                {
+                    if(Combo==7 && Progress>.32f && Progress<.64f)HitEnemies();
+                    if(Progress>.68f)
+                    {
+                        if(Time.time-bufferedLight<InputBuffer && StartAttack(false,8))return;
+                        if(Time.time-bufferedHeavy<InputBuffer && StartAttack(true,0))return;
+                        if(input.Guard && Stamina>1){Begin(FighterAction.Free,0);Guarding=true;GuardAge=0;return;}
+                    }
                 }
                 if (Action == FighterAction.Heal && !healingApplied && Progress>.63f)
                 {
-                    healingApplied=true; Flasks--; Health=Mathf.Min(MaxHealth,Health+85);
+                    healingApplied=true; Flasks--; Health=Mathf.Min(MaxHealth,Health+85+(Boon==TrialBoon.SpiritDew?12:0));
                     game.Effects.Burst(transform.position+Vector3.up,new Color(.35f,1,.74f),30);
                     game.Effects.Sound("heal",transform.position);
                 }
                 if (ActionTime >= ActionDuration || (Action==FighterAction.Dodge && Progress>.84f && input.Move.sqrMagnitude>.01f))
                 {
-                    bool combo = Action == FighterAction.Light && Combo<2 && Time.time-bufferedLight<.35f;
+                    if(Action==FighterAction.Light){chainCount=Combo<3?Combo+1:0;chainUntil=Time.time+.30f;}
                     Begin(FighterAction.Free,0);
-                    if (combo) { StartAttack(false,Combo+1); bufferedLight=-10; }
                 }
                 MoveBlend=Mathf.MoveTowards(MoveBlend,0,dt*5);
                 LocalMotion=Vector2.Lerp(LocalMotion,Vector2.zero,1-Mathf.Exp(-18*dt));
@@ -91,8 +135,8 @@ namespace TomorinTrial
             Guarding=input.Guard && Stamina>1;
             GuardAge=Guarding ? (wasGuarding?GuardAge+dt:0) : 100;
             if(Time.time-bufferedDodge<InputBuffer && TryDodge(input)) return;
-            if(Time.time-bufferedHeavy<InputBuffer && StartAttack(true,0)) return;
-            if(Time.time-bufferedLight<InputBuffer && StartAttack(false,0)) return;
+            if(Time.time-bufferedHeavy<InputBuffer && StartAttack(true,Time.time<chainUntil?chainCount:0)) return;
+            if(Time.time-bufferedLight<InputBuffer && StartAttack(false,Time.time<chainUntil?chainCount:0)) return;
             if(input.Heal && Flasks>0 && Health<MaxHealth && !Guarding)
             { healingApplied=false; Begin(FighterAction.Heal,1.25f);return; }
             var direction=MoveDirection(input);
@@ -105,7 +149,7 @@ namespace TomorinTrial
             float acceleration=direction.sqrMagnitude<.01f?58:Vector3.Dot(PlanarVelocity,direction)<0?72:46;
             PlanarVelocity=Vector3.MoveTowards(PlanarVelocity,desired,acceleration*dt);
             float oldYaw=transform.eulerAngles.y;
-            if(Locked) Turn(Target.transform.position-transform.position,960,dt);
+            if(Locked) Turn(LockTarget.transform.position-transform.position,960,dt);
             else Turn(direction,1080,dt);
             TurnLean=Mathf.Lerp(TurnLean,Mathf.Clamp(Mathf.DeltaAngle(oldYaw,transform.eulerAngles.y)/Mathf.Max(dt,.001f)/360,-1,1),1-Mathf.Exp(-12*dt));
             var before=transform.position;
@@ -126,98 +170,158 @@ namespace TomorinTrial
         bool StartAttack(bool heavy,int combo)
         {
             if(!Spend(heavy?35:19)) return false;
+            protectedUntil=0;
             bufferedLight=bufferedHeavy=-10;PlanarVelocity=Vector3.zero;
-            Combo=combo;struck.Clear();
+            Combo=heavy && combo>0 && combo<4?combo+3:combo;
+            if(!heavy && Time.time<blinkReadyUntil){Combo=9;blinkReadyUntil=0;}
+            chainCount=0;chainUntil=0;struck.Clear();
             if(!Locked)
             {
-                var nearest=game.NearestEnemy(transform.position,4.5f);
+                var nearest=game.NearestOpponent(this,4.5f);
                 if(nearest && Vector3.Angle(transform.forward,nearest.transform.position-transform.position)<65)
                     transform.rotation=Quaternion.LookRotation(Vector3.ProjectOnPlane(nearest.transform.position-transform.position,Vector3.up));
             }
-            Begin(heavy?FighterAction.Heavy:FighterAction.Light,heavy?.88f:combo==2?.64f:.52f);
+            if(Combo==9)
+            {
+                var target=Locked?LockTarget:game.NearestOpponent(this,8);
+                blinkTarget=target;
+                blinkDirection=target?Vector3.ProjectOnPlane(target.transform.position-transform.position,Vector3.up).normalized:transform.forward;
+                Turn(blinkDirection,36000,.02f);game.Effects.Afterimage(this);EmitCombat(TrialCombatCue.BlinkSlash,transform.position+Vector3.up);
+            }
+            Begin(heavy?FighterAction.Heavy:FighterAction.Light,Combo==9?.64f:heavy?(Combo>=4?.76f:.84f):combo==3?.66f:combo==8?.48f:.50f);
             game.Effects.Sound("swing",transform.position,heavy?.72f:1+combo*.12f);
             return true;
         }
 
         bool TryDodge(TrialInput input)
         {
-            if(!Spend(25)) return false;
+            if(!Spend(DodgeCost)) return false;
             Vector3 forward=input.NetworkDirected?Quaternion.Euler(0,input.NetworkYaw,0)*Vector3.forward:Vector3.ProjectOnPlane(game.CameraRig.transform.forward,Vector3.up).normalized;
             dodgeDirection=(forward*input.Move.y+Vector3.Cross(Vector3.up,forward)*input.Move.x).normalized;
-            if(dodgeDirection.sqrMagnitude<.1f) dodgeDirection=-transform.forward;
+            if(dodgeDirection.sqrMagnitude<.1f) dodgeDirection=-forward.normalized;
             else if(!Locked) Turn(dodgeDirection,36000,.02f);
-            bufferedDodge=-10;PlanarVelocity=Vector3.zero;Begin(FighterAction.Dodge,.46f);
+            bool derivative=Action==FighterAction.Light && Combo>=1 && Combo<=3;
+            chainCount=0;chainUntil=0;struck.Clear();Combo=derivative?7:0;
+            perfectDodgeAwarded=false;
+            bufferedDodge=bufferedLight=bufferedHeavy=-10;PlanarVelocity=Vector3.zero;Begin(FighterAction.Dodge,.44f);
+            if(derivative && this==game.Player)game.Hud.Notify("回风斩 · 闪避衍生",.8f);
             game.Effects.Sound("dodge",transform.position);
             return true;
         }
 
         void HitEnemies()
         {
-            float reach=Action==FighterAction.Heavy?3.0f:2.65f;
-            foreach(var enemy in game.Enemies)
+            float reach=Combo==5?3.7f:Action==FighterAction.Heavy?3.2f:2.75f;
+            foreach(var enemy in game.Opponents(this))
             {
                 if(!enemy.Alive || struck.Contains(enemy)) continue;
                 var delta=enemy.transform.position-transform.position;delta.y=0;
-                if(delta.magnitude>reach+enemy.BodyRadius || Vector3.Angle(transform.forward,delta)>78) continue;
+                float radius=enemy is TrialEnemy foe?foe.BodyRadius:.28f;
+                if(delta.magnitude>reach+radius || Vector3.Angle(transform.forward,delta)>(Combo==7?150:Combo==5?42:85)) continue;
                 if(Physics.Linecast(transform.position+Vector3.up,enemy.transform.position+Vector3.up,1,QueryTriggerInteraction.Ignore)) continue;
                 struck.Add(enemy);
-                float multiplier=Action==FighterAction.Heavy?1.9f:Combo==2?1.4f:1;
-                enemy.ReceiveHit(this,28*multiplier,Action==FighterAction.Heavy?48:21);
-                game.CameraRig.Kick(.22f);
-                game.Effects.HitStop(.045f);
+                float multiplier=Combo==9?1.5f:Combo==10?2.1f:Action==FighterAction.Heavy?(Combo>=4?2.25f:1.9f):Combo==7?1.15f:Combo==3?1.65f:Combo==2?1.3f:1;
+                if(enemy.ReceiveHit(this,28*multiplier*(Boon==TrialBoon.Edge?1.12f:1),(Action==FighterAction.Heavy?48:21)*(Boon==TrialBoon.Breaker?1.15f:1)))
+                {
+                    bool heavy=Action==FighterAction.Heavy || Combo==9;
+                    HoldCombat(heavy?.055f:.035f);enemy.HoldCombat(!enemy.Alive?.09f:heavy?.06f:.04f);
+                    EmitCombat(!enemy.Alive?TrialCombatCue.Kill:heavy?TrialCombatCue.HeavyHit:TrialCombatCue.Hit,enemy.transform.position+Vector3.up);
+                }
             }
         }
 
         public void ToggleLock()
         {
-            Target=Locked?null:game.NearestEnemy(transform.position,18);
+            if(game.IsArena)DuelTarget=Locked?null:game.NearestOpponent(this,18) as TrialPlayer;
+            else Target=Locked?null:game.NearestEnemy(transform.position,18);
         }
 
         public override bool ReceiveHit(TrialFighter attacker,float damage,float postureDamage,bool unblockable=false)
         {
             if(!Alive) return false;
-            if(Invulnerable) {SuccessfulDodges++;return false;}
+            if(ChoosingBoon)return false;
+            if(attacker is TrialPlayer player && (!game.IsArena || player==this))return false;
+            if(game.IsArena && SpawnProtected && attacker!=null)return false;
+            if(attacker is TrialEnemy enemySource)damage*=game.EnemyDamageScale*(enemySource.Boss && enemySource.Boss.Boon==TrialBossBoon.RagingTide?1.08f:1);
+            if(Invulnerable)
+            {
+                SuccessfulDodges++;
+                if(Action==FighterAction.Dodge && !perfectDodgeAwarded && ActionTime<=.24f)
+                {perfectDodgeAwarded=true;blinkReadyUntil=Time.time+3;EmitCombat(TrialCombatCue.PerfectDodge,transform.position+Vector3.up);}
+                return false;
+            }
             if(Time.time<hurtUntil)return false;
             bool frontal=attacker==null || Vector3.Angle(transform.forward,attacker.transform.position-transform.position)<85;
-            if(Guarding && frontal && !unblockable)
+            bool deflectable=attacker is TrialEnemy bossSource && bossSource.Boss && bossSource.Boss.CanBeDeflected;
+            if(Guarding && frontal && (!unblockable || deflectable && GuardAge<.20f))
             {
                 if(GuardAge<.20f && Spend(8))
                 {
                     SuccessfulParries++;
                     if(attacker is TrialEnemy enemy) enemy.Parried();
-                    game.Effects.Burst(transform.position+transform.forward+Vector3.up,new Color(1,.86f,.38f),45);
-                    game.Effects.Sound("parry",transform.position);game.CameraRig.Kick(.45f);game.Effects.HitStop(.095f);
-                    game.Hud.Notify("弹反",.6f);return false;
+                    else if(attacker is TrialPlayer rival)rival.ReceiveParry();
+                    HoldCombat(.085f);attacker?.HoldCombat(.10f);CombatFeedback(TrialCombatCue.Parry);
+                    if(deflectable && Time.time>=nextReversalAt)BeginReversal((TrialEnemy)attacker);
+                    return false;
                 }
                 if(Spend(30))
                 {
-                    Health=Mathf.Max(1,Health-damage*.12f);game.Effects.Sound("parry",transform.position,.65f);
-                    game.Effects.Burst(transform.position+Vector3.up,new Color(1,.8f,.5f),12);return false;
+                    Health=Mathf.Max(1,Health-damage*.12f);HoldCombat(.03f);CombatFeedback(TrialCombatCue.Block);return false;
                 }
-                Stamina=0;game.Hud.Notify("架势崩溃",1.2f);
+                Stamina=0;CombatFeedback(TrialCombatCue.GuardBreak);
             }
             Impact(attacker,damage);
+            HoldCombat(.045f);
             hurtUntil=Time.time+.42f;
             PlanarVelocity=Vector3.zero;
             if(Alive) {Begin(FighterAction.Stagger,.42f);recoveryDelay=1;}
-            else game.OnPlayerDied();
+            else
+            {
+                Deaths++;if(game.IsArena && attacker is TrialPlayer killer && killer!=this)killer.Kills++;
+                CombatFeedback(TrialCombatCue.Death);
+            }
             return true;
+        }
+
+        void ReceiveParry(){Begin(FighterAction.Stagger,.8f);PlanarVelocity=Vector3.zero;recoveryDelay=1;}
+        void BeginReversal(TrialEnemy target)
+        {
+            reversalTarget=target;nextReversalAt=Time.time+3;Combo=10;struck.Clear();Guarding=false;chainCount=0;
+            bufferedLight=bufferedHeavy=bufferedDodge=-10;Turn(target.transform.position-transform.position,36000,.02f);
+            Begin(FighterAction.Heavy,.82f);EmitCombat(TrialCombatCue.Reversal,transform.position+Vector3.up);
+        }
+        void EmitCombat(TrialCombatCue cue,Vector3 point)
+        {
+            if(Mirror.NetworkServer.active)TrialNetworkManager.Current.BroadcastCombat(this,cue,point);
+            else game.Effects.PlayCombat(new TrialCombatEvent{cue=cue,position=point,forward=transform.forward,player=0},this==game.Player);
+        }
+
+        void CombatFeedback(TrialCombatCue cue)
+        {
+            if(Mirror.NetworkServer.active)TrialNetworkManager.Current.BroadcastCombat(this,cue);
+            else game.Effects.PlayCombat(new TrialCombatEvent{cue=cue,position=transform.position,forward=transform.forward},this==game.Player);
         }
 
         public void Restore(Vector3 checkpoint)
         {
+            ClearCombatHold();
             motor.enabled=true;Teleport(checkpoint);Health=MaxHealth;Stamina=MaxStamina;Flasks=3;
             hitFlash=0;foreach(var r in renderers)if(r)r.SetPropertyBlock(null);if(trail){trail.Clear();trail.emitting=false;}
-            Posture=0;Target=null;bufferedLight=bufferedDodge=bufferedHeavy=-10;GuardAge=100;
+            Posture=0;Target=null;DuelTarget=null;protectedUntil=0;chainCount=0;chainUntil=0;bufferedLight=bufferedDodge=bufferedHeavy=-10;GuardAge=100;
+            blinkReadyUntil=0;reversalTarget=null;nextReversalAt=0;
             PlanarVelocity=Vector3.zero;LocalMotion=Vector2.zero;MoveBlend=0;Sprinting=false;sprintExhausted=false;TurnLean=0;hurtUntil=0;Begin(FighterAction.Free,0);
             transform.rotation=Quaternion.identity;
         }
 
         public override TrialActorState CaptureNetwork(int id)
-        {var state=base.CaptureNetwork(id);state.flasks=(byte)Flasks;return state;}
+        {var state=base.CaptureNetwork(id);state.dodgeDirection=dodgeDirection;state.flasks=(byte)Flasks;state.kills=Kills;state.deaths=Deaths;state.protection=Mathf.Max(0,protectedUntil-Time.time);state.boon=Boon;state.offerA=OfferA;state.offerB=OfferB;state.offerC=OfferC;return state;}
         public override void ApplyNetwork(TrialActorState state,float dt)
         {
-            base.ApplyNetwork(state,dt);Flasks=state.flasks;Sprinting=state.movement>1.1f;
+            base.ApplyNetwork(state,dt);Flasks=state.flasks;Sprinting=state.movement>1.1f;Kills=state.kills;Deaths=state.deaths;protectedUntil=Time.time+state.protection;
+            dodgeDirection=state.dodgeDirection;
+            bool wasChoosing=ChoosingBoon;Boon=state.boon;OfferA=state.offerA;OfferB=state.offerB;OfferC=state.offerC;
+            if(wasChoosing && !ChoosingBoon && this==game.Player)game.FinishBoonChoice();
+            if((Combo==9 || Combo==10) && (Action==FighterAction.Light || Action==FighterAction.Heavy) && Progress<.6f && Time.unscaledTime>=nextGhostAt){game.Effects.Afterimage(this);nextGhostAt=Time.unscaledTime+.055f;}
             if(this==game.Player && game.Input.Lock)ToggleLock();
         }
     }

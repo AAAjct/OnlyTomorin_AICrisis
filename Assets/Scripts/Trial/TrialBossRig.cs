@@ -14,11 +14,14 @@ namespace TomorinTrial
         Vector3 origin;
         Quaternion rotation;
         float clock;
+        SkinnedMeshRenderer[] shapes;
+        float potWeight;
         public Transform[] DrivenBones => joints;
 
         public void Initialize(TrialEnemy owner,TrialBoss controller,Transform visual)
         {
             fighter=owner;brain=controller;model=visual;origin=model.localPosition;rotation=model.localRotation;
+            shapes=visual.GetComponentsInChildren<SkinnedMeshRenderer>();
             var all=model.GetComponentsInChildren<Transform>();
             spine=Find(all,"spine");chest=Find(all,"chest");head=Find(all,"head");
             leftArm=Find(all,"upper_arm.L");rightArm=Find(all,"upper_arm.R");
@@ -44,15 +47,35 @@ namespace TomorinTrial
 
         void LateUpdate()
         {
-            if(!fighter || Time.deltaTime<=0 && fighter.Alive)return;
-            clock+=fighter.Alive?Time.deltaTime:Time.unscaledDeltaTime;
+            if(!fighter || fighter.CombatFrozen || Time.deltaTime<=0)return;
+            clock+=Time.deltaTime;
             Pose(brain.Skill,brain.SkillProgress,fighter.MoveBlend,clock,brain.Enraged,!fighter.Alive,fighter.Progress,fighter.Vulnerable);
         }
 
         public void Pose(DeepFishSkill skill,float p,float movement,float time,bool enraged,bool dead=false,float death=0,bool stagger=false)
         {
+            potWeight=Mathf.MoveTowards(potWeight,enraged?100:0,Time.unscaledDeltaTime*160);
+            foreach(var skin in shapes)for(int i=0;i<skin.sharedMesh.blendShapeCount;i++)
+            {
+                string shape=skin.sharedMesh.GetBlendShapeName(i);
+                if(shape=="TiePen")skin.SetBlendShapeWeight(i,potWeight);
+                else if(shape=="angry")skin.SetBlendShapeWeight(i,enraged?65:skill!=DeepFishSkill.None?25:0);
+                else if(shape=="blink")skin.SetBlendShapeWeight(i,Mathf.Pow(Mathf.Max(0,Mathf.Sin(time*1.55f)),24)*100);
+                else if(shape=="oh")skin.SetBlendShapeWeight(i,skill==DeepFishSkill.Enrage?70:0);
+            }
+            float turn=0;
+            if(skill==DeepFishSkill.ReverseTail)
+            {
+                turn=p<.43f?0:p<.66f?Mathf.SmoothStep(0,180,Mathf.InverseLerp(.43f,.63f,p)):p<.84f?180:Mathf.SmoothStep(180,0,Mathf.InverseLerp(.84f,1,p));
+                skill=DeepFishSkill.TailSweep;
+                p=p<.30f?p/.30f*.34f:p<.43f?.34f+(p-.30f)/.13f*.29f:p<.50f?.63f+(p-.43f)/.07f*.37f:p<.66f?(p-.50f)/.16f*.34f:p<.80f?.34f+(p-.66f)/.14f*.29f:.63f+(p-.80f)/.20f*.37f;
+            }
+            else if(skill==DeepFishSkill.RiptideRush){skill=DeepFishSkill.TidalCharge;p=p<.46f?p/.46f:(p-.46f)/.54f;}
+            else if(skill==DeepFishSkill.DelayedSlam){skill=DeepFishSkill.BellySlam;p=p<.42f?p/.42f*.24f:p<.72f?.24f+(p-.42f):.54f+(p-.72f)/.28f*.46f;}
+            else if(skill==DeepFishSkill.AbyssRain)skill=DeepFishSkill.Maelstrom;
             for(int i=0;i<joints.Length;i++)joints[i].localRotation=bind[i];
-            model.localPosition=origin;model.localRotation=rotation;
+            // FBX bind rotation tilts its local Y axis; yaw in actor space keeps the turn upright.
+            model.localPosition=origin;model.localRotation=Quaternion.AngleAxis(turn,Vector3.up)*rotation;
             float gait=Mathf.Sin(time*7.6f),sway=Mathf.Sin(time*2.2f);
             float lean=5,twist=sway*3,arms=68,lift=.035f+.025f*sway,tail=0;
             Rotate(leftLeg,transform.right,gait*24*movement);Rotate(rightLeg,transform.right,-gait*24*movement);

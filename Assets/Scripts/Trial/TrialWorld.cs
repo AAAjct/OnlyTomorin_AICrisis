@@ -11,6 +11,7 @@ namespace TomorinTrial
         public Material Stone,DarkStone,DarkWood,Crimson,Gold,Steel,Armor,Glow,RedGlow,Leaf,Water;
         public Transform Root { get; private set; }
         public GameObject Gate { get; private set; }
+        public GameObject ArenaEntrance { get; private set; }
         public Vector3 ShrinePosition => new Vector3(-5.7f,0,-18);
         readonly List<Object> owned=new List<Object>();
         readonly System.Random random=new System.Random(316);
@@ -82,6 +83,21 @@ namespace TomorinTrial
             Gate.GetComponent<Renderer>().enabled=false;
             for(int i=-7;i<=7;i++)
             {var bar=Part("Seal threads",PrimitiveType.Cube,Gate.transform,new Vector3(i*.065f,0,0),new Vector3(.006f,1,1),i%2==0?RedGlow:Gold);}
+            for(int side=-1;side<=1;side+=2)Fence("庭门侧栏",new Vector3(side*8.7f,1.45f,16),9.9f,0);
+            for(int i=0;i<64;i++)
+            {
+                float angle=i*360f/64;if(angle>160 && angle<200)continue;
+                float radians=angle*Mathf.Deg2Rad;
+                Fence("斗场环栏",new Vector3(Mathf.Sin(radians)*9.7f,1.45f,25+Mathf.Cos(radians)*9.7f),1.02f,angle);
+            }
+            ArenaEntrance=new GameObject("斗场封门");ArenaEntrance.transform.SetParent(Root,false);
+            for(int i=29;i<=35;i++)
+            {
+                float angle=i*360f/64,radians=angle*Mathf.Deg2Rad;
+                var section=Fence("封门环栏",new Vector3(Mathf.Sin(radians)*9.7f,1.45f,25+Mathf.Cos(radians)*9.7f),1.02f,angle);
+                section.SetParent(ArenaEntrance.transform,true);
+            }
+            ArenaEntrance.SetActive(false);
             Shrine();
             for(int i=0;i<26;i++)
             {
@@ -92,6 +108,17 @@ namespace TomorinTrial
             Part("Moon",PrimitiveType.Sphere,Root,new Vector3(-35,42,100),Vector3.one*11,Material("Cold moon",new Color(.38f,.62f,.68f),0,0,false,new Color(.55f,.85f,.92f)));
             // Lantern light and scene fog provide distance without an expensive volumetric renderer.
             BatchStaticGeometry();
+        }
+
+        Transform Fence(string label,Vector3 point,float length,float yaw)
+        {
+            var fence=Box(label,point,new Vector3(length,2.9f,.28f),DarkWood);
+            fence.GetComponent<Renderer>().enabled=false;fence.localRotation=Quaternion.Euler(0,yaw,0);
+            Part("下横梁",PrimitiveType.Cube,fence,new Vector3(0,-.34f,0),new Vector3(1,.055f,1.35f),Gold);
+            Part("上横梁",PrimitiveType.Cube,fence,new Vector3(0,.37f,0),new Vector3(1,.06f,1.35f),Gold);
+            int count=Mathf.Max(2,Mathf.CeilToInt(length/.42f));
+            for(int j=0;j<=count;j++)Part("栏杆",PrimitiveType.Cube,fence,new Vector3((float)j/count-.5f,0,0),new Vector3(.09f/length,1,1),Crimson);
+            return fence;
         }
 
         Material Material(string label,Color color,float metallic,float smooth,bool texture=false,Color? emission=null)
@@ -238,7 +265,7 @@ namespace TomorinTrial
             var originals=new List<MeshRenderer>();
             foreach(var renderer in Root.GetComponentsInChildren<MeshRenderer>())
             {
-                if(renderer.transform.IsChildOf(Gate.transform) || !renderer.enabled)continue;
+                if(renderer.transform.IsChildOf(Gate.transform) || renderer.transform.IsChildOf(ArenaEntrance.transform) || !renderer.enabled)continue;
                 var filter=renderer.GetComponent<MeshFilter>();if(!filter || !filter.sharedMesh)continue;
                 if(!groups.TryGetValue(renderer.sharedMaterial,out var list)){list=new List<CombineInstance>();groups.Add(renderer.sharedMaterial,list);}
                 list.Add(new CombineInstance{mesh=filter.sharedMesh,transform=Root.worldToLocalMatrix*renderer.transform.localToWorldMatrix});originals.Add(renderer);

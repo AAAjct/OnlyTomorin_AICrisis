@@ -150,6 +150,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TomorinTrial.TrialGame
   tomorinModel: {fileID: 919132149155446097, guid: cd2d9c289a7c05e47aac505d8771c9ca, type: 3}
   deepSeekModel: {fileID: 919132149155446097, guid: cad3890874a9e2b4a983071c3586ca44, type: 3}
+  naiWaModel: {fileID: 919132149155446097, guid: 77da4672745a80e4f8d3ef1764332106, type: 3}
+  uiFont: {fileID: 12800000, guid: 27e8bd9969f19e4438ae32beeb85404a, type: 3}
   inputActions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   surfaceShader: {fileID: 4800000, guid: 933532a4fcc9baf4fa0491de14d08ed7, type: 3}
   skyShader: {fileID: 4800000, guid: 9293b8a182a6e8246b53fec6170fe81f, type: 3}

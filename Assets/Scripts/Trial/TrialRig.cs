@@ -9,6 +9,7 @@ namespace TomorinTrial
     {
         public Transform RightHand { get; private set; }
         TrialFighter fighter;
+        Transform flask;
         Transform model, spine, head, leftLeg, rightLeg, leftFoot, rightFoot;
         Transform rightArm,rightElbow,leftArm,leftElbow,leftHand,weapon;
         Transform[] bones;
@@ -38,9 +39,10 @@ namespace TomorinTrial
             return null;
         }
         public void SetWeapon(Transform sword) {weapon=sword;}
+        public void SetFlask(Transform value){flask=value;}
         void LateUpdate()
         {
-            if(fighter==null) return;
+            if(fighter==null || fighter.CombatFrozen) return;
             if(Time.deltaTime<=0 && fighter.Action!=FighterAction.Dead)return;
             phase+=Time.deltaTime*Mathf.Lerp(8.8f,12.8f,Mathf.InverseLerp(.5f,1.6f,fighter.MoveBlend))*Mathf.Clamp01(fighter.MoveBlend*2);
             deathPoseTime=fighter.Action==FighterAction.Dead?deathPoseTime+Time.unscaledDeltaTime:0;
@@ -49,6 +51,7 @@ namespace TomorinTrial
             float blend=1-Mathf.Exp(-28*Time.deltaTime);
             if(fighter.Action!=FighterAction.Dodge && fighter.Action!=FighterAction.Dead)
                 for(int i=0;i<bones.Length;i++)bones[i].localRotation=Quaternion.Slerp(previousRotations[i],bones[i].localRotation,blend);
+            if(flask && leftHand)flask.position=leftHand.position;
         }
 
         public void Pose(FighterAction action,float p,int combo,float movement,bool guard,float walkPhase)
@@ -75,29 +78,65 @@ namespace TomorinTrial
             if(action==FighterAction.Light || action==FighterAction.Heavy)
             {
                 bool heavy=action==FighterAction.Heavy;
-                float swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.23f,.60f,p));
-                float recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.67f,1,p));
-                float side=combo==1?-1:1;
-                Vector3 windup=heavy?new Vector3(.15f,1.22f,.02f):new Vector3(.40f*side,1.02f,.12f);
-                Vector3 finish=heavy?new Vector3(.12f,.58f,.43f):new Vector3(-.32f*side,.74f,.36f);
+                float swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.20f,.58f,p));
+                float recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.69f,1,p));
+                Vector3 windup,finish;
+                Vector3 startAngles,endAngles;
+                switch(combo)
+                {
+                    case 1: // Reverse cut across the shoulders.
+                        windup=new Vector3(-.42f,1.18f,.06f);finish=new Vector3(.48f,.72f,.45f);
+                        startAngles=new Vector3(10,-85,65);endAngles=new Vector3(105,85,-60);break;
+                    case 2: // Low rising diagonal.
+                    case 4:
+                        windup=new Vector3(.40f,.43f,.08f);finish=new Vector3(-.27f,1.35f,.45f);
+                        startAngles=new Vector3(145,60,-45);endAngles=new Vector3(-65,-60,35);break;
+                    case 5: // Lunging thrust after two light attacks.
+                    case 8:
+                        windup=new Vector3(.26f,.94f,-.08f);finish=new Vector3(.05f,1.02f,.78f);
+                        startAngles=new Vector3(76,0,0);endAngles=new Vector3(90,0,0);break;
+                    case 3:
+                    case 6: // Full-body overhead finisher.
+                        windup=new Vector3(.14f,1.50f,-.08f);finish=new Vector3(.12f,.42f,.58f);
+                        startAngles=new Vector3(-60,0,-12);endAngles=new Vector3(155,0,12);break;
+                    case 9: // Blink step: low draw into a level, full-body horizontal cut.
+                        windup=new Vector3(-.38f,.75f,-.12f);finish=new Vector3(.56f,.95f,.56f);
+                        startAngles=new Vector3(90,-105,8);endAngles=new Vector3(90,110,-8);break;
+                    case 10: // Countercut travels from the deflect into a rising reverse cut.
+                        windup=new Vector3(-.45f,.45f,.08f);finish=new Vector3(.28f,1.44f,.48f);
+                        startAngles=new Vector3(140,-85,35);endAngles=new Vector3(-65,65,-35);break;
+                    default:
+                        windup=heavy?new Vector3(.15f,1.38f,.02f):new Vector3(.50f,1.20f,.06f);
+                        finish=heavy?new Vector3(.12f,.48f,.55f):new Vector3(-.42f,.68f,.48f);
+                        startAngles=heavy?new Vector3(-55,0,-8):new Vector3(0,75,-65);
+                        endAngles=heavy?new Vector3(155,0,8):new Vector3(125,-85,55);break;
+                }
                 hand=Vector3.Lerp(Vector3.Lerp(windup,finish,swing),hand,recover);
-                offhand=Vector3.Lerp(new Vector3(-.18f,.89f,.28f),offhand,recover);
-                twist=Mathf.Lerp(-36*side,48*side,swing)*(1-recover);
-                lean=heavy?Mathf.Lerp(-18,26,swing)*(1-recover):9;
-                swordAngles=heavy?new Vector3(Mathf.Lerp(-48,155,swing),0,-8):new Vector3(Mathf.Lerp(15,113,swing),Mathf.Lerp(65*side,-75*side,swing),Mathf.Lerp(-55*side,50*side,swing));
-                Leg(leftLeg,leftFoot,-12);Leg(rightLeg,rightFoot,19);
+                offhand=Vector3.Lerp(heavy?hand+new Vector3(-.12f,-.10f,-.08f):new Vector3(-.35f,1.02f,-.10f),offhand,recover);
+                float side=combo==1?-1:1;
+                twist=Mathf.Lerp(-42*side,58*side,swing)*(1-recover);
+                lean=Mathf.Lerp(-12,heavy?25:14,swing)*(1-recover);
+                swordAngles=Vector3.Lerp(startAngles,endAngles,swing);
+                model.localPosition+=transform.InverseTransformDirection(transform.forward)*Mathf.Sin(p*Mathf.PI)*.10f;
+                Leg(leftLeg,leftFoot,Mathf.Lerp(-24,15,swing));Leg(rightLeg,rightFoot,Mathf.Lerp(22,-16,swing));
             }
             if(action==FighterAction.Heal)
-            {hand=new Vector3(.14f,1.10f,.20f);offhand=new Vector3(-.22f,.75f,.12f);swordAngles=new Vector3(105,20,-30);lean=-7;}
+            {
+                float drink=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.12f,.42f,p))*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.78f,1,p)));
+                offhand=Vector3.Lerp(new Vector3(-.28f,.65f,.12f),new Vector3(-.10f,1.40f,.28f),drink);
+                hand=new Vector3(.32f,.67f,.14f);swordAngles=new Vector3(15,15,-55);lean=-6*drink;
+            }
             if(action==FighterAction.Stagger) {lean=-24*Mathf.Sin(p*Mathf.PI);twist=12;hand.z=.13f;}
             if(action==FighterAction.Dodge)
             {
-                var roll=Quaternion.Euler(p*360,0,0);
+                var rollAxis=player && player.DodgeDirection.sqrMagnitude>.01f?transform.InverseTransformDirection(Vector3.Cross(Vector3.up,player.DodgeDirection)).normalized:Vector3.right;
+                var roll=combo==7?Quaternion.Euler(0,p*360,0):Quaternion.AngleAxis(p*360,rollAxis);
                 model.localRotation=modelRotation*roll;
                 var pivot=Vector3.up*.65f;
                 model.localPosition=modelOrigin+pivot-roll*pivot+Vector3.up*(Mathf.Sin(p*Mathf.PI)*.12f);
                 hand=new Vector3(.18f,.65f,.22f);offhand=new Vector3(-.18f,.65f,.22f);
-                swordAngles=new Vector3(10,0,-25);
+                swordAngles=combo==7?new Vector3(95,0,-10):new Vector3(10,0,-25);
+                if(combo==7)hand=new Vector3(.38f,.90f,.42f);
             }
             if(action==FighterAction.Dead)
             {
@@ -117,6 +156,12 @@ namespace TomorinTrial
             }
             SolveArm(rightArm,rightElbow,RightHand,basis+orientation*hand,basis+orientation*new Vector3(.75f,.86f,-.1f));
             SolveArm(leftArm,leftElbow,leftHand,basis+orientation*offhand,basis+orientation*new Vector3(-.75f,.80f,-.1f));
+            if(flask)
+            {
+                flask.gameObject.SetActive(action==FighterAction.Heal && p>.06f && p<.94f);
+                flask.position=leftHand?leftHand.position:basis+orientation*offhand;
+                flask.rotation=orientation*Quaternion.Euler(0,0,Mathf.Lerp(0,115,Mathf.InverseLerp(.28f,.60f,p)));
+            }
             if(weapon)
             {
                 weapon.position=RightHand?RightHand.position:basis+orientation*hand;
@@ -134,7 +179,7 @@ namespace TomorinTrial
             if(foot) foot.rotation=Quaternion.AngleAxis(-angle*.45f,axis)*foot.rotation;
         }
 
-        static void SolveArm(Transform upper,Transform lower,Transform hand,Vector3 target,Vector3 hint)
+        internal static void SolveArm(Transform upper,Transform lower,Transform hand,Vector3 target,Vector3 hint)
         {
             if(!upper || !lower || !hand) return;
             float a=Vector3.Distance(upper.position,lower.position),b=Vector3.Distance(lower.position,hand.position);
