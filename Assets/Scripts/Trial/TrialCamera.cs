@@ -8,10 +8,18 @@ namespace TomorinTrial
         TrialPlayer player;
         float yaw,pitch=17,distance=4.6f,shake;
         Vector3 focus;
+        TrialFighter trackedLock;
+        Vector3 lockOffset,lockVelocity;
+        float yawVelocity;
+        bool closeLock;
         Camera view;
         float currentDistance=4.6f, collisionDistance=4.6f;
         float pulse;
         Renderer[] localRenderers;
+        TrialFighter framedOpponent;
+        float frameUntil,frameStrength;
+        public void CombatFrame(TrialFighter opponent,float seconds,float strength)
+        {if(InkMainMenu.ReducedMotion || !opponent)return;framedOpponent=opponent;frameUntil=Time.unscaledTime+Mathf.Min(seconds,.9f);frameStrength=Mathf.Clamp01(strength);}
         public void Pulse(float amount){pulse=Mathf.Max(pulse,amount);}
         public bool Frozen { get; set; }
         public void Initialize(TrialPlayer target)
@@ -30,7 +38,7 @@ namespace TomorinTrial
             if(!Frozen && !player.Locked){yaw+=input.x;pitch=Mathf.Clamp(pitch-input.y,-12,60);}
         }
         public void Snap()
-        {if(!player)return;yaw=player.transform.eulerAngles.y;focus=player.transform.position+Vector3.up;Place(1);}
+        {if(!player)return;trackedLock=null;lockVelocity=Vector3.zero;yawVelocity=0;closeLock=false;yaw=player.transform.eulerAngles.y;focus=player.transform.position+Vector3.up;Place(1);}
         public void Kick(float strength){shake=Mathf.Max(shake,strength);}
         void LateUpdate()
         {
@@ -38,15 +46,42 @@ namespace TomorinTrial
             float dt=Time.deltaTime;
             if(dt<=0)return;
             Vector3 desiredFocus=player.transform.position+Vector3.up*1.05f;
+            if(framedOpponent && Time.unscaledTime<frameUntil)
+            {
+                // Brief framing preserves heading and camera collision; it never takes input away.
+                float cue=Mathf.Sin(Mathf.Clamp01((frameUntil-Time.unscaledTime)/.9f)*Mathf.PI)*frameStrength;
+                Vector3 framedOffset=framedOpponent.transform.position-player.transform.position;
+                framedOffset.y=Mathf.Clamp(framedOffset.y,-.4f,.6f);
+                desiredFocus=Vector3.Lerp(desiredFocus,player.transform.position+framedOffset*.5f+Vector3.up*1.2f,.3f*cue);
+                pulse=Mathf.Max(pulse,cue*4);
+            }
             if(player.Locked)
             {
-                Vector3 delta=player.LockTarget.transform.position-player.transform.position;
-                delta.y=0;
-                // Hold the orbit heading when overlapping; tiny position errors have no stable bearing.
-                if(delta.sqrMagnitude>1.44f)yaw=Mathf.LerpAngle(yaw,Mathf.Atan2(delta.x,delta.z)*Mathf.Rad2Deg,1-Mathf.Exp(-6*dt));
-                pitch=Mathf.Lerp(pitch,17,dt*3);
-                desiredFocus=Vector3.Lerp(desiredFocus,(player.transform.position+player.LockTarget.transform.position)*.5f+Vector3.up,Mathf.Clamp01(1-delta.magnitude/15)*.22f);
+                Vector3 rawOffset=player.LockTarget.transform.position-player.transform.position;
+                // Follow the fight on the ground; an aerial animation must not lift the camera boom.
+                rawOffset.y=Mathf.Clamp(rawOffset.y,-.4f,.6f);
+                if(trackedLock!=player.LockTarget)
+                {trackedLock=player.LockTarget;lockOffset=rawOffset;lockVelocity=Vector3.zero;yawVelocity=0;closeLock=false;}
+                lockOffset=Vector3.SmoothDamp(lockOffset,rawOffset,ref lockVelocity,.16f,45,dt);
+                Vector3 delta=Vector3.ProjectOnPlane(lockOffset,Vector3.up);
+                float rawDistance=Vector3.ProjectOnPlane(rawOffset,Vector3.up).magnitude;
+                // Hysteresis avoids alternating bearings when a dash passes through the player.
+                closeLock=rawDistance<(closeLock?2.6f:1.8f);
+                if(!closeLock && delta.sqrMagnitude>3.24f)
+                {
+                    float bearing=Mathf.Atan2(delta.x,delta.z)*Mathf.Rad2Deg;
+                    if(Mathf.Abs(Mathf.DeltaAngle(yaw,bearing))>.8f)
+                    {
+                        float next=Mathf.SmoothDampAngle(yaw,bearing,ref yawVelocity,.24f,110,dt);
+                        yaw=Mathf.MoveTowardsAngle(yaw,next,110*dt);
+                    }
+                    else yawVelocity=0;
+                }
+                else yawVelocity=0;
+                pitch=Mathf.Lerp(pitch,17,1-Mathf.Exp(-3*dt));
+                desiredFocus+=lockOffset*.11f*Mathf.Clamp01(1-delta.magnitude/15);
             }
+            else {trackedLock=null;lockVelocity=Vector3.zero;yawVelocity=0;closeLock=false;}
             focus=Vector3.Lerp(focus,desiredFocus,1-Mathf.Exp(-12*dt));
             Place(dt);
         }

@@ -6,19 +6,20 @@ using UnityEngine.Rendering.Universal;
 namespace TomorinTrial
 {
     // Original temple kit, terrain, textures and weapons; no downloaded asset dependencies.
-    public sealed class TrialWorld
+    public sealed partial class TrialWorld
     {
         public Material Stone,DarkStone,DarkWood,Crimson,Gold,Steel,Armor,Glow,RedGlow,Leaf,Water;
         public Transform Root { get; private set; }
         public GameObject Gate { get; private set; }
         public GameObject ArenaEntrance { get; private set; }
-        public Vector3 ShrinePosition => new Vector3(-5.7f,0,-18);
+        public Vector3 ShrinePosition => championArena?new Vector3(-19,0,5):new Vector3(-5.7f,0,-18);
+        bool championArena;
         readonly List<Object> owned=new List<Object>();
         readonly System.Random random=new System.Random(316);
         Mesh cragMesh,foliageMesh;
         Shader surfaceShader,skyShader;
 
-        public void Build(Transform parent,Shader surface,Shader skySource)
+        public void Build(Transform parent,Shader surface,Shader skySource,TrialLevel level=TrialLevel.BigFish)
         {
             surfaceShader=surface;skyShader=skySource;
             Root=new GameObject("雾庭 · Temple of the last ember").transform;Root.SetParent(parent,false);
@@ -35,6 +36,7 @@ namespace TomorinTrial
             Water=Material("Still jade",new Color(.035f,.13f,.14f),.55f,.92f);
             cragMesh=CragMesh();foliageMesh=FoliageMesh();owned.Add(cragMesh);owned.Add(foliageMesh);
             Lighting();
+            if(TrialChampionCatalog.IsChampion(level)){championArena=true;BuildChampionArena(level);return;}
             Box("Foundation",new Vector3(0,-.50f,6),new Vector3(29,.8f,66),DarkStone);
             for(int x=-6;x<=6;x++) for(int z=-12;z<=18;z++)
             {

@@ -113,7 +113,7 @@ namespace TomorinTrial
             else if(localPlayer && value.cue==TrialCombatCue.Death)game.OnPlayerDied();
         }
         public void TickTime()
-        {TickImpactEffects();Time.timeScale=game.Mode==TrialMode.Victory?0:TrialNetworkManager.SessionActive?(Time.unscaledTime<slowUntil?.35f:1):game.Mode==TrialMode.Playing?(Time.unscaledTime<stopUntil?.08f:Time.unscaledTime<slowUntil?.30f:1):0;}
+        {TickImpactEffects();Time.timeScale=game.Mode==TrialMode.Victory || game.Mode==TrialMode.Dead?0:TrialNetworkManager.SessionActive?(Time.unscaledTime<slowUntil?.35f:1):game.Mode==TrialMode.Playing?(Time.unscaledTime<stopUntil?.08f:Time.unscaledTime<slowUntil?.30f:1):0;}
         void OnDestroy(){DisposeImpactEffects();Time.timeScale=1;foreach(var clip in sounds.Values)if(clip)Destroy(clip);if(particles)Destroy(particles);}
     }
 }

@@ -3,11 +3,19 @@ using UnityEngine;
 
 namespace TomorinTrial
 {
-    public enum TrialLevel : byte { BigFish, Arena }
+    public enum TrialLevel : byte { BigFish, Arena, Twins, Anon, Taffy, Penguin, YaYa }
+    public enum TrialDifficulty : byte { Normal, Easy, Hard }
+    public static class TrialDifficultySettings
+    {
+        public static TrialDifficulty Solo { get; set; } = TrialDifficulty.Normal;
+        public static string Label(TrialDifficulty difficulty)=>difficulty==TrialDifficulty.Easy?"简单":difficulty==TrialDifficulty.Hard?"困难":"正常";
+        public static float HealthScale(TrialDifficulty difficulty)=>difficulty==TrialDifficulty.Easy?.75f:difficulty==TrialDifficulty.Hard?1.3f:1;
+        public static float DamageScale(TrialDifficulty difficulty)=>difficulty==TrialDifficulty.Easy?.7f:difficulty==TrialDifficulty.Hard?1.3f:1;
+    }
     public struct TrialHello : NetworkMessage { public string name; }
     public struct TrialRetryChallenge : NetworkMessage { }
     public struct TrialChooseBoon : NetworkMessage { public TrialBoon boon; }
-    public struct TrialLobby : NetworkMessage { public int self; public int[] ids; public string[] names; public TrialLevel level; }
+    public struct TrialLobby : NetworkMessage { public int self; public int[] ids; public string[] names; public TrialLevel level; public TrialDifficulty difficulty; }
     public struct TrialControls : NetworkMessage
     {
         public Vector2 move;
@@ -33,6 +41,7 @@ namespace TomorinTrial
         public int kills, deaths;
         public TrialBoon boon,offerA,offerB,offerC;
         public float maxStamina;
+        public float bossResolve;
         public byte action, combo, flasks;
         public bool guard, awake;
     }
@@ -53,10 +62,12 @@ namespace TomorinTrial
     {
         public TrialActorState[] players, enemies;
         public TrialBossState boss;
-        public bool gate, victory, arena;
+        public TrialChampionState[] champions;
+        public bool gate, victory, arena, defeat;
         public int guards;
         public float seconds;
         public TrialLevel level;
+        public TrialDifficulty difficulty;
         public int partySize;
     }
 }

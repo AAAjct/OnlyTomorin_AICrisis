@@ -172,6 +172,18 @@ namespace TomorinTrial.Editor
                     snapshot.boss.hazards = new TrialHazardState[32]; writer.Write(snapshot); int baseline = writer.Position;
                     Check(compact * 30 < baseline * 20, $"Idle snapshot payload: {baseline} -> {compact} bytes; target payload/sec {baseline * 20} -> {compact * 30}");
                 }
+                remote.ReceiveHit(null,99999,100,true);yield return .1f;
+                Check(game.Mode==TrialMode.Playing && game.Player.Alive,"One downed companion does not fail a living party");
+                yield return 5.2f;
+                Check(remote.Alive && game.Mode==TrialMode.Playing,"A downed companion still respawns while a teammate survives");
+                game.Player.ReceiveHit(null,99999,100,true);remote.ReceiveHit(null,99999,100,true);
+                yield return .2f;
+                Check(game.Mode==TrialMode.Dead && world.defeat,"Team wipe fails the host and replicates the defeat snapshot");
+                float failedAt=game.PlaySeconds;yield return 5.2f;
+                Check(!game.Player.Alive && !remote.Alive && game.Mode==TrialMode.Dead && game.PlaySeconds==failedAt,"Team defeat stops simulation and cancels automatic respawns");
+                Send(new TrialRetryChallenge());yield return .25f;
+                Check(game.Mode==TrialMode.Playing && game.Player.Alive && remote.Alive && !world.defeat,"A peer can retry after defeat and restore the entire party");
+                game.Player.ChooseBoon(game.Player.OfferA);remote.ChooseBoon(remote.OfferA);
                 // Capture a real host-produced world for the receiving-client test.
                 world.players = new[] { game.Player.CaptureNetwork(0), remote.CaptureNetwork(1) };
                 held = default; client.Disconnect(); client = null; network.Leave();
@@ -188,6 +200,10 @@ namespace TomorinTrial.Editor
                 game = UnityEngine.Object.FindFirstObjectByType<TrialGame>();
                 Send(world); yield return .15f;
                 Check(network.LocalId == 1 && !NetworkServer.active, "Game runs as remote client with the assigned ID");
+                world.defeat=true;Send(world);yield return .15f;
+                Check(game.Mode==TrialMode.Dead && game.CameraRig.Frozen && Cursor.visible,"Receiving client shows authoritative team defeat and releases the cursor");
+                world.defeat=false;Send(world);yield return .15f;
+                Check(game.Mode==TrialMode.Playing && !game.CameraRig.Frozen && Time.timeScale>0,"Receiving client resumes after authoritative retry");
                 Check(game.Player.MaxStamina==world.players.First(p=>p.id==1).maxStamina && game.Player.MaxStamina>=180,"The real receiving client retains the authority's increased maximum stamina");
                 world.seconds+=17;var fragments=TrialPayloadParts.Split(world,0,123,128);
                 foreach(var fragment in fragments)Send(fragment);

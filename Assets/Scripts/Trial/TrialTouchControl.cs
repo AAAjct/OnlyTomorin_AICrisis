@@ -42,10 +42,13 @@ namespace TomorinTrial
             RectTransformUtility.ScreenPointToLocalPointInRectangle(rect,e.position,e.pressEventCamera,out var local);
             float width=StickVisual?StickVisual.rect.width:rect.rect.width;
             var value=Vector2.ClampMagnitude((local-(StickVisual?stickCenter:rect.rect.center))/(width*.38f),1);
-            Input.TouchMove=value;if(Knob)Knob.anchoredPosition=value*width*.30f;
+            Input.TouchMove=value;
+            // A small release margin keeps a finger near the rim from flickering sprint.
+            Input.TouchSprint=value.sqrMagnitude>=(Input.TouchSprint?.85f*.85f:.95f*.95f);
+            if(Knob)Knob.anchoredPosition=value*width*.30f;
         }
         public void OnPointerUp(PointerEventData e){if(pointer==e.pointerId)Release();}
-        void Release(){bool held=pointer!=int.MinValue;pointer=int.MinValue;if(surface)surface.color=idleTint;if(!Input)return;if(Guard)Input.TouchGuard=false;if(Action==64)Input.TouchSprint=false;if(Stick)Input.TouchMove=Vector2.zero;if(Knob)Knob.anchoredPosition=Vector2.zero;if(held&&StickVisual)StickVisual.anchoredPosition=stickHome;}
+        void Release(){bool held=pointer!=int.MinValue;pointer=int.MinValue;if(surface)surface.color=idleTint;if(!Input)return;if(Guard)Input.TouchGuard=false;if(Action==64 || Stick)Input.TouchSprint=false;if(Stick)Input.TouchMove=Vector2.zero;if(Knob)Knob.anchoredPosition=Vector2.zero;if(held&&StickVisual)StickVisual.anchoredPosition=stickHome;}
         void OnDisable(){Release();}
         void OnApplicationFocus(bool focused){if(!focused)Release();}
     }

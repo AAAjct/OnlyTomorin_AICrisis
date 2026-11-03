@@ -24,10 +24,16 @@ namespace TomorinTrial
         public ushort GamePort => ((TelepathyTransport)transport).port;
         public string PlayerName { get; set; } = "旅人";
         public TrialLevel SelectedLevel { get; private set; }
-        public string LevelName => SelectedLevel==TrialLevel.Arena?"竞技场":"庭院 (Boss · 大肥鱼)";
+        public TrialDifficulty SelectedDifficulty { get; private set; }
+        public void SelectDifficulty(TrialDifficulty difficulty)
+        {
+            if(difficulty>TrialDifficulty.Hard || Busy && (!IsHost || SceneManager.GetActiveScene().path!=MenuScene))return;
+            SelectedDifficulty=difficulty;if(IsHost)BroadcastLobby();Changed?.Invoke();
+        }
+        public string LevelName => TrialChampionCatalog.LevelName(SelectedLevel);
         public void SelectLevel(TrialLevel level)
         {
-            if(level!=TrialLevel.BigFish && level!=TrialLevel.Arena)return;
+            if(level>TrialLevel.YaYa)return;
             if(Busy && (!IsHost || SceneManager.GetActiveScene().path!=MenuScene))return;
             SelectedLevel=level;if(IsHost)BroadcastLobby();Changed?.Invoke();
         }
@@ -132,7 +138,7 @@ namespace TomorinTrial
         public void BeginTogether()
         {
             if(SelectedLevel==TrialLevel.Arena && names.Count<2){SetStatus("竞技场至少需要 2 名玩家，请等待对手加入");return;}
-            if (NetworkServer.active && SceneManager.GetActiveScene().path == MenuScene) ServerChangeScene(GameScene);
+            if (NetworkServer.active && SceneManager.GetActiveScene().path == MenuScene) ServerChangeScene(TrialChampionCatalog.Scene(SelectedLevel));
         }
         public void RetryChallenge()
         {
@@ -146,9 +152,9 @@ namespace TomorinTrial
         }
         void RestartTogether()
         {
-            if(!boundGame || boundGame.Mode!=TrialMode.Victory)return;
+            if(!boundGame || (boundGame.Mode!=TrialMode.Victory && boundGame.Mode!=TrialMode.Dead))return;
             controls.Clear();lastInput.Clear();reviveAt.Clear();pending=lastSent=default;
-            boundGame.ConfigureSession(SelectedLevel);boundGame.SetPartySize(names.Count);
+            boundGame.SetDifficulty(SelectedDifficulty);boundGame.ConfigureSession(SelectedLevel);boundGame.SetPartySize(names.Count);
             foreach(var pair in actors)
                 if(pair.Value && pair.Value!=boundGame.Player){pair.Value.ResetRunBoon();pair.Value.RollRunBoons();pair.Value.Restore(boundGame.CoopSpawn(pair.Key));}
             nextSend=0;
@@ -205,7 +211,7 @@ namespace TomorinTrial
             foreach (var item in names) { ids[i] = item.Key; labels[i++] = item.Value; }
             foreach (var connection in NetworkServer.connections.Values)
             {
-                var state=new TrialLobby { self = connection.connectionId, ids = ids, names = labels, level=SelectedLevel };
+                var state=new TrialLobby { self = connection.connectionId, ids = ids, names = labels, level=SelectedLevel, difficulty=SelectedDifficulty };
                 if(ids.Length<=128)connection.Send(state);
                 else foreach(var part in TrialPayloadParts.Split(state,1,payloadSerial++))connection.Send(part);
             }
@@ -213,7 +219,7 @@ namespace TomorinTrial
         void ReceiveLobby(TrialLobby message)
         {
             LocalId = message.self; Members = message.names; joinedServer = true; connectDeadline = 0;
-            SelectedLevel=message.level;
+            SelectedLevel=message.level;SelectedDifficulty=message.difficulty;
             if(!NetworkServer.active){names.Clear();for(int i=0;i<Math.Min(message.ids.Length,message.names.Length);i++)names[message.ids[i]]=message.names[i];}
             SetStatus(NetworkServer.active ? "房间已创建 · TCP " + GamePort + " · 等待同伴" : "已加入房间 · 等待房主启程");
         }
@@ -281,19 +287,20 @@ namespace TomorinTrial
         {
             if (boundGame == game) return;
             boundGame = game; actors.Clear(); inputs.Clear(); reviveAt.Clear(); hasSnapshot = false;
-            pending = lastSent = default; nextSend = nextHeartbeat = 0; liveActors.Clear(); removedActors.Clear(); game.ConfigureSession(SelectedLevel);game.SetPartySize(names.Count);
+            pending = lastSent = default; nextSend = nextHeartbeat = 0; liveActors.Clear(); removedActors.Clear(); game.SetDifficulty(SelectedDifficulty);game.ConfigureSession(SelectedLevel);game.SetPartySize(names.Count);
         }
         public void TickGame(TrialGame game)
         {
             Bind(game);
             bool paused = game.Mode == TrialMode.Paused;
-            if (game.Input.Pause && game.Mode != TrialMode.Victory) { game.HandlePauseInput(); paused = game.Mode == TrialMode.Paused; }
+            if (game.Input.Pause && game.Mode != TrialMode.Victory && game.Mode != TrialMode.Dead) { game.HandlePauseInput(); paused = game.Mode == TrialMode.Paused; }
             if (NetworkServer.active) TickHost(game, paused);
             else TickPeer(game, paused);
         }
         void TickHost(TrialGame game, bool paused)
         {
             game.SetPartySize(names.Count);
+            CheckPartyDefeat(game);
             foreach (var member in names)
             {
                 int id = member.Key;
@@ -312,7 +319,7 @@ namespace TomorinTrial
                     if (!lastInput.TryGetValue(id, out var at) || Time.unscaledTime - at > .5f) state = default;
                     input = inputs[id]; input.ApplyNetwork(state); state.pressed = 0; controls[id] = state;
                 }
-                if (game.Mode == TrialMode.Victory) continue;
+                if (game.Mode == TrialMode.Victory || game.Mode == TrialMode.Dead) continue;
                 if(actor.ChoosingBoon)continue;
                 if (!actor.Alive)
                 {
@@ -325,17 +332,19 @@ namespace TomorinTrial
                 if (!game.IsArena && input.Interact && Vector3.Distance(actor.transform.position, game.World.ShrinePosition) < 2.6f && !HasNearbyEnemy(game,actor))
                 { actor.Restore(game.World.ShrinePosition + Vector3.right * 1.5f); }
             }
-            if (game.Mode != TrialMode.Victory)
+            CheckPartyDefeat(game);
+            if (game.Mode != TrialMode.Victory && game.Mode != TrialMode.Dead)
             {
                 game.AdvanceNetworkTime(Time.deltaTime);
                 if(!game.IsArena)foreach (var enemy in game.Enemies) { game.SetCombatTarget(NearestPlayer(enemy.transform.position, game.Player)); enemy.Tick(Time.deltaTime); }
                 game.SetCombatTarget(game.Player);
+                CheckPartyDefeat(game);
             }
-            if (!paused && game.Mode!=TrialMode.Victory && !game.Player.ChoosingBoon) game.CameraRig.Look(game.Input.Look);
+            if (!paused && game.Mode!=TrialMode.Victory && game.Mode!=TrialMode.Dead && !game.Player.ChoosingBoon) game.CameraRig.Look(game.Input.Look);
             if (Time.unscaledTime < nextSend) return;
             // Preserve cadence across frame jitter instead of rounding a 60 Hz
             // deadline up to every second rendered frame.
-            nextSend = Mathf.Max(nextSend + 1f / 60, Time.unscaledTime);
+            nextSend = Mathf.Max(nextSend + 1f / (game.IsChampionStage?30:60), Time.unscaledTime);
             bool hasPeer=false;
             foreach(var connection in NetworkServer.connections.Values)
                 if(connection.isReady && !(connection is LocalConnectionToClient)){hasPeer=true;break;}
@@ -344,11 +353,23 @@ namespace TomorinTrial
             foreach (var item in actors) players[index++] = item.Value.CaptureNetwork(item.Key);
             var enemies = new TrialActorState[game.Enemies.Count];
             for (int i = 0; i < enemies.Length; i++) { enemies[i] = game.Enemies[i].CaptureNetwork(i); enemies[i].awake = game.Enemies[i].Awakened; }
-            var snapshot = new TrialWorldState { players = players, enemies = enemies, boss = game.Enemies[enemies.Length - 1].Boss.CaptureNetwork(), gate = game.GateOpen, arena = game.World.ArenaEntrance.activeSelf, guards = game.DefeatedGuards, victory = game.Mode == TrialMode.Victory, seconds = game.PlaySeconds,level=game.Level,partySize=game.PartySize };
+            var fish=game.Enemies[enemies.Length-1].Boss;
+            var champions=game.IsChampionStage?new TrialChampionState[enemies.Length]:Array.Empty<TrialChampionState>();
+            for(int i=0;i<champions.Length;i++)champions[i]=game.Enemies[i].Champion.CaptureNetwork();
+            var snapshot = new TrialWorldState { players = players, enemies = enemies, boss = fish?fish.CaptureNetwork():default, champions=champions, gate = game.GateOpen, arena = game.World.ArenaEntrance.activeSelf, guards = game.DefeatedGuards, victory = game.Mode == TrialMode.Victory, defeat = game.Mode == TrialMode.Dead, seconds = game.PlaySeconds,level=game.Level,difficulty=game.Difficulty,partySize=game.PartySize };
             var fragments=players.Length>48?TrialPayloadParts.Split(snapshot,0,payloadSerial++):null;
             foreach (var connection in NetworkServer.connections.Values)
                 if (connection.isReady && !(connection is LocalConnectionToClient))
                 {if(fragments==null)connection.Send(snapshot);else foreach(var part in fragments)connection.Send(part);}
+        }
+        void CheckPartyDefeat(TrialGame game)
+        {
+            if(game.IsArena || names.Count==0 || (game.Mode!=TrialMode.Playing && game.Mode!=TrialMode.Paused))return;
+            // Missing actors are still joining. Decide before respawn timers run,
+            // and again after combat, so a team wipe cannot revive itself.
+            foreach(var id in names.Keys)
+                if(!actors.TryGetValue(id,out var actor) || !actor || actor.Alive)return;
+            reviveAt.Clear();game.EnterDefeat();
         }
         static bool HasNearbyEnemy(TrialGame game,TrialPlayer player)
         {foreach(var enemy in game.Enemies)if(enemy.Alive && enemy.Awakened && (enemy.transform.position-player.transform.position).sqrMagnitude<81)return true;return false;}
@@ -377,7 +398,7 @@ namespace TomorinTrial
             foreach (var actor in actors.Values) if (actor && actor.Alive && !actor.ChoosingBoon) { float d = (actor.transform.position - point).sqrMagnitude; if (d < best) { nearest = actor; best = d; } }
             return nearest;
         }
-        public IEnumerable<TrialPlayer> Players => actors.Values;
+        public Dictionary<int,TrialPlayer>.ValueCollection Players => actors.Values;
         internal TrialPlayer PlayerById(int id)=>actors.TryGetValue(id,out var actor)?actor:null;
         public void BroadcastCombat(TrialPlayer player, TrialCombatCue cue,Vector3? point=null)
         {
@@ -400,7 +421,7 @@ namespace TomorinTrial
         void ReceiveWorld(TrialWorldState state) { if (NetworkServer.active) return; latest = state; snapshotAt = Time.unscaledTime; hasSnapshot = true; }
         void TickPeer(TrialGame game, bool paused)
         {
-            bool blocked=paused || game.Mode==TrialMode.Victory || game.Player.ChoosingBoon;
+            bool blocked=paused || game.Mode==TrialMode.Victory || game.Mode==TrialMode.Dead || game.Player.ChoosingBoon;
             if (!blocked) game.CameraRig.Look(game.Input.Look);
             var current = blocked ? default : game.Input.CaptureNetwork(game.CameraRig.transform.eulerAngles.y);
             pending.move = current.move; pending.yaw = current.yaw; pending.held = current.held; pending.pressed |= current.pressed;
@@ -412,6 +433,7 @@ namespace TomorinTrial
                 nextSend = Mathf.Max(nextSend + 1f / 60,Time.unscaledTime); nextHeartbeat = Time.unscaledTime + .1f;
             }
             if (!hasSnapshot) return;
+            if(game.Difficulty!=latest.difficulty)game.SetDifficulty(latest.difficulty);
             if(game.Level!=latest.level)game.ConfigureSession(latest.level);
             float snapshotAge = Mathf.Min(Time.unscaledTime - snapshotAt, .1f);
             liveActors.Clear();
@@ -428,7 +450,8 @@ namespace TomorinTrial
             for (int i = 0; i < Mathf.Min(latest.enemies.Length, game.Enemies.Count); i++)
             { var state = latest.enemies[i]; state.actionTime += snapshotAge; game.Enemies[i].ApplyReplica(state, Time.deltaTime); }
             var boss = latest.boss; boss.age += snapshotAge;
-            game.Enemies[game.Enemies.Count - 1].Boss.ApplyNetwork(boss);
+            var fish=game.Enemies[game.Enemies.Count-1].Boss;if(fish)fish.ApplyNetwork(boss);
+            if(latest.champions!=null)for(int i=0;i<Mathf.Min(latest.champions.Length,game.Enemies.Count);i++)if(game.Enemies[i].Champion)game.Enemies[i].Champion.ApplyNetwork(latest.champions[i],snapshotAge);
             game.ApplyNetworkWorld(latest);
         }
         public static string LocalAddresses()

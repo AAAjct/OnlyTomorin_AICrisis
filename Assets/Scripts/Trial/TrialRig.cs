@@ -64,7 +64,7 @@ namespace TomorinTrial
             Vector3 hand=new Vector3(.30f,.76f,.26f), offhand=new Vector3(-.25f,.77f,.18f);
             Vector3 swordAngles=new Vector3(8,0,-52);
             float twist=0,lean=movement*6,bank=player? -player.TurnLean*9:0;
-            if(action==FighterAction.Free)
+            if(action==FighterAction.Free || action==FighterAction.Heal)
             {
                 float stride=Mathf.Lerp(38,61,sprint);
                 model.localPosition+=Vector3.up*(Mathf.Abs(Mathf.Cos(walkPhase))*.046f*Mathf.Min(1,movement)+breathe);
@@ -84,6 +84,18 @@ namespace TomorinTrial
                 Vector3 startAngles,endAngles;
                 switch(combo)
                 {
+                    case 11: // Guarded straight counterthrust.
+                        windup=new Vector3(.12f,1.20f,.16f);finish=new Vector3(.08f,1.08f,.82f);
+                        startAngles=new Vector3(45,0,30);endAngles=new Vector3(90,0,0);break;
+                    case 12: // Running draw with a broad hip turn.
+                        windup=new Vector3(-.42f,.66f,-.1f);finish=new Vector3(.58f,1.06f,.65f);
+                        startAngles=new Vector3(80,-105,0);endAngles=new Vector3(90,110,-10);break;
+                    case 13: // Roll into a jumping overhead cleave.
+                        windup=new Vector3(.10f,1.65f,-.16f);finish=new Vector3(.15f,.44f,.68f);
+                        startAngles=new Vector3(-65,0,0);endAngles=new Vector3(160,0,0);break;
+                    case 14: // Deliberate posture-break execution.
+                        windup=new Vector3(-.36f,1.38f,-.10f);finish=new Vector3(.32f,.55f,.72f);
+                        startAngles=new Vector3(-50,-70,10);endAngles=new Vector3(145,70,-30);break;
                     case 1: // Reverse cut across the shoulders.
                         windup=new Vector3(-.42f,1.18f,.06f);finish=new Vector3(.48f,.72f,.45f);
                         startAngles=new Vector3(10,-85,65);endAngles=new Vector3(105,85,-60);break;
@@ -119,6 +131,7 @@ namespace TomorinTrial
                 swordAngles=Vector3.Lerp(startAngles,endAngles,swing);
                 model.localPosition+=transform.InverseTransformDirection(transform.forward)*Mathf.Sin(p*Mathf.PI)*.10f;
                 Leg(leftLeg,leftFoot,Mathf.Lerp(-24,15,swing));Leg(rightLeg,rightFoot,Mathf.Lerp(22,-16,swing));
+                if(combo==13)model.localPosition+=Vector3.up*(Mathf.Sin(Mathf.Clamp01(p/.72f)*Mathf.PI)*.75f);
             }
             if(action==FighterAction.Heal)
             {

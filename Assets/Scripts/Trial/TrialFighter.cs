@@ -25,7 +25,7 @@ namespace TomorinTrial
         public bool Alive => Health > 0;
         public float Progress => ActionDuration > 0 ? Mathf.Clamp01(ActionTime / ActionDuration) : 0;
         public bool AttackActive => (Action == FighterAction.Light || Action == FighterAction.Heavy || (this is TrialPlayer && Action==FighterAction.Dodge && Combo==7)) && Progress >= .33f && Progress <= .63f;
-        public bool Invulnerable => Action == FighterAction.Dodge && ActionTime >= .025f && ActionTime <= .32f || this is TrialPlayer && (Action==FighterAction.Light && Combo==9 && Progress<.32f || Action==FighterAction.Heavy && Combo==10 && Progress<.48f);
+        public bool Invulnerable => this is TrialEnemy enemy && enemy.BreakoutInvulnerable || Action == FighterAction.Dodge && ActionTime >= .025f && ActionTime <= .32f || this is TrialPlayer && (Action==FighterAction.Light && Combo==9 && Progress<.32f || Action==FighterAction.Heavy && Combo==10 && Progress<.48f);
         public Transform Visual { get; protected set; }
         public Transform Weapon { get; protected set; }
         protected TrialGame game;
@@ -36,6 +36,8 @@ namespace TomorinTrial
         protected float hitFlash;
         protected Renderer[] renderers;
         protected MaterialPropertyBlock flashProperties;
+        protected virtual float StaminaRecoveryRate => Guarding?0:29;
+        protected virtual float StaminaRecoveryDelay => .7f;
 
         public virtual TrialActorState CaptureNetwork(int id) => new TrialActorState
         {
@@ -91,8 +93,8 @@ namespace TomorinTrial
         {
             ActionTime += dt;
             recoveryDelay -= dt;
-            if (recoveryDelay <= 0 && Action == FighterAction.Free && !Guarding)
-                Stamina = Mathf.Min(MaxStamina, Stamina + 29 * dt);
+            if (recoveryDelay <= 0 && Action == FighterAction.Free)
+                Stamina = Mathf.Min(MaxStamina, Stamina + StaminaRecoveryRate * dt);
             Posture = Mathf.Max(0, Posture - 7 * dt);
             verticalSpeed = motor.isGrounded ? -2 : verticalSpeed - 24 * dt;
             motor.Move(Vector3.up * (verticalSpeed * dt));
@@ -109,7 +111,7 @@ namespace TomorinTrial
         protected bool Spend(float amount)
         {
             if (Stamina < amount) return false;
-            Stamina -= amount; recoveryDelay = .7f; return true;
+            Stamina -= amount; recoveryDelay = StaminaRecoveryDelay; return true;
         }
 
         protected void Move(Vector3 velocity, float dt) { motor.Move(velocity * dt); }

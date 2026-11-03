@@ -57,11 +57,11 @@ namespace TomorinTrial
             if(skillStrip.activeSelf!=showSkills)skillStrip.SetActive(showSkills);
             if(!playing)return;
             var player=game.Player;
-            SkillState(0,player.Alive&&player.Stamina>=19,player.Action==FighterAction.Light);
-            SkillState(1,player.Alive&&player.Stamina>=35,player.Action==FighterAction.Heavy);
+            SkillState(0,player.Alive&&player.Stamina>=15,player.Action==FighterAction.Light);
+            SkillState(1,player.Alive&&player.Stamina>=28,player.Action==FighterAction.Heavy);
             SkillState(2,player.Alive&&player.Stamina>1,player.Guarding);
             SkillState(3,player.Alive&&player.Stamina>=player.DodgeCost,player.Action==FighterAction.Dodge);
-            SkillState(4,player.Alive&&player.Flasks>0&&player.Health<player.MaxHealth,player.Action==FighterAction.Heal);
+            SkillState(4,player.Alive&&player.Flasks>0&&(player.Health<player.MaxHealth||player.Stamina<player.MaxStamina),player.Action==FighterAction.Heal);
             SkillState(5,player.Alive,player.Locked);
         }
 

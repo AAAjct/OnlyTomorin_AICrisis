@@ -42,3 +42,11 @@
 - TrialImpactEffects adds pooled silhouette afterimages, slash/ring lines, stronger hit/clash/kill audio, original synthesized music, controller haptics and a short countercut slow-motion cue. Actor hit holds use unscaled time and are cleared on restore/reset. Online pause remains local; the authoritative countercut cue produces the shared short slow motion.
 - Keyboard/gamepad prompts follow the most recently used gameplay input. Roll rotation follows the actual ground-plane dodge direction, which is included in network state. Camera shoulder collision and close-range local-renderer hiding prevent viewing inside the local model.
 - New validation entry points: TrialCombatFeelValidation and TrialEncounterValidation, sharing the existing real-TCP validation harness. Current behavior and verification limits are documented in Docs/ENCOUNTER_FEEL_VALIDATION.md.
+
+
+## Difficulty and mobile healing (2026-11-03)
+
+- TrialDifficultySettings in TrialNetworkMessages.cs owns Normal/Easy/Hard labels and enemy health/damage multipliers. Normal is enum zero for backward-safe defaults. Solo selection survives scene changes in a static property; it is not saved to disk.
+- InkLevelSelection adds difficulty buttons to the existing shared level picker. TrialNetworkManager owns host selection and transmits difficulty in both lobby and world state. PvP damage is unchanged.
+- TrialGame combines difficulty with party scaling; TrialEnemy.ScaleForParty preserves current HP ratio. TrialPlayer shares TickLocomotion between Free and Heal; healing disables sprint and retains existing timing, interruptions and consumption. TrialRig blends gait with the drinking pose.
+- Validation: Unity compilation succeeded; three solo UI buttons and 21 runtime/state/serialization checks passed. No cross-device network test for this change. See Docs/DIFFICULTY_HEALING_VALIDATION.md.

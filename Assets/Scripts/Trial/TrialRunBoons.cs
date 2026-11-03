@@ -25,7 +25,7 @@ namespace TomorinTrial
         public TrialBoon OfferB {get;private set;}
         public TrialBoon OfferC {get;private set;}
         public bool ChoosingBoon=>Boon==TrialBoon.None && OfferA!=TrialBoon.None && !game.IsArena;
-        public float DodgeCost=>Boon==TrialBoon.LightStep?21:25;
+        public float DodgeCost=>Boon==TrialBoon.LightStep?16:20;
         public void RollRunBoons()
         {
             if(game.IsArena || Boon!=TrialBoon.None || OfferA!=TrialBoon.None)return;
@@ -36,10 +36,10 @@ namespace TomorinTrial
         public bool ChooseBoon(TrialBoon choice)
         {
             if(!ChoosingBoon || choice==TrialBoon.None || choice!=OfferA && choice!=OfferB && choice!=OfferC)return false;
-            Boon=choice;MaxHealth=choice==TrialBoon.Vitality?180:160;Health=MaxHealth;
+            Boon=choice;MaxHealth=BaseHealth+(choice==TrialBoon.Vitality?20:0);Health=MaxHealth;
             MaxStamina=BaseStamina+(choice==TrialBoon.Resolve?15:0);Stamina=MaxStamina;
             if(this==game.Player)game.FinishBoonChoice();return true;
         }
-        public void ResetRunBoon(){Boon=OfferA=OfferB=OfferC=TrialBoon.None;MaxHealth=160;MaxStamina=BaseStamina;}
+        public void ResetRunBoon(){Boon=OfferA=OfferB=OfferC=TrialBoon.None;MaxHealth=BaseHealth;MaxStamina=BaseStamina;}
     }
 }

@@ -11,6 +11,11 @@ namespace TomorinTrial
         [SerializeField] GameObject tomorinModel;
         [SerializeField] GameObject deepSeekModel;
         [SerializeField] GameObject naiWaModel;
+        [SerializeField] TrialLevel initialLevel;
+        [SerializeField] GameObject[] championModels;
+        [SerializeField] GameObject championGun;
+        public GameObject ChampionGun=>championGun;
+        public bool IsChampionStage=>TrialChampionCatalog.IsChampion(Level);
         [SerializeField] Font uiFont;
         public Font UiFont => uiFont;
         [SerializeField] InputActionAsset inputActions;
@@ -36,13 +41,13 @@ namespace TomorinTrial
         public bool Ready { get; private set; }
         public float PlaySeconds { get; private set; }
         public TrialLevel Level { get; private set; }
+        public TrialDifficulty Difficulty { get; private set; }
         public bool IsArena => Level==TrialLevel.Arena;
         public int PartySize { get; private set; } = 1;
-        public float EnemyDamageScale => 1+Mathf.Min(.25f,.06f*(PartySize-1));
+        public float EnemyDamageScale => TrialDifficultySettings.DamageScale(Difficulty)*(1+Mathf.Min(.25f,.06f*(PartySize-1)));
         public Vector3 Checkpoint { get; private set; } = new Vector3(0,0,-21);
         readonly List<TrialEnemy> enemies=new List<TrialEnemy>();
         float restCooldown;
-        bool checkpointLit;
         bool previousBackground;
         bool networkDriven;
 
@@ -55,14 +60,24 @@ namespace TomorinTrial
             AudioListener.volume=PlayerPrefs.GetFloat("Ink.Volume",.7f);
             InkMainMenu.SetReducedMotion(PlayerPrefs.GetInt("Ink.ReducedMotion",0)==1);
             previousBackground=Application.runInBackground;Application.runInBackground=true;
-            World=new TrialWorld();World.Build(transform,surfaceShader,skyShader);
+            Level=initialLevel;
+            Difficulty=TrialNetworkManager.SessionActive && TrialNetworkManager.Current?TrialNetworkManager.Current.SelectedDifficulty:TrialDifficultySettings.Solo;
+            if(IsChampionStage)Checkpoint=new Vector3(0,0,8);
+            World=new TrialWorld();World.Build(transform,surfaceShader,skyShader,Level);
             Input=gameObject.AddComponent<TrialInput>();Input.Initialize(inputActions);
             Player=new GameObject("Tomorin").AddComponent<TrialPlayer>();Player.transform.SetParent(transform,false);Player.transform.position=Checkpoint;Player.Initialize(this,tomorinModel);
             var camera=Camera.main;if(!camera){var obj=new GameObject("Main Camera");obj.tag="MainCamera";camera=obj.AddComponent<Camera>();}
             if(!camera.GetComponent<AudioListener>())camera.gameObject.AddComponent<AudioListener>();
             CameraRig=camera.gameObject.AddComponent<TrialCamera>();CameraRig.Initialize(Player);
             Effects=gameObject.AddComponent<TrialEffects>();Effects.Initialize(this);
-            Spawn(new Vector3(-3.7f,0,-5),false);Spawn(new Vector3(4.4f,0,3.0f),false);Spawn(new Vector3(-2.5f,0,11),false);Spawn(new Vector3(0,0,27),true);
+            if(IsChampionStage)
+            {
+                if(Level==TrialLevel.Twins){SpawnChampion(ChampionKind.FeiBi,new Vector3(-4,0,30));SpawnChampion(ChampionKind.NuoNuo,new Vector3(4,0,30));}
+                else SpawnChampion(Level==TrialLevel.Anon?ChampionKind.Anon:Level==TrialLevel.Taffy?ChampionKind.Taffy:Level==TrialLevel.Penguin?ChampionKind.Penguin:ChampionKind.YaYa,new Vector3(0,0,32));
+                GateOpen=true;
+            }
+            else {Spawn(new Vector3(-3.7f,0,-5),false);Spawn(new Vector3(4.4f,0,3.0f),false);Spawn(new Vector3(-2.5f,0,11),false);Spawn(new Vector3(0,0,27),true);}
+            SetPartySize(PartySize);
             Hud=gameObject.AddComponent<TrialHud>();Hud.Initialize(this);
             Mode=TrialMode.Title;SetCursor(false);Ready=true;
             if(InkMainMenu.AutoStartTrial){InkMainMenu.AutoStartTrial=false;StartTrial();}
@@ -70,6 +85,8 @@ namespace TomorinTrial
 
         void Spawn(Vector3 point,bool boss)
         {var enemy=new GameObject().AddComponent<TrialEnemy>();enemy.transform.SetParent(transform,false);enemy.Initialize(this,point,boss,deepSeekModel);enemies.Add(enemy);}
+        void SpawnChampion(ChampionKind kind,Vector3 point)
+        {var enemy=new GameObject().AddComponent<TrialEnemy>();enemy.transform.SetParent(transform,false);enemy.InitializeChampion(this,point,kind,championModels[(int)kind]);enemies.Add(enemy);}
 
         public TrialPlayer CreateCompanion(int id)
         {
@@ -96,9 +113,14 @@ namespace TomorinTrial
             else
             {
                 foreach(var enemy in enemies)enemy.gameObject.SetActive(true);
-                Hud.Notify("庭院 · 先击败守卫，再挑战大肥鱼",3);
+                Hud.Notify(IsChampionStage?TrialChampionCatalog.Lesson(Level):"庭院 · 先击败守卫，再挑战大肥鱼",5);
             }
             CameraRig.Snap();
+        }
+        public void SetDifficulty(TrialDifficulty difficulty)
+        {
+            Difficulty=difficulty<=TrialDifficulty.Hard?difficulty:TrialDifficulty.Normal;
+            SetPartySize(PartySize);
         }
         public Vector3 ArenaSpawn(int slot)
         {
@@ -129,6 +151,7 @@ namespace TomorinTrial
         public void SealArena()
         {
             if(World.ArenaEntrance.activeSelf)return;
+            if(IsChampionStage){World.ArenaEntrance.SetActive(true);return;}
             if(TrialNetworkManager.SessionActive)
             {
                 int index=0;
@@ -143,7 +166,8 @@ namespace TomorinTrial
             PartySize=Mathf.Max(1,state.partySize);
             GateOpen=state.gate;DefeatedGuards=state.guards;PlaySeconds=state.seconds;World.Gate.SetActive(!GateOpen);World.ArenaEntrance.SetActive(state.arena);
             if(state.victory && Mode!=TrialMode.Victory)EnterVictory();
-            else if(!state.victory && Mode==TrialMode.Victory)StartTrial();
+            else if(state.defeat && Mode!=TrialMode.Dead)EnterDefeat();
+            else if(!state.victory && !state.defeat && (Mode==TrialMode.Victory || Mode==TrialMode.Dead))StartTrial();
         }
 
         void Update()
@@ -176,7 +200,7 @@ namespace TomorinTrial
             {
                 bool danger=false;foreach(var enemy in enemies)if(enemy.Alive && enemy.Awakened && Vector3.Distance(enemy.transform.position,Player.transform.position)<9)danger=true;
                 if(danger){Hud.Notify("战斗中无法休息",1.4f);return;}
-                checkpointLit=true;Checkpoint=World.ShrinePosition+new Vector3(1.5f,0,0);
+                Checkpoint=World.ShrinePosition+new Vector3(1.5f,0,0);
                 Player.Restore(Checkpoint);ResetEnemies();restCooldown=2;
                 Effects.Burst(World.ShrinePosition+Vector3.up,new Color(1,.65f,.20f),50);Effects.Sound("heal",World.ShrinePosition);
                 Hud.Notify("已恢复",1.2f);
@@ -187,7 +211,7 @@ namespace TomorinTrial
         {
             Mode=TrialMode.Playing;CameraRig.Frozen=false;Input.ResetSprint();Time.timeScale=1;
             if(!IsArena && (!TrialNetworkManager.SessionActive || Mirror.NetworkServer.active))
-            {Player.RollRunBoons();if(enemies[enemies.Count-1].Boss.Boon==TrialBossBoon.None)enemies[enemies.Count-1].Boss.RollBoon();}
+            {Player.RollRunBoons();var fish=enemies[enemies.Count-1].Boss;if(fish && fish.Boon==TrialBossBoon.None)fish.RollBoon();}
             SetCursor(!Player.ChoosingBoon);
         }
         public void FinishBoonChoice(){Input.ResetSprint();Input.SuppressCombat();SetCursor(Mode==TrialMode.Playing);Hud.Notify("获得增益 · "+TrialRunBoons.Name(Player.Boon),2);}
@@ -196,6 +220,7 @@ namespace TomorinTrial
         public void StartBossChallenge()
         {
             RestartTrial();
+            if(IsChampionStage){Hud.Notify(TrialChampionCatalog.Lesson(Level),5);return;}
             for(int i=0;i<3;i++)enemies[i].ReceiveHit(Player,10000,100,true);
             Player.Restore(new Vector3(0,0,19));CameraRig.Snap();
             Hud.Notify("",0);
@@ -221,24 +246,30 @@ namespace TomorinTrial
         public void OnPlayerDied()
         {
             Deaths++;if(TrialNetworkManager.SessionActive){Hud.Notify(IsArena?"3 秒后重生":"5 秒后重生",3);return;}
+            if(IsChampionStage)foreach(var enemy in enemies)enemy.Champion.CancelAttack(true);
             Mode=TrialMode.Dead;SetCursor(false);
         }
         public void OnEnemyDied(TrialEnemy enemy)
         {
-            if(enemy.IsBoss){World.ArenaEntrance.SetActive(false);EnterVictory();Effects.Sound("heal",Player.transform.position,.7f);return;}
+            if(enemy.IsBoss)
+            {
+                if(IsChampionStage){foreach(var other in enemies)if(other!=enemy && other.Alive){Hud.Notify(enemy.DisplayName+" 倒下 · 另一位进入决意阶段",3);return;}foreach(var other in enemies)other.Champion.CancelAttack(true);}
+                World.ArenaEntrance.SetActive(false);EnterVictory();Effects.Sound("heal",Player.transform.position,.7f);return;
+            }
             DefeatedGuards++;
             if(DefeatedGuards>=3)
             {GateOpen=true;World.Gate.SetActive(false);Hud.Notify("庭门已开",1.8f);Effects.Sound("heal",Player.transform.position,.8f);}
         }
         void EnterVictory(){Mode=TrialMode.Victory;Input.ResetSprint();CameraRig.Frozen=true;Time.timeScale=0;SetCursor(false);}
+        public void EnterDefeat(){Mode=TrialMode.Dead;Input.ResetSprint();CameraRig.Frozen=true;Time.timeScale=0;SetCursor(false);Hud.Notify("",0);}
         public void RetryChallenge()
         {
             if(TrialNetworkManager.SessionActive)TrialNetworkManager.Current.RetryChallenge();
             else RestartTrial();
         }
         public void Respawn(){Player.Restore(Checkpoint);ResetEnemies();CameraRig.Snap();StartTrial();Hud.Notify("",0);}
-        public void RestartTrial(){Checkpoint=new Vector3(0,0,-21);checkpointLit=false;Deaths=0;PlaySeconds=0;Player.ResetRunBoon();enemies[enemies.Count-1].Boss.ClearBoon();Respawn();}
-        void ResetEnemies(){World.ArenaEntrance.SetActive(false);foreach(var enemy in enemies)enemy.ResetFighter();DefeatedGuards=0;GateOpen=false;World.Gate.SetActive(true);}
+        public void RestartTrial(){Checkpoint=IsChampionStage?new Vector3(0,0,8):new Vector3(0,0,-21);Deaths=0;PlaySeconds=0;Player.ResetRunBoon();var fish=enemies[enemies.Count-1].Boss;if(fish)fish.ClearBoon();Respawn();}
+        void ResetEnemies(){World.ArenaEntrance.SetActive(false);foreach(var enemy in enemies)enemy.ResetFighter();DefeatedGuards=0;GateOpen=IsChampionStage;World.Gate.SetActive(!IsChampionStage);}
         public TrialEnemy NearestEnemy(Vector3 point,float range)
         {
             TrialEnemy found=null;float closest=range*range;

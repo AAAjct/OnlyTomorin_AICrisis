@@ -19,14 +19,14 @@ namespace TomorinTrial.Editor
             results.Add("PASS: "+message);
         }
         static void Set(TrialPlayer player,string property,object value)=>typeof(TrialFighter).GetProperty(property).SetValue(player,value);
-        static void Tick(TrialPlayer player,byte pressed=0,byte held=0)
+        static void Tick(TrialPlayer player,byte pressed=0,byte held=0,float dt=0)
         {
             var inputObject=new GameObject("Stamina validation controls");
             try
             {
                 var input=inputObject.AddComponent<TrialInput>();
                 input.ApplyNetwork(new TrialControls{pressed=pressed,held=held});
-                player.Tick(0,input);
+                player.Tick(dt,input);
             }
             finally{UnityEngine.Object.DestroyImmediate(inputObject);}
         }
@@ -114,6 +114,21 @@ namespace TomorinTrial.Editor
             player.ResetRunBoon();
             try
             {
+                player.Restore(point);
+                Check(player.MaxHealth==200 && player.MaxStamina==280,"Player starts with 200 health and 280 stamina");
+                Set(player,"Stamina",100f);Tick(player,1);
+                Check(player.Stamina==85,"Light attack costs 15 stamina");
+                player.Restore(point);Set(player,"Stamina",100f);Tick(player,2);
+                Check(player.Stamina==72,"Heavy attack costs 28 stamina");
+                player.Restore(point);Set(player,"Stamina",100f);Tick(player,4);
+                Check(player.Stamina==80,"Dodge costs 20 stamina");
+                player.Restore(point);Set(player,"Stamina",0f);Tick(player,dt:.5f);
+                Check(player.Stamina==42,"Standing still recovers 84 stamina per second, including from empty");
+                player.Restore(point);Set(player,"Stamina",50f);Tick(player,held:1);Tick(player,held:1,dt:.5f);
+                Check(player.Stamina==60,"Holding guard recovers 20 stamina per second");
+                player.Restore(point);Set(player,"Stamina",100f);Tick(player,1);Set(player,"Action",FighterAction.Free);
+                Tick(player,dt:.2f);Check(player.Stamina==85,"Spending stamina waits briefly before natural recovery");
+                Tick(player,dt:.15f);Check(player.Stamina>85,"Natural recovery resumes after the shortened delay");
                 player.Restore(point);Set(player,"Stamina",20f);
                 Tick(player,8);
                 Check(player.Action==FighterAction.Heal,"Full-health player can drink to recover stamina");
@@ -131,15 +146,15 @@ namespace TomorinTrial.Editor
                 player.Restore(point);Set(player,"Stamina",100f);
                 Tick(player,4);Set(player,"ActionTime",.1f);
                 float spent=player.Stamina;player.ReceiveHit(null,20,0,true);
-                Check(player.Stamina==spent+25 && player.Health==player.MaxHealth,"Perfect dodge restores 25 stamina and avoids damage");
+                Check(player.Stamina==spent+TrialPlayer.PerfectDodgeStamina && player.Health==player.MaxHealth,"Perfect dodge restores 40 stamina and avoids damage");
                 player.ReceiveHit(null,20,0,true);
-                Check(player.Stamina==spent+25,"Multiple contacts in the same dodge grant only one reward");
+                Check(player.Stamina==spent+TrialPlayer.PerfectDodgeStamina,"Multiple contacts in the same dodge grant only one reward");
                 player.Restore(point);Set(player,"Stamina",100f);Tick(player,4);Set(player,"ActionTime",.28f);
                 spent=player.Stamina;player.ReceiveHit(null,20,0,true);
                 Check(player.Stamina==spent,"Late invulnerable dodge receives no perfect-dodge reward");
                 player.Restore(point);Set(player,"Stamina",100f);Tick(player,0,1);
                 player.ReceiveHit(null,20,0);
-                Check(player.Stamina==110,"Successful parry refunds its cost plus 10 stamina");
+                Check(player.Stamina==122,"Successful parry refunds its cost plus 22 stamina");
                 player.Restore(point);Tick(player,0,1);player.ReceiveHit(null,20,0);
                 Check(player.Stamina==player.MaxStamina,"Parry reward is capped at maximum stamina");
                 player.Restore(point);Tick(player,8);

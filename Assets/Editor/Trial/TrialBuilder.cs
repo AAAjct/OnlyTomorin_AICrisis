@@ -81,6 +81,10 @@ namespace TomorinTrial.Editor
                 BakeClip(actor,rig,targets,controller,"ChainFinisher",FighterAction.Heavy,.76f,6,0,false,false);
                 BakeClip(actor,rig,targets,controller,"WindDodgeSlash",FighterAction.Dodge,.44f,7,0,false,false);
                 BakeClip(actor,rig,targets,controller,"DodgePursuit",FighterAction.Light,.48f,8,0,false,false);
+                BakeClip(actor,rig,targets,controller,"GuardThrust",FighterAction.Light,.58f,11,0,false,false);
+                BakeClip(actor,rig,targets,controller,"RunningDraw",FighterAction.Light,.68f,12,0,false,false);
+                BakeClip(actor,rig,targets,controller,"AerialCleave",FighterAction.Heavy,.90f,13,0,false,false);
+                BakeClip(actor,rig,targets,controller,"PostureExecution",FighterAction.Heavy,1.12f,14,0,false,false);
                 BakeClip(actor,rig,targets,controller,"Heavy",FighterAction.Heavy,.84f,0,0,false,false);
                 BakeClip(actor,rig,targets,controller,"Dodge",FighterAction.Dodge,.44f,0,0,false,false);
                 BakeClip(actor,rig,targets,controller,"Guard",FighterAction.Free,1,0,0,true,true);

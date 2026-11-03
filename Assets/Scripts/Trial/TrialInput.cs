@@ -100,8 +100,8 @@ namespace TomorinTrial
             // Apply the dedicated light-attack button below after filtering raw pointer input.
             if(attack.activeControl?.device is Touchscreen || Application.isMobilePlatform && attack.activeControl?.device is Mouse)Attack=false;
             if(toggleSprint!=TrialPreferences.ToggleSprint){toggleSprint=TrialPreferences.ToggleSprint;ResetSprint();}
-            if(toggleSprint && (sprint.WasPressedThisFrame() || (touchPressed&64)!=0))sprintToggled=!sprintToggled;
-            Sprint=toggleSprint?sprintToggled:(sprint.IsPressed() || TouchSprint);Heal=heal.WasPressedThisFrame();Interact=interact.WasPressedThisFrame();Lock=target.WasPressedThisFrame();Pause=pause.WasPressedThisFrame();Confirm=confirm.WasPressedThisFrame();Restart=Confirm;
+            if(toggleSprint && sprint.WasPressedThisFrame())sprintToggled=!sprintToggled;
+            Sprint=TouchSprint || (toggleSprint?sprintToggled:sprint.IsPressed());Heal=heal.WasPressedThisFrame();Interact=interact.WasPressedThisFrame();Lock=target.WasPressedThisFrame();Pause=pause.WasPressedThisFrame();Confirm=confirm.WasPressedThisFrame();Restart=Confirm;
             Look+=TouchLook;TouchLook=Vector2.zero;
             Attack|=(touchPressed&1)!=0;Heavy|=(touchPressed&2)!=0;Dodge|=(touchPressed&4)!=0;
             Heal|=(touchPressed&8)!=0;Lock|=(touchPressed&16)!=0;Interact|=(touchPressed&32)!=0;

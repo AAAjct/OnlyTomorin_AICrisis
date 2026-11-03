@@ -26,7 +26,7 @@ Shader "Tomorin/Ink Menu"
                 float t=_Time.y*_Motion;
                 float mask=smoothstep(.4,.85,i.uv.x);
                 float2 uv=i.uv;
-                uv+=mask*_Motion*(_Pointer.xy*.002+float2(sin(uv.y*12+t*.17),cos(uv.x*9+t*.14))*.0012);
+                // Keep the painted background fixed; only the mist changes over time.
                 float4 col=tex2D(_MainTex,saturate(uv))*i.color;
                 float mist=pow(saturate(sin(uv.x*8+uv.y*5+t*.12)*.5+.5),5)*mask*(1-smoothstep(.1,.65,uv.y));
                 col.rgb=lerp(col.rgb,float3(.94,.92,.87),mist*.075*_Motion);

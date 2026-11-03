@@ -92,7 +92,7 @@ namespace TomorinTrial
         void PrimaryAction()
         {
             switch(game.Mode)
-            {case TrialMode.Title:game.StartTrial();break;case TrialMode.Paused:game.Resume();break;case TrialMode.Dead:game.Respawn();break;case TrialMode.Victory:game.RetryChallenge();break;}
+            {case TrialMode.Title:game.StartTrial();break;case TrialMode.Paused:game.Resume();break;case TrialMode.Dead:if(TrialNetworkManager.SessionActive)game.RetryChallenge();else game.Respawn();break;case TrialMode.Victory:game.RetryChallenge();break;}
         }
 
         void Update()
@@ -108,18 +108,20 @@ namespace TomorinTrial
             {shownHealth=hp;shownStamina=sp;hpText.text=$"{hp} / {game.Player.MaxHealth:0}";}
             if(game.Player.Flasks!=shownFlasks){shownFlasks=game.Player.Flasks;flaskText.text=shownFlasks.ToString();}
             if(shownGuards!=game.DefeatedGuards || shownGate!=game.GateOpen)
-            {shownGuards=game.DefeatedGuards;shownGate=game.GateOpen;objectiveText.text=game.GateOpen?"庭门已开":"奶蛙  "+shownGuards+" / 3";}
+            {shownGuards=game.DefeatedGuards;shownGate=game.GateOpen;objectiveText.text=game.IsChampionStage?TrialChampionCatalog.LevelName(game.Level):game.GateOpen?"庭门已开":"奶蛙  "+shownGuards+" / 3";}
             if(game.IsArena)objectiveText.text=TrialNetworkManager.Current.ArenaScoreboard();
             promptText.text=game.IsArena?(!game.Player.Alive?"阵亡 · 3 秒后重生":game.Player.SpawnProtected?"重生保护 · 主动攻击后解除":""):game.Mode==TrialMode.Playing && Vector3.Distance(game.Player.transform.position,game.World.ShrinePosition)<2.6f?interactPrompt:"";
             noticeText.text=game.Mode==TrialMode.Playing && Time.unscaledTime<noticeUntil?notice:"";
             var boss=game.Enemies[game.Enemies.Count-1];
+            if(game.IsChampionStage)foreach(var e in game.Enemies)if(e.Alive && (!boss.Alive || e.Champion.WindingUp))boss=e;
             bool showBoss=!game.IsArena && boss.Alive && boss.Awakened && game.Mode==TrialMode.Playing;
             bossPanel.gameObject.SetActive(showBoss);
             objectiveText.gameObject.SetActive(game.Mode==TrialMode.Playing&&!showBoss);
             bossHealth.fillAmount=boss.Health/boss.MaxHealth;posture.fillAmount=boss.Posture/boss.PostureLimit;
-            string nextName=(boss.Boss.Frenzied?"大肥鱼 · 深渊狂潮":boss.PhaseTwo?"大肥鱼 · 深海觉醒":"大肥鱼 · DeepSeek")+(game.PartySize>1?$" · {game.PartySize} 人难度":"");
+            UpdateTwinBars();
+            string nextName=boss.Champion?ChampionName(boss):(boss.Boss.Frenzied?"大肥鱼 · 深渊狂潮":boss.PhaseTwo?"大肥鱼 · 深海觉醒":"大肥鱼 · DeepSeek")+(game.PartySize>1?$" · {game.PartySize} 人难度":"");
             if(shownBossName!=nextName){shownBossName=nextName;bossName.text=nextName;}
-            string nextSkill=boss.Boss && boss.WindingUp?boss.Boss.SkillName+(boss.Boss.CanBeDeflected?" · 可完美弹反":""):"";
+            string nextSkill=boss.Champion?ChampionSkill(boss):boss.Boss && boss.WindingUp?boss.Boss.SkillName+(boss.Boss.CanBeDeflected?" · 可完美弹反":""):"";
             if(shownSkill!=nextSkill){shownSkill=nextSkill;bossSkill.text=nextSkill;}
             bossSkill.color=boss.Unblockable?new Color(1,.29f,.17f):gold;
             dangerText.gameObject.SetActive(showBoss && boss.WindingUp && boss.Unblockable);
@@ -170,13 +172,13 @@ namespace TomorinTrial
             ConfigurePauseNavigation();
             stats.SetActive(!show);objectiveText.gameObject.SetActive(!show);
             secondaryButton.gameObject.SetActive(game.Mode==TrialMode.Paused || game.Mode==TrialMode.Title || game.Mode==TrialMode.Dead || game.Mode==TrialMode.Victory);
-            secondaryButton.GetComponentInChildren<UnityEngine.UI.Text>().text=game.Mode==TrialMode.Title?"直接挑战大肥鱼   →":game.Mode==TrialMode.Dead?"退出到主菜单":"返回标题";
+            secondaryButton.GetComponentInChildren<UnityEngine.UI.Text>().text=game.Mode==TrialMode.Title?(game.IsChampionStage?"直接挑战 Boss   →":"直接挑战大肥鱼   →"):game.Mode==TrialMode.Dead?"退出到主菜单":"返回标题";
             footer.SetActive(game.Mode==TrialMode.Title);
             mainButton.interactable=true;
             if(show && EventSystem.current){EventSystem.current.SetSelectedGameObject(null);EventSystem.current.SetSelectedGameObject(mainButton.gameObject);}
             menuSubtitle.text="";
             if(game.Mode==TrialMode.Title)
-            {menuTitle.text="雾庭";menuCaption.text="击败三名奶蛙，进入庭心。";mainButtonLabel.text="进入";}
+            {menuTitle.text=game.IsChampionStage?TrialChampionCatalog.LevelName(game.Level):"雾庭";menuCaption.text=game.IsChampionStage?TrialChampionCatalog.Lesson(game.Level):"击败三名奶蛙，进入庭心。";mainButtonLabel.text="进入";}
             if(game.Mode==TrialMode.Paused)
             {menuTitle.text="暂停";menuCaption.text=TrialBindings.Display("Up")+" / "+TrialBindings.Display("Left")+" / "+TrialBindings.Display("Down")+" / "+TrialBindings.Display("Right")+"  移动    "+TrialBindings.Display("Sprint")+"  "+(TrialPreferences.ToggleSprint?"切换奔跑":"长按奔跑")+"\n"+
                 TrialBindings.Display("Attack")+"  轻斩    "+TrialBindings.Display("Heavy")+"  重斩\n"+

@@ -50,13 +50,44 @@ namespace TomorinTrial.Editor
         static void Keys(params Key[] keys)=>InputSystem.QueueStateEvent(keyboard,new KeyboardState(keys));
         static IEnumerator Checks()
         {
-            int frame=Time.frameCount;panel.Show();yield return .2f;
+            int frame=Time.frameCount;
+            var menuAtStart=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();
+            var menuButtons=menuAtStart.GetComponentsInChildren<Button>();
+            var solo=menuButtons.First(b=>b.name=="独行入庭" || b.name=="单人游玩");
+            var multiplayer=menuButtons.First(b=>b.name=="局域网联机");
+            solo.Select();Keys(Key.S);yield return .12f;Keys();yield return .12f;
+            Check(EventSystem.current.currentSelectedGameObject==multiplayer.gameObject && InkMainMenu.NavigationActive,"WASD moves and visibly highlights the main-menu selection");
+            Keys(Key.W);yield return .12f;Keys();yield return .12f;
+            Check(EventSystem.current.currentSelectedGameObject==solo.gameObject,"W returns to the previous main-menu button");
+            multiplayer.onClick.Invoke();yield return .12f;
+            var fields=menuAtStart.GetComponentsInChildren<InputField>();
+            var address=fields.First(f=>f.name=="房主 IP / 穿透域名");var port=fields.First(f=>f.name=="TCP 端口");
+            string oldAddress=address.text,oldPort=port.text;
+            address.Select();address.ActivateInputField();yield return .12f;
+            address.text="";
+            string clipboard=GUIUtility.systemCopyBuffer;
+            try{GUIUtility.systemCopyBuffer="frp-six.com:52134";address.ProcessEvent(Event.KeyboardEvent("^v"));}
+            finally{GUIUtility.systemCopyBuffer=clipboard;}
+            yield return .12f;
+            Check(address.text=="frp-six.com" && port.text=="52134","Pasting a domain and port populates both actual input fields");
+            address.text="";
+            try{GUIUtility.systemCopyBuffer="192.168.1.10:7777";address.ProcessEvent(Event.KeyboardEvent("^v"));}
+            finally{GUIUtility.systemCopyBuffer=clipboard;}
+            yield return .12f;
+            Check(address.text=="192.168.1.10" && port.text=="7777","Pasting IPv4 and port populates both actual input fields");
+            address.text=oldAddress;port.text=oldPort;
+            menuAtStart.GetComponentsInChildren<Button>().First(b=>b.name=="返回").onClick.Invoke();yield return .1f;
+            panel.Show();yield return .2f;
             Check(Time.frameCount>frame+2,"Live player loop advances");
             var controls=panel.GetComponentsInChildren<Selectable>();var slider=controls.OfType<Slider>().Single();
             var sprint=controls.First(c=>c.name=="Sprint mode");var motion=controls.First(c=>c.name=="Motion");
             Check(EventSystem.current.currentSelectedGameObject==sprint.gameObject && Focused(sprint),"Opening settings highlights the selected sprint control");
             Keys(Key.DownArrow);yield return .12f;Keys();yield return .12f;
             Check(EventSystem.current.currentSelectedGameObject==motion.gameObject && Focused(motion) && !Focused(sprint),"Keyboard down moves the visible focus exactly once");
+            Keys(Key.W);yield return .12f;Keys();yield return .12f;
+            Check(EventSystem.current.currentSelectedGameObject==sprint.gameObject && Focused(sprint),"W visibly navigates settings upward");
+            Keys(Key.S);yield return .12f;Keys();yield return .12f;
+            Check(EventSystem.current.currentSelectedGameObject==motion.gameObject && Focused(motion),"S visibly navigates settings downward");
             Keys(Key.UpArrow);yield return .12f;Keys();yield return .12f;
             Keys(Key.UpArrow);yield return .12f;Keys();yield return .12f;
             Check(EventSystem.current.currentSelectedGameObject==slider.gameObject && Focused(slider),"Keyboard up highlights the entire volume track");

@@ -27,7 +27,7 @@ namespace TomorinTrial
             stick.pivot=new Vector2(.5f,.5f);stick.anchoredPosition=new Vector2(205,235);
             var move=BindTouch(movePad);move.Stick=true;move.StickVisual=stick;
             var knob=Panel("Thumb",stick,new Vector2(.5f,.5f),Vector2.zero,new Vector2(65,65),new Color(.8f,.68f,.44f,.85f));knob.pivot=new Vector2(.5f,.5f);move.Knob=knob;
-            Label("Move caption",stick,"移动",new Vector2(.5f,.5f),new Vector2(-50,-55),new Vector2(100,35),24,ivory,TextAnchor.MiddleCenter);
+            Label("Move caption",stick,"移动 · 拖满奔跑",new Vector2(.5f,.5f),new Vector2(-110,-55),new Vector2(220,35),22,ivory,TextAnchor.MiddleCenter);
             // Four distinct thumb targets; secondary actions stay outside this cluster.
             TouchButton(holder,"轻击",new Vector2(-130,135),1,new Vector2(176,176),"LightSlash");
             TouchButton(holder,"重击",new Vector2(-326,125),2,new Vector2(148,148),"HeavySlash");
@@ -40,16 +40,15 @@ namespace TomorinTrial
             flaskText.rectTransform.anchorMin=flaskText.rectTransform.anchorMax=new Vector2(0,1);
             flaskText.rectTransform.anchoredPosition=new Vector2(102,-10);flaskText.rectTransform.sizeDelta=new Vector2(28,30);
             flaskText.fontSize=24;flaskText.color=gold;
-            var sprint=TouchButton(holder,"奔跑",new Vector2(405,150),64,new Vector2(136,112));
-            ((RectTransform)sprint.transform).anchorMin=((RectTransform)sprint.transform).anchorMax=Vector2.zero;
             var interact=TouchButton(holder,"休息",new Vector2(0,180),32,new Vector2(188,88));
             ((RectTransform)interact.transform).anchorMin=((RectTransform)interact.transform).anchorMax=new Vector2(.5f,0);
             touchInteract=interact.gameObject;touchInteract.SetActive(false);
             var pause=TouchButton(touchRoot,"暂停",new Vector2(-100,-80),128,new Vector2(136,88));var r=(RectTransform)pause.transform;r.anchorMin=r.anchorMax=Vector2.one;
             touchMenu=pause.gameObject;
             skillStrip.SetActive(false);
-            bossPanel.anchorMin=bossPanel.anchorMax=new Vector2(.5f,1);
-            bossPanel.anchoredPosition=new Vector2(-440,-200);
+            bossPanel.SetParent(touchRoot,false);
+            bossPanel.anchorMin=bossPanel.anchorMax=new Vector2(.5f,0);
+            bossPanel.anchoredPosition=new Vector2(-440,65);
             objectiveText.rectTransform.anchoredPosition=new Vector2(-540,-37);
         }
         TrialTouchControl BindTouch(RectTransform rect)

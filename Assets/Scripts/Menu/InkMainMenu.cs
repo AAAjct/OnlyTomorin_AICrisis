@@ -27,6 +27,7 @@ namespace TomorinTrial
         UnityEngine.UI.Button levelDropdown;
         UnityEngine.UI.Text levelHint;
         bool loading;
+        bool endpointSplitPending;
         public static bool AutoStartTrial;
         public static bool ReducedMotion { get; private set; }
         public static void SetReducedMotion(bool value){ReducedMotion=value;PlayerPrefs.SetInt("Ink.ReducedMotion",value?1:0);}
@@ -47,7 +48,10 @@ namespace TomorinTrial
             ReducedMotion=PlayerPrefs.GetInt("Ink.ReducedMotion",0)==1;
             AudioListener.volume=PlayerPrefs.GetFloat("Ink.Volume",.7f);
             address.text=PlayerPrefs.GetString("Ink.Address","127.0.0.1");port.text=PlayerPrefs.GetInt("Ink.Port",7777).ToString();nickname.text=PlayerPrefs.GetString("Ink.Name","旅人");
-            address.onValueChanged.AddListener(SplitPastedEndpoint);
+            address.onValueChanged.AddListener(_=>endpointSplitPending=true);
+            SplitPastedEndpoint(address.text);
+            foreach(var label in home.GetComponentsInChildren<UnityEngine.UI.Text>(true))
+                if(label.text=="ENTER  确认    /    ↑ ↓  选择")label.text="ENTER  确认    /    WASD / 方向键  选择";
             foreach(var button in new[]{solo,multiplayer,options,quit})
                 foreach(var label in button.GetComponentsInChildren<UnityEngine.UI.Text>(true))
                     if(label.text=="01"||label.text=="02"||label.text=="03"||label.text=="04")label.gameObject.SetActive(false);
@@ -74,7 +78,8 @@ namespace TomorinTrial
         }
         public static bool TrySplitEndpoint(string value,out string hostName,out string portNumber)
         {
-            hostName=portNumber=null;value=value.Trim();int separator=value.LastIndexOf(':');
+            hostName=portNumber=null;if(string.IsNullOrWhiteSpace(value))return false;
+            value=value.Trim();int separator=value.LastIndexOf(':');
             if(separator<=0 || separator==value.Length-1)return false;
             string candidate=value.Substring(0,separator);
             // Accept hostname/IPv4:port and bracketed IPv6; never split a bare IPv6 address.
@@ -85,8 +90,18 @@ namespace TomorinTrial
         }
         void SplitPastedEndpoint(string value)
         {
+            endpointSplitPending=false;
             if(TrySplitEndpoint(value,out var hostName,out var portNumber))
-            {address.SetTextWithoutNotify(hostName);port.SetTextWithoutNotify(portNumber);}
+            {
+                address.SetTextWithoutNotify(hostName);port.SetTextWithoutNotify(portNumber);
+                address.caretPosition=hostName.Length;
+            }
+        }
+        void LateUpdate()
+        {
+            // InputField pastes one character at a time and notifies for each one.
+            // Wait until input processing finishes before rewriting either field.
+            if(endpointSplitPending)SplitPastedEndpoint(address.text);
         }
         bool Configure(){SplitPastedEndpoint(address.text);return manager.Configure(address.text,port.text,nickname.text);}
         IEnumerator Reveal(){while(!loading && fade.alpha<1){fade.alpha+=Time.unscaledDeltaTime*(ReducedMotion?100:1.7f);yield return null;}}
@@ -94,7 +109,7 @@ namespace TomorinTrial
         {
             if(loading)yield break;loading=true;solo.interactable=false;fade.blocksRaycasts=false;AutoStartTrial=true;
             while(fade.alpha>0){fade.alpha-=Time.unscaledDeltaTime*3;yield return null;}
-            yield return SceneManager.LoadSceneAsync(TrialNetworkManager.GameScene);
+            yield return SceneManager.LoadSceneAsync(TrialChampionCatalog.Scene(soloLevel));
         }
         void Show(RectTransform panel)
         {
@@ -113,8 +128,8 @@ namespace TomorinTrial
             {
                 bool select=!busy || manager.IsHost;
                 levelDropdown.interactable=select;
-                levelDropdown.GetComponentInChildren<UnityEngine.UI.Text>().text=manager.LevelName+"   ▾";
-                levelHint.text=manager.SelectedLevel==TrialLevel.Arena?"玩家自由决斗 · 至少 2 人 · 击杀计分 / 3 秒重生":"从庭院入口开始 · 先清小怪，再挑战大肥鱼";
+                levelDropdown.GetComponentInChildren<UnityEngine.UI.Text>().text=manager.LevelName+(manager.SelectedLevel==TrialLevel.Arena?"":" · "+TrialDifficultySettings.Label(manager.SelectedDifficulty))+"   ▾";
+                levelHint.text=manager.SelectedLevel==TrialLevel.Arena?"玩家自由决斗 · 至少 2 人 · 击杀计分 / 3 秒重生":TrialChampionCatalog.IsChampion(manager.SelectedLevel)?TrialChampionCatalog.Lesson(manager.SelectedLevel):"从庭院入口开始 · 先清小怪，再挑战大肥鱼";
                 begin.interactable=manager.SelectedLevel!=TrialLevel.Arena || manager.Members.Length>=2;
             }
             var visibleMembers=new string[System.Math.Min(3,manager.Members.Length)];System.Array.Copy(manager.Members,visibleMembers,visibleMembers.Length);
@@ -141,15 +156,19 @@ namespace TomorinTrial
         }
         void Update()
         {
-            if(UpdateLevelList())return;
             if(Mouse.current!=null&&(Mouse.current.delta.ReadValue().sqrMagnitude>.1f||Mouse.current.leftButton.wasPressedThisFrame))NavigationActive=false;
             var keys=Keyboard.current;var pad=Gamepad.current;
             if(keys!=null&&(keys.upArrowKey.wasPressedThisFrame||keys.downArrowKey.wasPressedThisFrame||keys.leftArrowKey.wasPressedThisFrame||keys.rightArrowKey.wasPressedThisFrame||keys.tabKey.wasPressedThisFrame||keys.enterKey.wasPressedThisFrame))NavigationActive=true;
+            var selected=EventSystem.current?EventSystem.current.currentSelectedGameObject:null;
+            var focusedField=selected?selected.GetComponent<UnityEngine.UI.InputField>():null;
+            if(keys!=null && !(focusedField && focusedField.isFocused) &&
+                (keys.wKey.wasPressedThisFrame||keys.aKey.wasPressedThisFrame||keys.sKey.wasPressedThisFrame||keys.dKey.wasPressedThisFrame))NavigationActive=true;
             if(pad!=null&&(pad.dpad.ReadValue().sqrMagnitude>.1f||pad.leftStick.ReadValue().sqrMagnitude>.25f||pad.buttonSouth.wasPressedThisFrame))NavigationActive=true;
+            if(UpdateLevelList())return;
             if(liveMaterial)
             {
                 liveMaterial.SetFloat("_Motion",ReducedMotion?0:1);
-                if(Mouse.current!=null){var p=Mouse.current.position.ReadValue();liveMaterial.SetVector("_Pointer",new Vector4(p.x/Screen.width-.5f,p.y/Screen.height-.5f,0,0));}
+                liveMaterial.SetVector("_Pointer",Vector4.zero);
             }
             if(TrialSettingsPanel.InputBlocked)return;
             if(Keyboard.current!=null && Keyboard.current.escapeKey.wasPressedThisFrame)

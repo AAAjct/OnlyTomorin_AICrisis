@@ -12,6 +12,8 @@ namespace TomorinTrial
         readonly Dictionary<TrialPlayer,RectTransform> nameplates=new Dictionary<TrialPlayer,RectTransform>();
         readonly List<TrialPlayer> expiredNameplates=new List<TrialPlayer>();
         bool boonWasOpen;
+        TrialBoon shownOfferA,shownOfferB,shownOfferC;
+        readonly UnityEngine.UI.Text[] boonLabels=new UnityEngine.UI.Text[3];
         UnityEngine.UI.Image impactFlash;
         Color flashTint;
         float flashUntil;
@@ -42,7 +44,7 @@ namespace TomorinTrial
                     boonButtons[i]=Button("Boon "+i,card,new Vector2(35+i*365,-180),new Vector2(340,220),"",()=>{
                         var player=game.Player;game.SelectRunBoon(slot==0?player.OfferA:slot==1?player.OfferB:player.OfferC);
                     });
-                    var label=boonButtons[i].GetComponentInChildren<UnityEngine.UI.Text>();label.fontSize=23;label.alignment=TextAnchor.MiddleCenter;
+                    var label=boonButtons[i].GetComponentInChildren<UnityEngine.UI.Text>();boonLabels[i]=label;label.fontSize=23;label.alignment=TextAnchor.MiddleCenter;
                     var r=boonButtons[i].GetComponent<RectTransform>();r.GetComponent<UnityEngine.UI.Image>().color=new Color(.16f,.21f,.23f,.9f);
                 }
             }
@@ -52,9 +54,14 @@ namespace TomorinTrial
                 if(choosing)
                 {
                     Cursor.lockState=CursorLockMode.None;Cursor.visible=true;
-                    var p=game.Player;TrialBoon[] offers={p.OfferA,p.OfferB,p.OfferC};
-                    for(int i=0;i<3;i++)boonButtons[i].GetComponentInChildren<UnityEngine.UI.Text>().text=TrialRunBoons.Name(offers[i])+"\n\n"+TrialRunBoons.Description(offers[i]);
-                    boonDescription.text="本局 Boss 增益："+TrialRunBoons.BossName(game.Enemies[game.Enemies.Count-1].Boss.Boon)+"\n增益仅作用于本次挑战，竞技场不启用。";
+                    var p=game.Player;
+                    if(!boonWasOpen || p.OfferA!=shownOfferA || p.OfferB!=shownOfferB || p.OfferC!=shownOfferC)
+                    {
+                        shownOfferA=p.OfferA;shownOfferB=p.OfferB;shownOfferC=p.OfferC;
+                        for(int i=0;i<3;i++){var offer=i==0?p.OfferA:i==1?p.OfferB:p.OfferC;boonLabels[i].text=TrialRunBoons.Name(offer)+"\n\n"+TrialRunBoons.Description(offer);}
+                        var fish=game.Enemies[game.Enemies.Count-1].Boss;
+                        boonDescription.text=game.IsChampionStage?TrialChampionCatalog.Lesson(game.Level):"本局 Boss 增益："+TrialRunBoons.BossName(fish?fish.Boon:TrialBossBoon.None)+"\n增益仅作用于本次挑战，竞技场不启用。";
+                    }
                     if(!boonWasOpen && EventSystem.current)boonButtons[0].Select();
                 }
             }

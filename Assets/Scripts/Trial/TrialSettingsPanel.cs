@@ -113,7 +113,7 @@ namespace TomorinTrial
         {
             var mouse=Mouse.current;var keys=Keyboard.current;var pad=Gamepad.current;
             if(mouse!=null && (mouse.delta.ReadValue().sqrMagnitude>.1f || mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame))PointerFocus=true;
-            if((keys!=null && (keys.upArrowKey.wasPressedThisFrame || keys.downArrowKey.wasPressedThisFrame || keys.leftArrowKey.wasPressedThisFrame || keys.rightArrowKey.wasPressedThisFrame || keys.tabKey.wasPressedThisFrame || keys.enterKey.wasPressedThisFrame || keys.spaceKey.wasPressedThisFrame)) ||
+            if((keys!=null && (keys.wKey.wasPressedThisFrame || keys.aKey.wasPressedThisFrame || keys.sKey.wasPressedThisFrame || keys.dKey.wasPressedThisFrame || keys.upArrowKey.wasPressedThisFrame || keys.downArrowKey.wasPressedThisFrame || keys.leftArrowKey.wasPressedThisFrame || keys.rightArrowKey.wasPressedThisFrame || keys.tabKey.wasPressedThisFrame || keys.enterKey.wasPressedThisFrame || keys.spaceKey.wasPressedThisFrame)) ||
                 (pad!=null && (pad.dpad.ReadValue().sqrMagnitude>.1f || pad.leftStick.ReadValue().sqrMagnitude>.25f || pad.buttonSouth.wasPressedThisFrame)))PointerFocus=false;
             if(Time.frameCount<=openedFrame)return;
             if(rebinding)
