@@ -9,7 +9,7 @@ namespace TomorinTrial.Editor
 {
     public static class TrialBossBuilder
     {
-        const string ModelPath="Assets/Art/Models/DeepSeek/DeepSeek.fbx";
+        public const string ModelPath=TrialBossSkinRepair.PrefabPath;
         const string Folder="Assets/Anims/DeepSeek";
 
         [MenuItem("Tools/Tomorin/Update movement and DeepSeek boss assets")]

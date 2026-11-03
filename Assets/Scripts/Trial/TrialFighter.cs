@@ -46,7 +46,10 @@ namespace TomorinTrial
         {
             float previousHealth=Health;var previousAction=Action;int previousCombo=Combo;
             if(motor)motor.enabled=false;
-            float t=(transform.position-state.position).sqrMagnitude>16?1:1-Mathf.Exp(-22*dt);
+            // The owning peer should converge promptly; the old 45 ms smoothing
+            // time constant added visible delay on top of the round trip.
+            bool local=game && game.Player==this;
+            float t=(transform.position-state.position).sqrMagnitude>16?1:1-Mathf.Exp(-(local?60:30)*dt);
             transform.position=Vector3.Lerp(transform.position,state.position,t);
             transform.rotation=Quaternion.Slerp(transform.rotation,Quaternion.Euler(0,state.yaw,0),t);
             Health=state.health;if(state.maxHealth>0)MaxHealth=state.maxHealth;if(state.postureLimit>0)PostureLimit=state.postureLimit;Stamina=state.stamina;Posture=state.posture;

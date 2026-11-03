@@ -152,7 +152,7 @@ namespace TomorinTrial
             var fill=new GameObject("Amber rim").AddComponent<Light>();fill.transform.SetParent(Root);fill.type=LightType.Directional;fill.color=new Color(1,.58f,.32f);fill.intensity=.65f;fill.transform.rotation=Quaternion.Euler(18,155,0);
             var volume=new GameObject("Night atmosphere").AddComponent<Volume>();volume.transform.SetParent(Root);volume.isGlobal=true;volume.priority=1;
             var profile=ScriptableObject.CreateInstance<VolumeProfile>();volume.sharedProfile=profile;owned.Add(profile);
-            var bloom=profile.Add<Bloom>();bloom.intensity.Override(.45f);bloom.threshold.Override(1.2f);bloom.scatter.Override(.65f);owned.Add(bloom);
+            var bloom=profile.Add<Bloom>();bloom.active=!Application.isMobilePlatform;bloom.intensity.Override(.45f);bloom.threshold.Override(1.2f);bloom.scatter.Override(.65f);owned.Add(bloom);
             var vignette=profile.Add<Vignette>();vignette.intensity.Override(.28f);vignette.smoothness.Override(.5f);owned.Add(vignette);
             var tonemap=profile.Add<Tonemapping>();tonemap.mode.Override(TonemappingMode.ACES);owned.Add(tonemap);
             var color=profile.Add<ColorAdjustments>();color.postExposure.Override(.2f);color.contrast.Override(12);color.saturation.Override(-8);owned.Add(color);
@@ -261,19 +261,24 @@ namespace TomorinTrial
 
         void BatchStaticGeometry()
         {
-            var groups=new Dictionary<Material,List<CombineInstance>>();
+            // Keep mobile batches local so off-camera courtyard sections can be
+            // culled instead of submitting the entire level for each material.
+            var groups=new Dictionary<(Material material,Vector2Int cell),List<CombineInstance>>();
             var originals=new List<MeshRenderer>();
             foreach(var renderer in Root.GetComponentsInChildren<MeshRenderer>())
             {
                 if(renderer.transform.IsChildOf(Gate.transform) || renderer.transform.IsChildOf(ArenaEntrance.transform) || !renderer.enabled)continue;
                 var filter=renderer.GetComponent<MeshFilter>();if(!filter || !filter.sharedMesh)continue;
-                if(!groups.TryGetValue(renderer.sharedMaterial,out var list)){list=new List<CombineInstance>();groups.Add(renderer.sharedMaterial,list);}
+                var center=Root.InverseTransformPoint(renderer.bounds.center);
+                var cell=Application.isMobilePlatform?new Vector2Int(Mathf.FloorToInt(center.x/12),Mathf.FloorToInt(center.z/12)):Vector2Int.zero;
+                var key=(renderer.sharedMaterial,cell);
+                if(!groups.TryGetValue(key,out var list)){list=new List<CombineInstance>();groups.Add(key,list);}
                 list.Add(new CombineInstance{mesh=filter.sharedMesh,transform=Root.worldToLocalMatrix*renderer.transform.localToWorldMatrix});originals.Add(renderer);
             }
             foreach(var entry in groups)
             {
-                var mesh=new Mesh{name="Temple batch · "+entry.Key.name,indexFormat=IndexFormat.UInt32};mesh.CombineMeshes(entry.Value.ToArray());owned.Add(mesh);
-                var go=new GameObject(mesh.name);go.transform.SetParent(Root,false);go.AddComponent<MeshFilter>().sharedMesh=mesh;go.AddComponent<MeshRenderer>().sharedMaterial=entry.Key;
+                var mesh=new Mesh{name="Temple batch · "+entry.Key.material.name+" · "+entry.Key.cell,indexFormat=IndexFormat.UInt32};mesh.CombineMeshes(entry.Value.ToArray());owned.Add(mesh);
+                var go=new GameObject(mesh.name);go.transform.SetParent(Root,false);go.AddComponent<MeshFilter>().sharedMesh=mesh;go.AddComponent<MeshRenderer>().sharedMaterial=entry.Key.material;
             }
             foreach(var renderer in originals) renderer.enabled=false;
         }

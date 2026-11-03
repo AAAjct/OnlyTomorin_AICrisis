@@ -135,6 +135,7 @@ namespace TomorinTrial.Editor
 
                 // Drive the actual encounter at fixed steps while network snapshots are held.
                 game.enabled=false;
+                CheckResponsiveness(game,boss);
                 foreach(var skill in new[]{DeepFishSkill.ReverseTail,DeepFishSkill.RiptideRush,DeepFishSkill.DelayedSlam,DeepFishSkill.AbyssRain})
                 {
                     boss.ResetFighter();host.ResetRunBoon();host.Restore(new Vector3(0,0,24));boss.Teleport(new Vector3(0,0,27));game.SetCombatTarget(host);
@@ -165,6 +166,60 @@ namespace TomorinTrial.Editor
                     TrialNetworkManager.Current.SelectLevel(originalLevel);
                 }
             }
+        }
+
+        static void CheckResponsiveness(TrialGame game,TrialEnemy boss)
+        {
+            var host=game.Player;var brain=boss.Boss;
+            boss.ResetFighter();brain.ClearBoon();host.ResetRunBoon();
+            host.Restore(new Vector3(0,0,19));boss.Teleport(new Vector3(0,0,29));game.SetCombatTarget(host);
+            boss.ReceiveHit(host,1,0);
+            Vector3 start=boss.transform.position;
+            for(int i=0;i<20;i++)brain.Tick(.02f);
+            Check(Vector3.Distance(start,boss.transform.position)>.4f && boss.MoveBlend>.1f,"Boss approach moves the actor and increases its walking blend instead of cancelling it each frame");
+            var rig=boss.GetComponent<TrialBossRig>();
+            var leg=rig.DrivenBones.First(t=>t.name=="upper_leg.L");
+            rig.Pose(DeepFishSkill.None,0,1,0,false);var idle=leg.localRotation;
+            rig.Pose(DeepFishSkill.None,0,1,.2f,false);
+            Check(Quaternion.Angle(idle,leg.localRotation)>10,"Walking blend visibly swings the real DeepSeek leg skeleton");
+
+            foreach(int population in new[]{1,2,3})
+            {
+                game.SetPartySize(population);boss.ResetFighter();brain.ClearBoon();host.Restore(new Vector3(0,0,24));
+                boss.Teleport(new Vector3(0,0,27));boss.ReceiveHit(host,boss.MaxHealth*.6f,0);
+                brain.Tick(.01f);brain.CancelAttack();brain.StartSkill(DeepFishSkill.AbyssRain);
+                float duration=brain.CaptureNetwork().duration;
+                var tick=typeof(TrialBoss).GetMethod("TickSkill",Private);
+                tick.Invoke(brain,new object[]{duration*.41f});
+                int firstWave=brain.ActiveHazards;
+                Check(firstWave>0,"Abyss rain retains its first wave with "+population+" player(s)");
+                tick.Invoke(brain,new object[]{duration*.43f});
+                // TickSkill leaves existing hazards alive, so the count reveals
+                // whether another generation was actually spawned.
+                int total=brain.ActiveHazards;
+                Check(total==firstWave*(population==1?2:1),"Abyss rain second wave is "+(population==1?"retained solo":"suppressed in co-op")+" for population "+population);
+                brain.CancelAttack();
+            }
+            game.SetPartySize(2);boss.ResetFighter();
+
+            typeof(TrialHud).GetMethod("InitializeTouchControls",Private).Invoke(game.Hud,new object[]{true});
+            Canvas.ForceUpdateCanvases();
+            var pads=game.Hud.GetComponentsInChildren<TrialTouchControl>(true);
+            var move=pads.First(p=>p.Stick);var look=pads.First(p=>p.Look);
+            var rect=(RectTransform)move.transform;
+            Check(rect.rect.width>=((RectTransform)rect.parent).rect.width*.49f,"Movement touch area spans the entire left half instead of the visible joystick only");
+            var point=RectTransformUtility.WorldToScreenPoint(null,rect.TransformPoint(rect.rect.center));
+            var finger=new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current){pointerId=11,position=point};
+            game.Input.ClearTouch();move.OnPointerDown(finger);
+            finger.position+=Vector2.right*200;move.OnDrag(finger);
+            Check(game.Input.TouchMove.x>.5f && game.Input.TouchLook==Vector2.zero,"Dragging a captured movement finger outside the stick moves without turning the camera");
+            var other=new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current){pointerId=12,position=point,delta=new Vector2(20,0)};
+            move.OnPointerUp(other);Check(game.Input.TouchMove.x>.5f,"An unrelated finger release cannot cancel movement");
+            look.OnPointerDown(other);look.OnDrag(other);
+            Check(game.Input.TouchLook.x>0 && game.Input.TouchMove.x>.5f,"A second finger can look while the first continues moving");
+            move.OnPointerUp(finger);look.OnPointerUp(other);
+            Check(game.Input.TouchMove==Vector2.zero && move.Knob.anchoredPosition==Vector2.zero,"Releasing the movement finger resets the movement vector and knob");
+            game.Input.ClearTouch();
         }
     }
 }

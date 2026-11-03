@@ -92,7 +92,13 @@ namespace TomorinTrial
             }
             Move=Vector2.ClampMagnitude(move.ReadValue<Vector2>()+TouchMove,1);
             Look=look.ReadValue<Vector2>()*(look.activeControl?.device is Gamepad?125*Time.unscaledDeltaTime:.105f);
+            // Touch look is routed exclusively by the right-side UI pad. Pointer
+            // bindings can also read the same finger as a mouse/touch delta.
+            if(look.activeControl?.device is Touchscreen || Application.isMobilePlatform && look.activeControl?.device is Mouse)Look=Vector2.zero;
             Attack=attack.WasPressedThisFrame();Heavy=heavy.WasPressedThisFrame();Dodge=dodge.WasPressedThisFrame();Guard=guard.IsPressed();
+            // Mobile taps belong to UI controls, including taps reported as mouse clicks.
+            // Apply the dedicated light-attack button below after filtering raw pointer input.
+            if(attack.activeControl?.device is Touchscreen || Application.isMobilePlatform && attack.activeControl?.device is Mouse)Attack=false;
             if(toggleSprint!=TrialPreferences.ToggleSprint){toggleSprint=TrialPreferences.ToggleSprint;ResetSprint();}
             if(toggleSprint && (sprint.WasPressedThisFrame() || (touchPressed&64)!=0))sprintToggled=!sprintToggled;
             Sprint=toggleSprint?sprintToggled:(sprint.IsPressed() || TouchSprint);Heal=heal.WasPressedThisFrame();Interact=interact.WasPressedThisFrame();Lock=target.WasPressedThisFrame();Pause=pause.WasPressedThisFrame();Confirm=confirm.WasPressedThisFrame();Restart=Confirm;

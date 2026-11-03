@@ -26,6 +26,10 @@ namespace TomorinTrial
         string shownBossName,shownSkill;
         GameObject titleBrand,footer,stats;
         float noticeUntil;
+        RectTransform healthBar;
+        Vector2 healthBarHome;
+        float previousPlayerHealth,healthShakeUntil;
+        const float HealthShakeDuration=.36f;
         string notice="";
         TrialMode lastMode=(TrialMode)(-1);
 
@@ -46,6 +50,8 @@ namespace TomorinTrial
             var s=stats.GetComponent<RectTransform>();
             playerName=Label("Name",s,"凑企鹅",new Vector2(0,1),new Vector2(18,-12),new Vector2(310,26),16,ivory);
             health=Bar("Vitality",s,new Vector2(18,-48),new Vector2(300,10),new Color(.68f,.16f,.12f));
+            healthBar=(RectTransform)health.transform.parent;healthBarHome=healthBar.anchoredPosition;
+            previousPlayerHealth=owner.Player.Health;
             stamina=Bar("Resolve",s,new Vector2(18,-69),new Vector2(260,6),new Color(.55f,.68f,.43f));
             hpText=Label("Vitality count",s,"",new Vector2(0,1),new Vector2(18,-83),new Vector2(300,19),12,muted);
             objectiveText=Label("Objective",root,"",new Vector2(1,1),new Vector2(-400,-37),new Vector2(350,45),16,ivory,TextAnchor.UpperRight);
@@ -96,6 +102,7 @@ namespace TomorinTrial
             UpdateRunChoices();UpdatePlayerNameplates();
             if(TrialNetworkManager.SessionActive)playerName.text=TrialNetworkManager.Current.NameOf(game.Player);
             health.fillAmount=game.Player.Health/game.Player.MaxHealth;stamina.fillAmount=game.Player.Stamina/game.Player.MaxStamina;
+            UpdateHealthShake();
             int hp=Mathf.CeilToInt(game.Player.Health),sp=Mathf.CeilToInt(game.Player.Stamina);
             if(hp!=shownHealth || sp!=shownStamina)
             {shownHealth=hp;shownStamina=sp;hpText.text=$"{hp} / {game.Player.MaxHealth:0}";}
@@ -130,6 +137,19 @@ namespace TomorinTrial
                 markerImage.color=enemy && enemy.WindingUp?(enemy.Unblockable?new Color(1,.12f,.06f):new Color(1,.83f,.37f)):gold;
             }
             if(game.Mode!=lastMode){lastMode=game.Mode;RefreshMenu();}
+        }
+
+        void UpdateHealthShake()
+        {
+            float currentHealth=game.Player.Health;
+            bool animate=game.Mode==TrialMode.Playing && !InkMainMenu.ReducedMotion;
+            if(animate && currentHealth<previousPlayerHealth)healthShakeUntil=Time.unscaledTime+HealthShakeDuration;
+            if(!animate || currentHealth>previousPlayerHealth)healthShakeUntil=0;
+            previousPlayerHealth=currentHealth;
+            float remaining=Mathf.Clamp01((healthShakeUntil-Time.unscaledTime)/HealthShakeDuration);
+            float elapsed=HealthShakeDuration-(healthShakeUntil-Time.unscaledTime);
+            // Offset the whole bar from its fixed home so repeated hits never drift.
+            healthBar.anchoredPosition=healthBarHome+new Vector2(Mathf.Sin(elapsed*85)*10,Mathf.Sin(elapsed*110)*4)*remaining;
         }
 
         void ScreenPosition(RectTransform ui,Vector3 world)

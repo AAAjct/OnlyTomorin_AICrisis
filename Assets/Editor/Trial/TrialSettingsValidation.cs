@@ -39,7 +39,22 @@ namespace TomorinTrial.Editor
                 var menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();Check(menu,"Main menu initialized");
                 menu.GetComponentsInChildren<UnityEngine.UI.Button>(true).First(b=>b.GetComponentInChildren<UnityEngine.UI.Text>().text=="设置").onClick.Invoke();yield return .2f;
                 var panel=menu.GetComponentInChildren<TrialSettingsPanel>();Check(panel && panel.IsOpen,"Main menu opens shared settings");
-                string layout=SettingsLayout(panel);Check(panel.GetComponentsInChildren<UnityEngine.UI.Button>().Length==33,"Settings exposes all binding and preference buttons");
+                string layout=SettingsLayout(panel);Check(panel.GetComponentsInChildren<UnityEngine.UI.Button>().Length==34,"Settings exposes all binding and preference buttons");
+                bool hadFrame=PlayerPrefs.HasKey("Ink.MobileFrameRate");int frame=TrialPreferences.MobileFrameRate;
+                try
+                {
+                    PlayerPrefs.SetInt("Ink.MobileFrameRate",60);
+                    foreach(int expected in new[]{90,120,0,60})
+                    {
+                        SettingsButton(panel,"Mobile frame rate").onClick.Invoke();
+                        Check(TrialPreferences.MobileFrameRate==expected,"Mobile frame preference cycles and saves "+expected);
+                    }
+                }
+                finally
+                {
+                    if(hadFrame)PlayerPrefs.SetInt("Ink.MobileFrameRate",frame);else PlayerPrefs.DeleteKey("Ink.MobileFrameRate");
+                    PlayerPrefs.Save();TrialPreferences.ApplyMobileFrameRate();
+                }
                 CaptureSettings(panel,"Temp/settings-main.png");
                 SettingsButton(panel,"Sprint mode").onClick.Invoke();Check(TrialPreferences.ToggleSprint!=sprint,"Shared sprint setting updates");SettingsButton(panel,"Sprint mode").onClick.Invoke();
                 SettingsButton(panel,"Bind Attack 0").onClick.Invoke();yield return .3f;
@@ -63,6 +78,8 @@ namespace TomorinTrial.Editor
                 SettingsButton(panel,"Back").onClick.Invoke();yield return .12f;Check(!panel.IsOpen,"Back closes main settings");
                 InkMainMenu.AutoStartTrial=true;UnityEngine.SceneManagement.SceneManager.LoadScene(TrialNetworkManager.GameScene);yield return .8f;
                 game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();Check(game && game.Ready,"Gameplay loads after rebinding");game.Input.SetDeviceFilter(new InputDevice[]{keyboard,pad});
+                if(game.Player.ChoosingBoon)game.Player.ChooseBoon(game.Player.OfferA);
+                yield return .12f;
                 Check(PlayerPrefs.GetString("Ink.Binding.Attack.0")=="<Keyboard>/f","Key preference survives scene transition");
                 game.Player.Restore(game.Checkpoint);Keys(Key.F);yield return .06f;Keys();Check(game.Player.Action==FighterAction.Light,"Rebound primary key triggers gameplay attack");
                 Check(game.Hud.GetComponentsInChildren<UnityEngine.UI.Text>(true).Any(t=>t.name=="Key" && t.text=="F"),"HUD key hint follows the rebound action");yield return .5f;

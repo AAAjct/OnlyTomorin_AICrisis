@@ -47,13 +47,14 @@ namespace TomorinTrial
             {
                 artworkBindingVersion=TrialBindings.Version;
                 artworkPad=game.Input.UsingGamepad;
-                interactPrompt=TrialBindings.Display("Interact",artworkPad?2:0)+"  休息（敌人重生）";
+                interactPrompt=touchRoot?"点击休息 · 敌人重生":TrialBindings.Display("Interact",artworkPad?2:0)+"  休息（敌人重生）";
                 string[] ids={"Attack","Heavy","Guard","Dodge","Heal","Lock"};
                 for(int i=0;i<ids.Length;i++)skillKeys[i].text=TrialBindings.Display(ids[i],artworkPad?2:0);
             }
             gameEmblem.SetActive(game.Mode==TrialMode.Title);
             bool playing=game.Mode==TrialMode.Playing;
-            if(skillStrip.activeSelf!=(playing&&!Application.isMobilePlatform))skillStrip.SetActive(playing&&!Application.isMobilePlatform);
+            bool showSkills=playing&&!touchRoot&&!Application.isMobilePlatform;
+            if(skillStrip.activeSelf!=showSkills)skillStrip.SetActive(showSkills);
             if(!playing)return;
             var player=game.Player;
             SkillState(0,player.Alive&&player.Stamina>=19,player.Action==FighterAction.Light);

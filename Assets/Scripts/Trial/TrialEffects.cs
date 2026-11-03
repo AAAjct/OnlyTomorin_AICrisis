@@ -78,6 +78,7 @@ namespace TomorinTrial
 
         public void Burst(Vector3 position,Color tint,int count)
         {
+            if(Application.isMobilePlatform)count=Mathf.Max(1,Mathf.CeilToInt(count*.55f));
             ParticleSystem selected=pool[0];foreach(var ps in pool) if(!ps.IsAlive()){selected=ps;break;}
             selected.transform.position=position;selected.Play();var emit=new ParticleSystem.EmitParams{startColor=tint};selected.Emit(emit,count);
         }

@@ -13,7 +13,7 @@ namespace TomorinTrial
         RectTransform card;
         Action back;
         UnityEngine.UI.Slider volume;
-        UnityEngine.UI.Text sprintLabel,motionLabel,status;
+        UnityEngine.UI.Text sprintLabel,motionLabel,status,frameLabel;
         UnityEngine.UI.Button first;
         readonly List<UnityEngine.UI.Selectable> navigation=new List<UnityEngine.UI.Selectable>();
         readonly List<Action> refreshBindings=new List<Action>();
@@ -58,6 +58,7 @@ namespace TomorinTrial
             Label("切换：按一次开始，再按一次停止。\n长按：按住奔跑，松开停止。",card,36,354,310,64,16,Grey);
             motionLabel=Button("Motion",card,36,440,300,48,"",()=>{InkMainMenu.SetReducedMotion(!InkMainMenu.ReducedMotion);Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
             Label("点击右侧键位后，按下新的按键。\n重复占用会提示冲突，Esc 取消。\n手柄移动与视角保留双摇杆。",card,36,510,310,100,16,Grey);
+            frameLabel=Button("Mobile frame rate",card,36,632,300,48,"",()=>{TrialPreferences.CycleMobileFrameRate();Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
             Label("按键设置",card,390,108,200,30,23,Ink);
             Label("键鼠主键",card,512,145,130,25,16,Grey);Label("备用键",card,650,145,110,25,16,Grey);Label("手柄",card,772,145,290,25,16,Grey);
             int row=0;
@@ -85,7 +86,7 @@ namespace TomorinTrial
         public void Show()
         {gameObject.SetActive(true);transform.SetAsLastSibling();active=this;openedFrame=Time.frameCount;volume.SetValueWithoutNotify(AudioListener.volume);Refresh();status.text="键位自动保存，开始菜单与游戏内共用。";first.Select();}
         public void Hide(){gameObject.SetActive(false);}
-        void Refresh(){sprintLabel.text=TrialPreferences.SprintCaption;motionLabel.text="画面动效："+(InkMainMenu.ReducedMotion?"关闭":"开启");foreach(var update in refreshBindings)update();}
+        void Refresh(){sprintLabel.text=TrialPreferences.SprintCaption;motionLabel.text="画面动效："+(InkMainMenu.ReducedMotion?"关闭":"开启");frameLabel.text=TrialPreferences.MobileFrameCaption;foreach(var update in refreshBindings)update();}
         public void BeginRebind(TrialBindings.Entry entry,int slot,UnityEngine.UI.Button button)
         {
             if(rebinding)return;pendingEntry=entry;pendingSlot=slot;captureButton=button;rebinding=true;accepted=false;armFrame=Time.frameCount+1;captureDeadline=Time.unscaledTime+12;

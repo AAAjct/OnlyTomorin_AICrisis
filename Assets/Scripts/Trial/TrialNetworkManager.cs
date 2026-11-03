@@ -333,7 +333,13 @@ namespace TomorinTrial
             }
             if (!paused && game.Mode!=TrialMode.Victory && !game.Player.ChoosingBoon) game.CameraRig.Look(game.Input.Look);
             if (Time.unscaledTime < nextSend) return;
-            nextSend = Time.unscaledTime + 1f / 30;
+            // Preserve cadence across frame jitter instead of rounding a 60 Hz
+            // deadline up to every second rendered frame.
+            nextSend = Mathf.Max(nextSend + 1f / 60, Time.unscaledTime);
+            bool hasPeer=false;
+            foreach(var connection in NetworkServer.connections.Values)
+                if(connection.isReady && !(connection is LocalConnectionToClient)){hasPeer=true;break;}
+            if(!hasPeer)return;
             var players = new TrialActorState[actors.Count]; int index = 0;
             foreach (var item in actors) players[index++] = item.Value.CaptureNetwork(item.Key);
             var enemies = new TrialActorState[game.Enemies.Count];
@@ -403,7 +409,7 @@ namespace TomorinTrial
             if (NetworkClient.isConnected && NetworkClient.ready && (edge || (changed && Time.unscaledTime >= nextSend) || Time.unscaledTime >= nextHeartbeat))
             {
                 NetworkClient.Send(pending); lastSent = pending; pending.pressed = 0;
-                nextSend = Time.unscaledTime + 1f / 60; nextHeartbeat = Time.unscaledTime + .1f;
+                nextSend = Mathf.Max(nextSend + 1f / 60,Time.unscaledTime); nextHeartbeat = Time.unscaledTime + .1f;
             }
             if (!hasSnapshot) return;
             if(game.Level!=latest.level)game.ConfigureSession(latest.level);

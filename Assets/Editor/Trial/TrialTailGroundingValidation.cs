@@ -21,7 +21,7 @@ namespace TomorinTrial.Editor
             float worst=0,worstAt=0;DeepFishSkill worstSkill=DeepFishSkill.None;int samples=0;
             try
             {
-                var asset=AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Models/DeepSeek/DeepSeek.fbx");
+                var asset=AssetDatabase.LoadAssetAtPath<GameObject>(TrialBossBuilder.ModelPath);
                 var model=UnityEngine.Object.Instantiate(asset,actor.transform);
                 foreach(var animator in model.GetComponentsInChildren<Animator>())animator.enabled=false;
                 var renderers=model.GetComponentsInChildren<Renderer>();var bounds=renderers[0].bounds;

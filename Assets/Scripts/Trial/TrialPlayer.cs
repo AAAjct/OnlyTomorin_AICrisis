@@ -6,6 +6,8 @@ namespace TomorinTrial
     public sealed partial class TrialPlayer : TrialFighter
     {
         public const float BaseStamina=180;
+        public const float PerfectDodgeStamina=25;
+        public const float ParryStamina=18; // Refund the 8-point parry cost and reward 10 more.
         public int Flasks { get; private set; } = 3;
         public TrialEnemy Target { get; private set; }
         public TrialPlayer DuelTarget { get; private set; }
@@ -94,7 +96,7 @@ namespace TomorinTrial
                     {float step=18*dt;if(blinkTarget)step=Mathf.Min(step,Mathf.Max(0,Vector3.ProjectOnPlane(blinkTarget.transform.position-transform.position,Vector3.up).magnitude-1.1f));Move(blinkDirection*(step/Mathf.Max(.001f,dt)),dt);}
                     else if(Combo==10 && reversalTarget && Progress>.12f && Progress<.36f && (reversalTarget.transform.position-transform.position).sqrMagnitude>3.2f)Move(transform.forward*11,dt);
                     else if (Progress > .22f && Progress < .55f) Move(transform.forward * (Action==FighterAction.Heavy?3.4f:2.6f),dt);
-                    if((Combo==9 || Combo==10) && Progress<.6f && Time.unscaledTime>=nextGhostAt){game.Effects.Afterimage(this);nextGhostAt=Time.unscaledTime+.045f;}
+                    if((Combo==9 || Combo==10) && Progress<.6f && Time.unscaledTime>=nextGhostAt){game.Effects.Afterimage(this);nextGhostAt=Time.unscaledTime+(Application.isMobilePlatform?.12f:.045f);}
                     if (AttackActive) HitEnemies();
                     // Preserve contact, then accept defensive cancels and buffered branches.
                     if (Progress>(Action==FighterAction.Heavy?.58f:.50f) && Time.time-bufferedDodge<InputBuffer && TryDodge(input)) return;
@@ -119,6 +121,7 @@ namespace TomorinTrial
                 if (Action == FighterAction.Heal && !healingApplied && Progress>.63f)
                 {
                     healingApplied=true; Flasks--; Health=Mathf.Min(MaxHealth,Health+85+(Boon==TrialBoon.SpiritDew?12:0));
+                    RestoreCombatStamina(MaxStamina);
                     game.Effects.Burst(transform.position+Vector3.up,new Color(.35f,1,.74f),30);
                     game.Effects.Sound("heal",transform.position);
                 }
@@ -137,7 +140,7 @@ namespace TomorinTrial
             if(Time.time-bufferedDodge<InputBuffer && TryDodge(input)) return;
             if(Time.time-bufferedHeavy<InputBuffer && StartAttack(true,Time.time<chainUntil?chainCount:0)) return;
             if(Time.time-bufferedLight<InputBuffer && StartAttack(false,Time.time<chainUntil?chainCount:0)) return;
-            if(input.Heal && Flasks>0 && Health<MaxHealth && !Guarding)
+            if(input.Heal && Flasks>0 && (Health<MaxHealth || Stamina<MaxStamina) && !Guarding)
             { healingApplied=false; Begin(FighterAction.Heal,1.25f);return; }
             var direction=MoveDirection(input);
             if(!input.Sprint || Stamina>25)sprintExhausted=false;
@@ -247,7 +250,7 @@ namespace TomorinTrial
             {
                 SuccessfulDodges++;
                 if(Action==FighterAction.Dodge && !perfectDodgeAwarded && ActionTime<=.24f)
-                {perfectDodgeAwarded=true;blinkReadyUntil=Time.time+3;EmitCombat(TrialCombatCue.PerfectDodge,transform.position+Vector3.up);}
+                {perfectDodgeAwarded=true;RestoreCombatStamina(PerfectDodgeStamina);blinkReadyUntil=Time.time+3;EmitCombat(TrialCombatCue.PerfectDodge,transform.position+Vector3.up);}
                 return false;
             }
             if(Time.time<hurtUntil)return false;
@@ -258,6 +261,7 @@ namespace TomorinTrial
                 if(GuardAge<.20f && Spend(8))
                 {
                     SuccessfulParries++;
+                    RestoreCombatStamina(ParryStamina);
                     if(attacker is TrialEnemy enemy) enemy.Parried();
                     else if(attacker is TrialPlayer rival)rival.ReceiveParry();
                     HoldCombat(.085f);attacker?.HoldCombat(.10f);CombatFeedback(TrialCombatCue.Parry);
@@ -281,6 +285,13 @@ namespace TomorinTrial
                 CombatFeedback(TrialCombatCue.Death);
             }
             return true;
+        }
+
+        void RestoreCombatStamina(float amount)
+        {
+            Stamina=Mathf.Min(MaxStamina,Stamina+amount);
+            recoveryDelay=0;
+            sprintExhausted=false;
         }
 
         void ReceiveParry(){Begin(FighterAction.Stagger,.8f);PlanarVelocity=Vector3.zero;recoveryDelay=1;}
@@ -321,7 +332,7 @@ namespace TomorinTrial
             dodgeDirection=state.dodgeDirection;
             bool wasChoosing=ChoosingBoon;Boon=state.boon;OfferA=state.offerA;OfferB=state.offerB;OfferC=state.offerC;
             if(wasChoosing && !ChoosingBoon && this==game.Player)game.FinishBoonChoice();
-            if((Combo==9 || Combo==10) && (Action==FighterAction.Light || Action==FighterAction.Heavy) && Progress<.6f && Time.unscaledTime>=nextGhostAt){game.Effects.Afterimage(this);nextGhostAt=Time.unscaledTime+.055f;}
+            if((Combo==9 || Combo==10) && (Action==FighterAction.Light || Action==FighterAction.Heavy) && Progress<.6f && Time.unscaledTime>=nextGhostAt){game.Effects.Afterimage(this);nextGhostAt=Time.unscaledTime+(Application.isMobilePlatform?.12f:.055f);}
             if(this==game.Player && game.Input.Lock)ToggleLock();
         }
     }

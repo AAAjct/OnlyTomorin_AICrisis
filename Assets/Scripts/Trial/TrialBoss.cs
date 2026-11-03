@@ -150,7 +150,10 @@ namespace TomorinTrial
             cooldown-=dt;
             var delta=game.CombatTarget.transform.position-transform.position;delta.y=0;
             float distance=delta.magnitude;
-            fighter.BossFace(delta,190,dt);fighter.BossMotion(0);
+            fighter.BossFace(delta,190,dt);
+            // Set the gait target once: easing toward zero and then one each frame
+            // previously cancelled out, leaving the walking animation at zero.
+            fighter.BossMotion(distance>3.8f?1:0);
             if(cooldown<=0 && distance<19)
             {
                 // React to back-hugging and healing, then rotate through distinct patterns.
@@ -173,7 +176,7 @@ namespace TomorinTrial
                 Vector3 direction=delta.normalized;
                 if(Physics.SphereCast(transform.position+Vector3.up,.65f,direction,out var hit,1.6f,1,QueryTriggerInteraction.Ignore))
                     direction=Vector3.ProjectOnPlane(direction,hit.normal).normalized;
-                fighter.BossMove(direction*(Enraged?3.3f:2.6f),dt);fighter.BossMotion(1);
+                fighter.BossMove(direction*(Enraged?3.3f:2.6f),dt);
             }
         }
 
@@ -188,6 +191,7 @@ namespace TomorinTrial
             fighter.BossFace(heading,36000,.02f);
             duration=next==DeepFishSkill.ReverseTail?3.3f:next==DeepFishSkill.RiptideRush?3.6f:next==DeepFishSkill.DelayedSlam?3.15f:next==DeepFishSkill.AbyssRain?4.2f:next==DeepFishSkill.TailSweep?1.9f:next==DeepFishSkill.TidalCharge?2f:next==DeepFishSkill.BellySlam?2.5f:next==DeepFishSkill.BubbleBarrage?2.7f:next==DeepFishSkill.Maelstrom?3.5f:2.1f;
             if(next!=DeepFishSkill.Enrage)duration*=Mathf.Max(.80f,1-.06f*(game.PartySize-1))*(Frenzied?.78f:Enraged?.86f:1);
+            if(next==DeepFishSkill.AbyssRain && game.PartySize>=2)duration=Mathf.Max(duration,3.6f);
             if(Boon==TrialBossBoon.SwiftCurrent)duration/=1.06f;
             if(next==DeepFishSkill.AbyssRain)CaptureMarks();
             fighter.BossBegin(Unblockable?FighterAction.Heavy:FighterAction.Light,duration);
@@ -224,10 +228,12 @@ namespace TomorinTrial
             }
             if(Skill==DeepFishSkill.AbyssRain)
             {
-                if(p<.16f || p>=.5f && p<.57f)CaptureMarks();
-                if(waves==0 && p>=.4f){DetonateMarks();waves=1;}
-                if(waves==1 && p>=.5f){CaptureMarks();waves=2;}
-                if(waves==2 && p>=.82f){DetonateMarks();waves=3;}
+                bool repeat=game.PartySize<2;
+                if(p<.16f || repeat && p>=.5f && p<.57f)CaptureMarks();
+                if(waves==0 && p>=.4f){DetonateMarks();waves=1;markCount=0;}
+                if(repeat && waves==1 && p>=.5f){CaptureMarks();waves=2;}
+                if(repeat && waves==2 && p>=.82f){DetonateMarks();waves=3;markCount=0;}
+                if(!repeat && waves>0)markCount=0;
             }
             if(Skill==DeepFishSkill.TailSweep)
             {
@@ -249,7 +255,7 @@ namespace TomorinTrial
             if(Skill==DeepFishSkill.BubbleBarrage && waves<(Frenzied?4:3) && p>=.30f+waves*.14f)
             {ShootFan(waves++);game.Effects.Sound("swing",transform.position,.65f);}
             if(Skill==DeepFishSkill.Maelstrom && waves<(Frenzied?4:3) && p>=.42f+waves*.13f)
-            {SpawnWave(transform.position,7.8f+waves*.8f);waves++;game.Effects.Sound("warning",transform.position,.75f);}
+            {SpawnWave(transform.position,7.0f+waves*.65f);waves++;game.Effects.Sound("warning",transform.position,.75f);}
             if(Skill==DeepFishSkill.Enrage && !landed && p>=.55f)
             {landed=true;game.Effects.Burst(transform.position+Vector3.up,Color.cyan,65);game.CameraRig.Kick(.35f);}
             // A parry can cancel the skill inside Contact; preserve the resulting stagger.
@@ -276,7 +282,7 @@ namespace TomorinTrial
             contacted.Clear();
             for(int i=0;i<markCount;i++)
             {
-                Impact(marks[i]);SpawnWave(marks[i],5.2f);
+                Impact(marks[i]);SpawnWave(marks[i],4.6f);
                 foreach(var target in Targets)
                     if(target && target.Alive && !contacted.Contains(target) && Vector3.ProjectOnPlane(target.transform.position-marks[i],Vector3.up).sqrMagnitude<6.76f && !Blocked(marks[i],target.transform.position))
                     {contacted.Add(target);target.ReceiveHit(fighter,36,30,true);}
@@ -375,7 +381,7 @@ namespace TomorinTrial
                         if(!target||!target.Alive||h.hitPlayers.Contains(target))continue;
                         float distance=Vector3.ProjectOnPlane(target.transform.position-h.position,Vector3.up).magnitude;
                         if(distance>=previous-.45f&&distance<=h.radius+.45f&&!Blocked(h.position,target.transform.position))
-                        {h.hitPlayers.Add(target);target.ReceiveHit(fighter,Enraged?25:20,20,true);}
+                        {h.hitPlayers.Add(target);target.ReceiveHit(fighter,Enraged?22:20,20,true);}
                     }
                     if(h.radius>15)Release(h);
                 }

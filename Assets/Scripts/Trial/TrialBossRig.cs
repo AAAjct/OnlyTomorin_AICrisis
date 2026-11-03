@@ -8,12 +8,14 @@ namespace TomorinTrial
     {
         TrialEnemy fighter;
         TrialBoss brain;
-        Transform model,spine,chest,head,leftArm,rightArm,leftForearm,rightForearm,leftLeg,rightLeg,leftKnee,rightKnee;
+        Transform model,spine,chest,head,leftArm,rightArm,leftForearm,rightForearm,leftLeg,rightLeg,leftKnee,rightKnee,leftFoot,rightFoot,leftToes,rightToes;
         Transform[] joints,tails,hair;
         Quaternion[] bind;
         Vector3 origin;
         Quaternion rotation;
         float clock;
+        float gaitDistance,locomotion,soleHeight;
+        Vector3 lastPosition;
         SkinnedMeshRenderer[] shapes;
         float potWeight;
         public Transform[] DrivenBones => joints;
@@ -28,6 +30,10 @@ namespace TomorinTrial
             leftForearm=Find(all,"lower_arm.L");rightForearm=Find(all,"lower_arm.R");
             leftLeg=Find(all,"upper_leg.L");rightLeg=Find(all,"upper_leg.R");
             leftKnee=Find(all,"lower_leg.L");rightKnee=Find(all,"lower_leg.R");
+            leftFoot=Find(all,"foot.L");rightFoot=Find(all,"foot.R");
+            leftToes=Find(all,"toes.L");rightToes=Find(all,"toes.R");
+            lastPosition=transform.position;
+            soleHeight=SupportHeight();
             var tailList=new List<Transform>();var hairList=new List<Transform>();
             foreach(var t in all)
             {
@@ -35,7 +41,7 @@ namespace TomorinTrial
                 if((t.name.StartsWith("ErDuo") || t.name.StartsWith("DaiMao") || t.name.StartsWith("Hou_hair")) && !t.name.EndsWith("_end"))hairList.Add(t);
             }
             tails=tailList.ToArray();hair=hairList.ToArray();
-            var driven=new List<Transform>{spine,chest,head,leftArm,rightArm,leftForearm,rightForearm,leftLeg,rightLeg,leftKnee,rightKnee};
+            var driven=new List<Transform>{spine,chest,head,leftArm,rightArm,leftForearm,rightForearm,leftLeg,rightLeg,leftKnee,rightKnee,leftFoot,rightFoot};
             driven.AddRange(tails);driven.AddRange(hair);driven.RemoveAll(t=>!t);
             joints=driven.ToArray();bind=new Quaternion[joints.Length];
             for(int i=0;i<joints.Length;i++)bind[i]=joints[i].localRotation;
@@ -47,12 +53,19 @@ namespace TomorinTrial
 
         void LateUpdate()
         {
+            var displacement=Vector3.ProjectOnPlane(transform.position-lastPosition,Vector3.up);
+            lastPosition=transform.position;
             if(!fighter || fighter.CombatFrozen || Time.deltaTime<=0)return;
             clock+=Time.deltaTime;
-            Pose(brain.Skill,brain.SkillProgress,fighter.MoveBlend,clock,brain.Enraged,!fighter.Alive,fighter.Progress,fighter.Vulnerable);
+            // Observe the actor, including interpolated network movement and skill rushes.
+            // Teleports must not turn into a burst of footsteps.
+            float distance=displacement.magnitude<2?displacement.magnitude:0;
+            locomotion=Mathf.MoveTowards(locomotion,Mathf.Clamp01(distance/Time.deltaTime/2.6f),Time.deltaTime*12);
+            gaitDistance+=distance;
+            Pose(brain.Skill,brain.SkillProgress,locomotion,clock,brain.Enraged,!fighter.Alive,fighter.Progress,fighter.Vulnerable,gaitDistance*Mathf.PI*2/1.25f);
         }
 
-        public void Pose(DeepFishSkill skill,float p,float movement,float time,bool enraged,bool dead=false,float death=0,bool stagger=false)
+        public void Pose(DeepFishSkill skill,float p,float movement,float time,bool enraged,bool dead=false,float death=0,bool stagger=false,float gaitPhase=-1)
         {
             potWeight=Mathf.MoveTowards(potWeight,enraged?100:0,Time.unscaledDeltaTime*160);
             foreach(var skin in shapes)for(int i=0;i<skin.sharedMesh.blendShapeCount;i++)
@@ -76,10 +89,15 @@ namespace TomorinTrial
             for(int i=0;i<joints.Length;i++)joints[i].localRotation=bind[i];
             // FBX bind rotation tilts its local Y axis; yaw in actor space keeps the turn upright.
             model.localPosition=origin;model.localRotation=Quaternion.AngleAxis(turn,Vector3.up)*rotation;
-            float gait=Mathf.Sin(time*7.6f),sway=Mathf.Sin(time*2.2f);
-            float lean=5,twist=sway*3,arms=68,lift=.035f+.025f*sway,tail=0;
-            Rotate(leftLeg,transform.right,gait*24*movement);Rotate(rightLeg,transform.right,-gait*24*movement);
-            Rotate(leftKnee,transform.right,Mathf.Max(0,-gait)*34*movement);Rotate(rightKnee,transform.right,Mathf.Max(0,gait)*34*movement);
+            bool walking=!dead && !stagger && (skill==DeepFishSkill.None || skill==DeepFishSkill.TidalCharge);
+            movement=walking?Mathf.Clamp01(movement):0;
+            float gait=Mathf.Sin(gaitPhase>=0?gaitPhase:time*7.6f),sway=Mathf.Sin(time*2.2f);
+            float lean=5,twist=sway*(3+movement*4),arms=68,lift=0,tail=0;
+            float leftSwing=gait*38*movement,rightSwing=-leftSwing;
+            float leftBend=Mathf.Max(0,-gait)*58*movement,rightBend=Mathf.Max(0,gait)*58*movement;
+            Rotate(leftLeg,transform.right,leftSwing);Rotate(rightLeg,transform.right,rightSwing);
+            Rotate(leftKnee,transform.right,leftBend);Rotate(rightKnee,transform.right,rightBend);
+            Rotate(leftFoot,transform.right,-leftSwing-leftBend);Rotate(rightFoot,transform.right,-rightSwing-rightBend);
             if(skill==DeepFishSkill.TailSweep)
             {
                 float wind=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,.34f,p));
@@ -88,7 +106,7 @@ namespace TomorinTrial
                 twist=(-48*wind+150*strike)*recover;tail=(-30*wind+95*strike)*recover;arms=46;lean=12;
             }
             if(skill==DeepFishSkill.TidalCharge)
-            {float thrust=Mathf.Sin(Mathf.InverseLerp(.27f,.79f,p)*Mathf.PI);lean=15+thrust*35;arms=26;lift-=.08f;tail=22;}
+            {float thrust=Mathf.Sin(Mathf.InverseLerp(.27f,.79f,p)*Mathf.PI);lean=15+thrust*25;arms=26;tail=22;}
             if(skill==DeepFishSkill.BellySlam)
             {
                 float jump=Mathf.Sin(Mathf.InverseLerp(.24f,.54f,p)*Mathf.PI);
@@ -101,7 +119,7 @@ namespace TomorinTrial
             if(skill==DeepFishSkill.BubbleBarrage)
             {arms=15;lean=-12;twist=Mathf.Sin(p*Mathf.PI*6)*7;Rotate(leftForearm,transform.right,-65);Rotate(rightForearm,transform.right,-65);}
             if(skill==DeepFishSkill.Maelstrom || skill==DeepFishSkill.Enrage)
-            {arms=-35;lift+=Mathf.Sin(p*Mathf.PI)*.65f;lean=-12;twist=Mathf.Sin(p*Mathf.PI*2)*22;tail=Mathf.Sin(p*Mathf.PI*6)*25;}
+            {arms=-35;lean=-12;twist=Mathf.Sin(p*Mathf.PI*2)*22;tail=Mathf.Sin(p*Mathf.PI*6)*25;}
             if(stagger){lean=-28;arms=80;lift=-.06f;twist=8;}
             Rotate(leftArm,transform.forward,arms);Rotate(rightArm,transform.forward,-arms);
             Rotate(leftArm,transform.right,-12-gait*movement*10);Rotate(rightArm,transform.right,-12+gait*movement*10);
@@ -111,6 +129,8 @@ namespace TomorinTrial
             for(int i=0;i<tails.Length;i++)
                 Rotate(tails[i],transform.up,Mathf.Sin(time*(enraged?5:3.5f)-i*.55f)*(enraged?13:8)+tail/(1+i*.22f));
             for(int i=0;i<hair.Length;i++)Rotate(hair[i],transform.right,Mathf.Sin(time*3.7f-i*.6f)*3.2f);
+            // Ground the supporting sole after the full pose. Only the slam deliberately jumps.
+            if(!dead)model.localPosition+=Vector3.up*(soleHeight-SupportHeight());
             model.localPosition+=Vector3.up*lift;
             if(dead)
             {
@@ -118,6 +138,13 @@ namespace TomorinTrial
                 model.localRotation=rotation*Quaternion.Euler(-78*fall,0,12*fall);
                 model.localPosition+=Vector3.down*(.15f*fall);
             }
+        }
+
+        float SupportHeight()
+        {
+            if(!leftFoot || !rightFoot || !leftToes || !rightToes)return 0;
+            return Mathf.Min(Mathf.Min(transform.InverseTransformPoint(leftFoot.position).y,transform.InverseTransformPoint(rightFoot.position).y),
+                Mathf.Min(transform.InverseTransformPoint(leftToes.position).y,transform.InverseTransformPoint(rightToes.position).y));
         }
 
         static void Rotate(Transform joint,Vector3 axis,float degrees)
