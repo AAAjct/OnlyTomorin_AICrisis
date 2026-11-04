@@ -14,6 +14,7 @@ namespace TomorinTrial
     }
     public struct TrialHello : NetworkMessage { public string name; }
     public struct TrialRetryChallenge : NetworkMessage { }
+    public struct TrialReturnToRoom : NetworkMessage { }
     public struct TrialChooseBoon : NetworkMessage { public TrialBoon boon; }
     public struct TrialLobby : NetworkMessage { public int self; public int[] ids; public string[] names; public TrialLevel level; public TrialDifficulty difficulty; }
     public struct TrialControls : NetworkMessage
@@ -22,7 +23,7 @@ namespace TomorinTrial
         public float yaw;
         public byte held, pressed;
     }
-    public enum TrialCombatCue : byte { Parry, Block, GuardBreak, Death, Hit, HeavyHit, Kill, PerfectDodge, BlinkSlash, Reversal }
+    public enum TrialCombatCue : byte { Parry, Block, GuardBreak, Death, Hit, HeavyHit, Kill, PerfectDodge, BlinkSlash, Reversal, Hurt, SkillImpact, Dodge, Heal, ChargeReady, CutThrough, HeavyLand }
     // Transient feedback is separate from snapshots: several contacts may occur
     // between snapshots, and each belongs to the player who received the hit.
     public struct TrialCombatEvent : NetworkMessage
@@ -63,7 +64,7 @@ namespace TomorinTrial
         public TrialActorState[] players, enemies;
         public TrialBossState boss;
         public TrialChampionState[] champions;
-        public bool gate, victory, arena, defeat;
+        public bool gate, victory, arena, defeat, waitingForBoons;
         public int guards;
         public float seconds;
         public TrialLevel level;

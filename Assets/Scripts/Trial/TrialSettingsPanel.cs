@@ -13,6 +13,7 @@ namespace TomorinTrial
         RectTransform card;
         Action back;
         UnityEngine.UI.Slider volume;
+        readonly UnityEngine.UI.Slider[] soundVolumes=new UnityEngine.UI.Slider[4];
         UnityEngine.UI.Text sprintLabel,motionLabel,status,frameLabel;
         UnityEngine.UI.Button first;
         readonly List<UnityEngine.UI.Selectable> navigation=new List<UnityEngine.UI.Selectable>();
@@ -54,11 +55,13 @@ namespace TomorinTrial
             var handle=Box("Handle",track,0,0,20,28,Red);handle.pivot=new Vector2(.5f,.5f);volume.handleRect=handle;handle.sizeDelta=new Vector2(20,0);volume.targetGraphic=handle.GetComponent<UnityEngine.UI.Image>();
             track.gameObject.AddComponent<TrialSettingsFocus>();
             volume.onValueChanged.AddListener(v=>{AudioListener.volume=v;PlayerPrefs.SetFloat("Ink.Volume",v);});navigation.Add(volume);
-            first=Button("Sprint mode",card,36,290,300,48,"",()=>{TrialPreferences.ToggleSprint=!TrialPreferences.ToggleSprint;Refresh();});sprintLabel=first.GetComponentInChildren<UnityEngine.UI.Text>();
-            Label("切换：按一次开始，再按一次停止。\n长按：按住奔跑，松开停止。",card,36,354,310,64,16,Grey);
-            motionLabel=Button("Motion",card,36,440,300,48,"",()=>{InkMainMenu.SetReducedMotion(!InkMainMenu.ReducedMotion);Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
-            Label("点击右侧键位后，按下新的按键。\n重复占用会提示冲突，Esc 取消。\n手柄移动与视角保留双摇杆。",card,36,510,310,100,16,Grey);
-            frameLabel=Button("Mobile frame rate",card,36,632,300,48,"",()=>{TrialPreferences.CycleMobileFrameRate();Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
+            string[] soundNames={"音效音量","攻击与命中","格挡与弹刀","Boss 技能与预警"};
+            for(int i=0;i<soundVolumes.Length;i++){int category=i;soundVolumes[i]=SoundSlider(soundNames[i],260+i*64,TrialPreferences.AudioLevel(i),v=>TrialPreferences.SetAudioLevel(category,v));}
+            first=Button("Sprint mode",card,36,534,300,42,"",()=>{TrialPreferences.ToggleSprint=!TrialPreferences.ToggleSprint;Refresh();});sprintLabel=first.GetComponentInChildren<UnityEngine.UI.Text>();
+
+            motionLabel=Button("Motion",card,36,590,300,42,"",()=>{InkMainMenu.SetReducedMotion(!InkMainMenu.ReducedMotion);Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
+
+            frameLabel=Button("Frame rate limit",card,36,646,300,42,"",()=>{TrialPreferences.CycleMobileFrameRate();Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
             Label("按键设置",card,390,108,200,30,23,Ink);
             Label("键鼠主键",card,512,145,130,25,16,Grey);Label("备用键",card,650,145,110,25,16,Grey);Label("手柄",card,772,145,290,25,16,Grey);
             int row=0;
@@ -83,8 +86,16 @@ namespace TomorinTrial
                 if(!(control is UnityEngine.UI.Slider)){nav.selectOnLeft=nav.selectOnUp;nav.selectOnRight=nav.selectOnDown;}control.navigation=nav;
             }
         }
+        UnityEngine.UI.Slider SoundSlider(string caption,float y,float value,UnityEngine.Events.UnityAction<float> change)
+        {
+            Label(caption,card,36,y,300,25,18,Ink);
+            var track=Box(caption,card,36,y+29,300,20,new Color(.15f,.14f,.12f,.12f));
+            var slider=track.gameObject.AddComponent<UnityEngine.UI.Slider>();slider.minValue=0;slider.maxValue=1;
+            var handle=Box("Handle",track,0,0,20,20,Red);handle.pivot=new Vector2(.5f,.5f);slider.handleRect=handle;handle.sizeDelta=new Vector2(20,0);slider.targetGraphic=handle.GetComponent<UnityEngine.UI.Image>();
+            track.gameObject.AddComponent<TrialSettingsFocus>();slider.SetValueWithoutNotify(value);slider.onValueChanged.AddListener(change);navigation.Add(slider);return slider;
+        }
         public void Show()
-        {gameObject.SetActive(true);transform.SetAsLastSibling();active=this;openedFrame=Time.frameCount;volume.SetValueWithoutNotify(AudioListener.volume);Refresh();status.text="键位自动保存，开始菜单与游戏内共用。";first.Select();}
+        {gameObject.SetActive(true);transform.SetAsLastSibling();active=this;openedFrame=Time.frameCount;volume.SetValueWithoutNotify(AudioListener.volume);for(int i=0;i<soundVolumes.Length;i++)soundVolumes[i].SetValueWithoutNotify(TrialPreferences.AudioLevel(i));Refresh();status.text="键位自动保存，开始菜单与游戏内共用。";first.Select();}
         public void Hide(){gameObject.SetActive(false);}
         void Refresh(){sprintLabel.text=TrialPreferences.SprintCaption;motionLabel.text="画面动效："+(InkMainMenu.ReducedMotion?"关闭":"开启");frameLabel.text=TrialPreferences.MobileFrameCaption;foreach(var update in refreshBindings)update();}
         public void BeginRebind(TrialBindings.Entry entry,int slot,UnityEngine.UI.Button button)

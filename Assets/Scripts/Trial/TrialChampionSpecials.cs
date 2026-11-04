@@ -137,7 +137,7 @@ namespace TomorinTrial
                 if(h.age>delay)foreach(var target in Targets)
                 {
                     if(!target || !target.Alive || h.hit.Contains(target))continue;
-                    bool contact=h.kind==ChampionHazardKind.Silk?SegmentDistance(Planar(target.transform.position)+Vector3.up*.045f,h.position,h.endpoint)<.42f:Planar(target.transform.position-h.position).sqrMagnitude<h.radius*h.radius;
+                    bool contact=h.kind==ChampionHazardKind.Silk?SegmentDistance(Planar(target.transform.position)+Vector3.up*.045f,h.position,h.endpoint)<.30f:Planar(target.transform.position-h.position).sqrMagnitude<Mathf.Max(.1f,h.radius-.14f)*Mathf.Max(.1f,h.radius-.14f);
                     if(contact){h.hit.Add(target);target.ReceiveHazardHit(fighter,h.damage,35,true,h.position-target.transform.position);}
                 }
             }
@@ -178,7 +178,7 @@ namespace TomorinTrial
                 foreach(var target in Targets)
                 {
                     if(!target || !target.Alive || h.hit.Contains(target))continue;
-                    if(SegmentDistance(target.transform.position+Vector3.up*1.05f,before,h.position)>h.radius+.28f)continue;
+                    if(SegmentDistance(target.transform.position+Vector3.up*1.05f,before,h.position)>h.radius+.12f)continue;
                     if(h.kind==ChampionHazardKind.Rocket){Explode(h,2.8f);return;}
                     h.hit.Add(target);target.ReceiveHazardHit(fighter,h.damage,35,h.unblockable,-h.velocity);
                     if(h.kind!=ChampionHazardKind.Boomerang){Deactivate(h);return;}
@@ -191,7 +191,7 @@ namespace TomorinTrial
             game.Effects.Burst(h.position,TrialChampionCatalog.Color(Kind),24);game.Effects.Sound("heavy",h.position,.7f);
             foreach(var target in Targets)
             {
-                if(!target || !target.Alive || Planar(target.transform.position-h.position).sqrMagnitude>radius*radius)continue;
+                if(!target || !target.Alive || Planar(target.transform.position-h.position).sqrMagnitude>Mathf.Max(.1f,radius-.18f)*Mathf.Max(.1f,radius-.18f))continue;
                 if(Physics.Linecast(h.position+Vector3.up*.25f,target.transform.position+Vector3.up,1,QueryTriggerInteraction.Ignore))continue;
                 bool hit=target.ReceiveHazardHit(fighter,h.damage,40,true,h.position-target.transform.position);
                 if(hit && Kind==ChampionKind.YaYa)target.ApplyCombatImpulse(Planar(h.position-target.transform.position).normalized*8);

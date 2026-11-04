@@ -81,14 +81,16 @@ namespace TomorinTrial
             menuCaption=Label("Description",menu,"击败三名奶蛙，进入庭心。",new Vector2(0,1),new Vector2(66,-380),new Vector2(530,210),18,muted);
             mainButton=Button("Begin",menu,new Vector2(66,-647),new Vector2(420,61),"踏入雾庭   →",()=>PrimaryAction());mainButtonLabel=mainButton.GetComponentInChildren<UnityEngine.UI.Text>();
             secondaryButton=Button("Boss challenge or title",menu,new Vector2(66,-722),new Vector2(420,47),"直接挑战大肥鱼",()=>{if(game.Mode==TrialMode.Title)game.StartBossChallenge();else game.ReturnToTitle();});
+            roomButton=Button("Return to room",menu,new Vector2(66,-785),new Vector2(420,47),"返回联机房间",()=>TrialNetworkManager.Current.ReturnToRoom());roomButton.gameObject.SetActive(false);
             footer=Label("Menu footer",menu,"Enter / A",new Vector2(0,1),new Vector2(66,-800),new Vector2(550,30),13,muted).gameObject;
             var uiModule=FindFirstObjectByType<InputSystemUIInputModule>();
             if(uiModule && uiModule.actionsAsset==null)uiModule.AssignDefaultActions();
             var nav=new UnityEngine.UI.Navigation{mode=UnityEngine.UI.Navigation.Mode.Explicit,selectOnDown=secondaryButton};mainButton.navigation=nav;
             nav.selectOnDown=null;nav.selectOnUp=mainButton;secondaryButton.navigation=nav;
-            InitializeSettings();InitializeArtwork();InitializeTouchControls();
+            InitializeSettings();InitializeArtwork();InitializeTouchControls();InitializeDamageFeedback();
         }
 
+        UnityEngine.UI.Button roomButton;
         void PrimaryAction()
         {
             switch(game.Mode)
@@ -102,7 +104,7 @@ namespace TomorinTrial
             UpdateRunChoices();UpdatePlayerNameplates();
             if(TrialNetworkManager.SessionActive)playerName.text=TrialNetworkManager.Current.NameOf(game.Player);
             health.fillAmount=game.Player.Health/game.Player.MaxHealth;stamina.fillAmount=game.Player.Stamina/game.Player.MaxStamina;
-            UpdateHealthShake();
+            UpdateDamageFeedback();UpdateHealthShake();
             int hp=Mathf.CeilToInt(game.Player.Health),sp=Mathf.CeilToInt(game.Player.Stamina);
             if(hp!=shownHealth || sp!=shownStamina)
             {shownHealth=hp;shownStamina=sp;hpText.text=$"{hp} / {game.Player.MaxHealth:0}";}
@@ -174,8 +176,12 @@ namespace TomorinTrial
             secondaryButton.gameObject.SetActive(game.Mode==TrialMode.Paused || game.Mode==TrialMode.Title || game.Mode==TrialMode.Dead || game.Mode==TrialMode.Victory);
             secondaryButton.GetComponentInChildren<UnityEngine.UI.Text>().text=game.Mode==TrialMode.Title?(game.IsChampionStage?"直接挑战 Boss   →":"直接挑战大肥鱼   →"):game.Mode==TrialMode.Dead?"退出到主菜单":"返回标题";
             footer.SetActive(game.Mode==TrialMode.Title);
-            mainButton.interactable=true;
-            if(show && EventSystem.current){EventSystem.current.SetSelectedGameObject(null);EventSystem.current.SetSelectedGameObject(mainButton.gameObject);}
+            bool room=TrialNetworkManager.SessionActive && game.Mode==TrialMode.Victory;
+            roomButton.gameObject.SetActive(room);
+            mainButton.interactable=!(TrialNetworkManager.SessionActive && (game.Mode==TrialMode.Victory || game.Mode==TrialMode.Dead) && !TrialNetworkManager.Current.IsHost);
+            if(room){Navigate(secondaryButton,mainButton.interactable?mainButton:roomButton,roomButton);Navigate(roomButton,secondaryButton,mainButton.interactable?mainButton:secondaryButton);}
+
+            if(show && EventSystem.current){EventSystem.current.SetSelectedGameObject(null);EventSystem.current.SetSelectedGameObject(mainButton.interactable?mainButton.gameObject:secondaryButton.gameObject);}
             menuSubtitle.text="";
             if(game.Mode==TrialMode.Title)
             {menuTitle.text=game.IsChampionStage?TrialChampionCatalog.LevelName(game.Level):"雾庭";menuCaption.text=game.IsChampionStage?TrialChampionCatalog.Lesson(game.Level):"击败三名奶蛙，进入庭心。";mainButtonLabel.text="进入";}
@@ -192,6 +198,7 @@ namespace TomorinTrial
             {menuTitle.text="通关";menuCaption.text=$"{Mathf.FloorToInt(game.PlaySeconds/60):00}:{Mathf.FloorToInt(game.PlaySeconds%60):00}    倒下 {game.Deaths} 次";mainButtonLabel.text="重新挑战";}
             if(TrialNetworkManager.SessionActive)
             {
+                if(!mainButton.interactable)mainButtonLabel.text="等待房主重来";
                 if(game.Mode==TrialMode.Paused)menuCaption.text+="\n\n联机时游戏仍在运行。";
             }
         }
@@ -223,6 +230,6 @@ namespace TomorinTrial
             Label("Caption",rect,caption,new Vector2(0,1),new Vector2(23,-14),size-new Vector2(38,10),22,ivory);
             button.transition=UnityEngine.UI.Selectable.Transition.None;rect.gameObject.AddComponent<TrialMenuFocus>();return button;
         }
-        void OnDestroy(){if(ownsFont && font)Destroy(font);if(barSprite)Destroy(barSprite);}
+        void OnDestroy(){DisposeDamageFeedback();if(ownsFont && font)Destroy(font);if(barSprite)Destroy(barSprite);}
     }
 }

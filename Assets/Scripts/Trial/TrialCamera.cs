@@ -20,7 +20,7 @@ namespace TomorinTrial
         float frameUntil,frameStrength;
         public void CombatFrame(TrialFighter opponent,float seconds,float strength)
         {if(InkMainMenu.ReducedMotion || !opponent)return;framedOpponent=opponent;frameUntil=Time.unscaledTime+Mathf.Min(seconds,.9f);frameStrength=Mathf.Clamp01(strength);}
-        public void Pulse(float amount){pulse=Mathf.Max(pulse,amount);}
+        public void Pulse(float amount){if(InkMainMenu.ReducedMotion)return;pulse=Mathf.Max(pulse,amount);}
         public bool Frozen { get; set; }
         public void Initialize(TrialPlayer target)
         {
@@ -39,7 +39,7 @@ namespace TomorinTrial
         }
         public void Snap()
         {if(!player)return;trackedLock=null;lockVelocity=Vector3.zero;yawVelocity=0;closeLock=false;yaw=player.transform.eulerAngles.y;focus=player.transform.position+Vector3.up;Place(1);}
-        public void Kick(float strength){shake=Mathf.Max(shake,strength);}
+        public void Kick(float strength){if(InkMainMenu.ReducedMotion)return;shake=Mathf.Max(shake,strength);}
         void LateUpdate()
         {
             if(!player || Frozen)return;

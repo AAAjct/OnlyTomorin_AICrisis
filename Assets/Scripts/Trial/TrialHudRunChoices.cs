@@ -12,6 +12,7 @@ namespace TomorinTrial
         readonly Dictionary<TrialPlayer,RectTransform> nameplates=new Dictionary<TrialPlayer,RectTransform>();
         readonly List<TrialPlayer> expiredNameplates=new List<TrialPlayer>();
         bool boonWasOpen;
+        UnityEngine.UI.Text partyWaiting;
         TrialBoon shownOfferA,shownOfferB,shownOfferC;
         readonly UnityEngine.UI.Text[] boonLabels=new UnityEngine.UI.Text[3];
         UnityEngine.UI.Image impactFlash;
@@ -22,7 +23,7 @@ namespace TomorinTrial
             if(!impactFlash)
             {
                 var rect=Panel("Impact flash",root,Vector2.zero,Vector2.zero,Vector2.zero,Color.clear);rect.anchorMax=Vector2.one;rect.offsetMin=rect.offsetMax=Vector2.zero;
-                impactFlash=rect.GetComponent<UnityEngine.UI.Image>();
+                impactFlash=rect.GetComponent<UnityEngine.UI.Image>();impactFlash.raycastTarget=false;
             }
             flashTint=color;flashUntil=Time.unscaledTime+.16f;impactFlash.transform.SetAsLastSibling();
         }
@@ -31,6 +32,9 @@ namespace TomorinTrial
         {
             if(impactFlash){var color=flashTint;color.a*=Mathf.Clamp01((flashUntil-Time.unscaledTime)/.16f);impactFlash.color=color;}
             bool choosing=game.Player.ChoosingBoon && game.Mode==TrialMode.Playing;
+            bool waiting=TrialNetworkManager.SessionActive && TrialNetworkManager.Current.WaitingForBoons && !choosing && game.Mode==TrialMode.Playing;
+            if(waiting && !partyWaiting)partyWaiting=Label("Party boon waiting",root,"等待同伴选择祝福…",new Vector2(.5f,.5f),new Vector2(-260,80),new Vector2(520,50),25,gold,TextAnchor.MiddleCenter);
+            if(partyWaiting)partyWaiting.gameObject.SetActive(waiting);
             if(choosing && !boonPanel)
             {
                 var overlay=Panel("Choose a run boon",root,Vector2.zero,Vector2.zero,Vector2.zero,new Color(.015f,.025f,.035f,.88f));

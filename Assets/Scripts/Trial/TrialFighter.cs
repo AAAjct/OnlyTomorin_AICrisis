@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace TomorinTrial
 {
-    public enum FighterAction { Free, Light, Heavy, Dodge, Heal, Stagger, Dead }
+    public enum FighterAction { Free, Light, Heavy, Dodge, Heal, Stagger, Dead, Charge }
 
     public abstract class TrialFighter : MonoBehaviour
     {
@@ -24,7 +24,7 @@ namespace TomorinTrial
         protected void ClearCombatHold(){combatFreezeUntil=0;}
         public bool Alive => Health > 0;
         public float Progress => ActionDuration > 0 ? Mathf.Clamp01(ActionTime / ActionDuration) : 0;
-        public bool AttackActive => (Action == FighterAction.Light || Action == FighterAction.Heavy || (this is TrialPlayer && Action==FighterAction.Dodge && Combo==7)) && Progress >= .33f && Progress <= .63f;
+        public bool AttackActive => (Action == FighterAction.Light || Action == FighterAction.Heavy || (this is TrialPlayer && Action==FighterAction.Dodge && Combo==7)) && Progress >= (this is TrialPlayer && Action==FighterAction.Light?.22f:.33f) && Progress <= (this is TrialPlayer && Action==FighterAction.Light?.54f:.63f);
         public bool Invulnerable => this is TrialEnemy enemy && enemy.BreakoutInvulnerable || Action == FighterAction.Dodge && ActionTime >= .025f && ActionTime <= .32f || this is TrialPlayer && (Action==FighterAction.Light && Combo==9 && Progress<.32f || Action==FighterAction.Heavy && Combo==10 && Progress<.48f);
         public Transform Visual { get; protected set; }
         public Transform Weapon { get; protected set; }
@@ -36,6 +36,7 @@ namespace TomorinTrial
         protected float hitFlash;
         protected Renderer[] renderers;
         protected MaterialPropertyBlock flashProperties;
+        Color[] authoredEmission;
         protected virtual float StaminaRecoveryRate => Guarding?0:29;
         protected virtual float StaminaRecoveryDelay => .7f;
 
@@ -102,10 +103,28 @@ namespace TomorinTrial
             if (hitFlash > 0)
             {
                 hitFlash = Mathf.Max(0,hitFlash-dt);
-                flashProperties.SetColor("_EmissionColor", new Color(2,.58f,.17f) * (hitFlash / .16f));
-                foreach (var r in renderers) if(r) r.SetPropertyBlock(flashProperties);
+                SetHitEmission(new Color(2,.58f,.17f) * (hitFlash / .16f));
             }
             if (transform.position.y < -8 && Alive) ReceiveHit(null, 9999, 0, true);
+        }
+
+        protected void SetHitEmission(Color pulse)
+        {
+            if(authoredEmission==null || authoredEmission.Length!=renderers.Length)
+            {
+                authoredEmission=new Color[renderers.Length];
+                for(int i=0;i<renderers.Length;i++)
+                {
+                    var material=renderers[i]?renderers[i].sharedMaterial:null;
+                    authoredEmission[i]=material && material.HasProperty("_EmissionColor")?material.GetColor("_EmissionColor"):Color.black;
+                }
+            }
+            for(int i=0;i<renderers.Length;i++)if(renderers[i])
+            {
+                renderers[i].GetPropertyBlock(flashProperties);
+                flashProperties.SetColor("_EmissionColor",authoredEmission[i]+pulse);
+                renderers[i].SetPropertyBlock(flashProperties);
+            }
         }
 
         protected bool Spend(float amount)

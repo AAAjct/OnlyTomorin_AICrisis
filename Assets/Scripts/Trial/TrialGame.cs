@@ -80,9 +80,18 @@ namespace TomorinTrial
             SetPartySize(PartySize);
             Hud=gameObject.AddComponent<TrialHud>();Hud.Initialize(this);
             Mode=TrialMode.Title;SetCursor(false);Ready=true;
+            StartCoroutine(ReleaseUnusedLevelAssets());
             if(InkMainMenu.AutoStartTrial){InkMainMenu.AutoStartTrial=false;StartTrial();}
         }
 
+        System.Collections.IEnumerator ReleaseUnusedLevelAssets()
+        {
+            // Runtime actors retain their own meshes/materials. Companions still need Tomorin.
+            if(championModels!=null)System.Array.Clear(championModels,0,championModels.Length);
+            deepSeekModel=null;naiWaModel=null;championGun=null;
+            yield return null;
+            yield return Resources.UnloadUnusedAssets();
+        }
         void Spawn(Vector3 point,bool boss)
         {var enemy=new GameObject().AddComponent<TrialEnemy>();enemy.transform.SetParent(transform,false);enemy.Initialize(this,point,boss,deepSeekModel);enemies.Add(enemy);}
         void SpawnChampion(ChampionKind kind,Vector3 point)

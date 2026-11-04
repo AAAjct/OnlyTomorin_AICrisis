@@ -11,7 +11,7 @@ namespace TomorinTrial
         Material particles;
         TrialGame game;
         float stopUntil;
-        int nextSource;
+        int nextSource,nextWarningSource;
 
         public void Initialize(TrialGame owner)
         {
@@ -33,9 +33,9 @@ namespace TomorinTrial
             CreateSound("swing",.32f,180,.23f,1);CreateSound("hit",.22f,90,.35f,2);
             CreateSound("parry",.65f,820,.29f,3);CreateSound("warning",.36f,280,.14f,3);
             CreateSound("dodge",.27f,75,.13f,1);CreateSound("heal",.9f,520,.13f,3);CreateSound("death",.9f,65,.24f,2);
-            for(int i=0;i<10;i++){var voice=new GameObject("SFX voice "+i);voice.transform.SetParent(transform,false);var s=voice.AddComponent<AudioSource>();s.spatialBlend=.65f;s.rolloffMode=AudioRolloffMode.Linear;s.minDistance=2;s.maxDistance=24;s.volume=.55f;sources.Add(s);}
+            for(int i=0;i<14;i++){var voice=new GameObject("SFX voice "+i);voice.transform.SetParent(transform,false);var s=voice.AddComponent<AudioSource>();s.spatialBlend=.65f;s.rolloffMode=AudioRolloffMode.Linear;s.minDistance=2;s.maxDistance=24;s.volume=.55f;sources.Add(s);}
             CreateAmbience();
-            InitializeImpactEffects();
+            InitializeImpactEffects();InitializeTides();LoadCombatAudio();
             AmbientParticles(owner.World.Root,owner.World.ShrinePosition+Vector3.up,26,new Color(1,.58f,.16f),.035f,1.2f);
             AmbientParticles(owner.World.Root,new Vector3(0,5,5),100,new Color(.65f,.11f,.035f),.065f,.7f,24);
         }
@@ -52,7 +52,7 @@ namespace TomorinTrial
                 float envelope=Mathf.Min(1,t/.008f)*Mathf.Exp(-p*(kind==3?5:10));
                 samples[i]=wave*envelope*volume;
             }
-            var clip=AudioClip.Create("Original · "+key,samples.Length,1,rate,false);clip.SetData(samples,0);sounds[key]=clip;
+            var clip=AudioClip.Create("Original · "+key,samples.Length,1,rate,false);clip.SetData(samples,0);sounds[key]=clip;generatedSounds.Add(clip);
         }
 
         void CreateAmbience()
@@ -63,7 +63,7 @@ namespace TomorinTrial
                 float t=(float)i/rate;wind=Mathf.Lerp(wind,(float)random.NextDouble()*2-1,.018f);
                 samples[i]=wind*.10f+Mathf.Sin(2*Mathf.PI*55*t)*.018f+Mathf.Sin(2*Mathf.PI*82.5f*t)*.008f;
             }
-            var clip=AudioClip.Create("Original · night wind and drone",samples.Length,1,rate,false);clip.SetData(samples,0);sounds["ambience"]=clip;
+            var clip=AudioClip.Create("Original · night wind and drone",samples.Length,1,rate,false);clip.SetData(samples,0);sounds["ambience"]=clip;generatedSounds.Add(clip);
             var source=gameObject.AddComponent<AudioSource>();source.clip=clip;source.volume=.35f;source.loop=true;source.spatialBlend=0;source.Play();
         }
 
@@ -85,7 +85,15 @@ namespace TomorinTrial
         public void Sound(string key,Vector3 point,float pitch=1)
         {
             if(!sounds.TryGetValue(key,out var clip))return;
-            var source=sources[nextSource++%sources.Count];source.transform.position=point;source.pitch=pitch;source.PlayOneShot(clip);
+            if(combatVariants.TryGetValue(key,out var variants))clip=variants[nextSource%variants.Length]??clip;
+            bool boss=key=="warning" || key=="tideCharge" || key=="tideImpact" || key=="bubbleCast" || key=="bubblePop" || key=="heavy";
+            bool clash=key=="parry" || key=="block" || key=="counter";
+            bool attack=key=="swing" || key=="hit" || key=="impactHeavy" || key=="finish" || key=="charge" || key=="landing";
+            var source=sources[boss?10+nextWarningSource++%4:nextSource++%10];
+            float gain=TrialPreferences.AudioLevel(0)*(boss?TrialPreferences.AudioLevel(3):clash?TrialPreferences.AudioLevel(2):attack?TrialPreferences.AudioLevel(1):1);
+            source.volume=(boss?.92f:key=="footstep"?.24f:.62f)*gain;source.priority=boss?24:128;
+            source.spatialBlend=boss?.18f:.65f;source.minDistance=boss?8:2;source.maxDistance=boss?45:24;
+            source.transform.position=point;source.pitch=pitch;source.Stop();source.clip=clip;source.Play();
         }
         public void HitStop(float duration){stopUntil=Mathf.Max(stopUntil,Time.unscaledTime+duration);}
         public void PlayCombat(TrialCombatEvent value,bool localPlayer)
@@ -105,15 +113,16 @@ namespace TomorinTrial
             }
             else if(value.cue==TrialCombatCue.Block)
             {
-                Sound("parry",value.position,.65f);
-                Burst(value.position+Vector3.up,new Color(1,.8f,.5f),12);
+                Sound("block",value.position);
+                Burst(value.position+Vector3.up,new Color(1,.8f,.5f),24);
+                SlashEffect(value.position+Vector3.up,value.forward,new Color(.65f,.85f,1),.85f);
                 if(localPlayer){game.CameraRig.Kick(.18f);Rumble(.15f,.4f,.06f);HitStop(.025f);}
             }
             else if(localPlayer && value.cue==TrialCombatCue.GuardBreak)game.Hud.Notify("架势崩溃",1.2f);
             else if(localPlayer && value.cue==TrialCombatCue.Death)game.OnPlayerDied();
         }
         public void TickTime()
-        {TickImpactEffects();Time.timeScale=game.Mode==TrialMode.Victory || game.Mode==TrialMode.Dead?0:TrialNetworkManager.SessionActive?(Time.unscaledTime<slowUntil?.35f:1):game.Mode==TrialMode.Playing?(Time.unscaledTime<stopUntil?.08f:Time.unscaledTime<slowUntil?.30f:1):0;}
-        void OnDestroy(){DisposeImpactEffects();Time.timeScale=1;foreach(var clip in sounds.Values)if(clip)Destroy(clip);if(particles)Destroy(particles);}
+        {TickImpactEffects();TickTides();TickCombatAudio();Time.timeScale=game.Mode==TrialMode.Victory || game.Mode==TrialMode.Dead?0:TrialNetworkManager.SessionActive?(Time.unscaledTime<slowUntil?.35f:1):game.Mode==TrialMode.Playing?(Time.unscaledTime<stopUntil?.08f:Time.unscaledTime<slowUntil?.30f:1):0;}
+        void OnDestroy(){DisposeImpactEffects();Time.timeScale=1;foreach(var clip in generatedSounds)if(clip)Destroy(clip);if(particles)Destroy(particles);}
     }
 }

@@ -136,7 +136,7 @@ namespace TomorinTrial
                     float n=.7f+Mathf.PerlinNoise(x*.19f,y*.19f)*.4f+(float)random.NextDouble()*.12f;
                     if((x+y*3)%31==0)n*=.82f;pixels[y*64+x]=new Color(n,n,n,1);
                 }
-                t.SetPixels(pixels);t.Apply();m.SetTexture("_BaseMap",t);m.SetTextureScale("_BaseMap",Vector2.one*2);owned.Add(t);
+                t.SetPixels(pixels);t.Apply(true,true);m.SetTexture("_BaseMap",t);m.SetTextureScale("_BaseMap",Vector2.one*2);owned.Add(t);
             }
             if(emission.HasValue){m.EnableKeyword("_EMISSION");m.SetColor("_EmissionColor",emission.Value);}
             owned.Add(m);return m;
@@ -272,17 +272,18 @@ namespace TomorinTrial
                 if(renderer.transform.IsChildOf(Gate.transform) || renderer.transform.IsChildOf(ArenaEntrance.transform) || !renderer.enabled)continue;
                 var filter=renderer.GetComponent<MeshFilter>();if(!filter || !filter.sharedMesh)continue;
                 var center=Root.InverseTransformPoint(renderer.bounds.center);
-                var cell=Application.isMobilePlatform?new Vector2Int(Mathf.FloorToInt(center.x/12),Mathf.FloorToInt(center.z/12)):Vector2Int.zero;
+                var cell=Application.isMobilePlatform?new Vector2Int(Mathf.FloorToInt(center.x/12),Mathf.FloorToInt(center.z/12)):new Vector2Int(0,Mathf.FloorToInt(center.z/24));
                 var key=(renderer.sharedMaterial,cell);
                 if(!groups.TryGetValue(key,out var list)){list=new List<CombineInstance>();groups.Add(key,list);}
                 list.Add(new CombineInstance{mesh=filter.sharedMesh,transform=Root.worldToLocalMatrix*renderer.transform.localToWorldMatrix});originals.Add(renderer);
             }
             foreach(var entry in groups)
             {
-                var mesh=new Mesh{name="Temple batch · "+entry.Key.material.name+" · "+entry.Key.cell,indexFormat=IndexFormat.UInt32};mesh.CombineMeshes(entry.Value.ToArray());owned.Add(mesh);
+                var mesh=new Mesh{name="Temple batch · "+entry.Key.material.name+" · "+entry.Key.cell,indexFormat=IndexFormat.UInt32};mesh.CombineMeshes(entry.Value.ToArray());mesh.UploadMeshData(true);owned.Add(mesh);
                 var go=new GameObject(mesh.name);go.transform.SetParent(Root,false);go.AddComponent<MeshFilter>().sharedMesh=mesh;go.AddComponent<MeshRenderer>().sharedMaterial=entry.Key.material;
             }
-            foreach(var renderer in originals) renderer.enabled=false;
+            foreach(var renderer in originals)
+            {renderer.enabled=false;Object.Destroy(renderer.GetComponent<MeshFilter>());Object.Destroy(renderer);}
         }
 
         Transform MeshPart(string label,Mesh mesh,Vector3 point,Vector3 size,Material material)

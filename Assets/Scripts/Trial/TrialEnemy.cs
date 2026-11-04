@@ -32,8 +32,7 @@ namespace TomorinTrial
         {
             if(!ResolveActive && !resolveGlow)return;
             resolveGlow=ResolveActive;
-            flashProperties.SetColor("_EmissionColor",ResolveActive?new Color(.15f,.65f,1.8f):Color.black);
-            foreach(var r in renderers)if(r)r.SetPropertyBlock(flashProperties);
+            SetHitEmission(ResolveActive?new Color(.15f,.65f,1.8f):Color.black);
         }
 
         void TickResolve(float dt)

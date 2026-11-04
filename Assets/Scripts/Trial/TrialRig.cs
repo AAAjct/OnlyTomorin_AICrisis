@@ -63,6 +63,7 @@ namespace TomorinTrial
             float breathe=Mathf.Sin(Time.time*2.5f)*.008f;
             Vector3 hand=new Vector3(.30f,.76f,.26f), offhand=new Vector3(-.25f,.77f,.18f);
             Vector3 swordAngles=new Vector3(8,0,-52);
+            Quaternion? swordRotation=null;
             float twist=0,lean=movement*6,bank=player? -player.TurnLean*9:0;
             if(action==FighterAction.Free || action==FighterAction.Heal)
             {
@@ -78,12 +79,27 @@ namespace TomorinTrial
             if(action==FighterAction.Light || action==FighterAction.Heavy)
             {
                 bool heavy=action==FighterAction.Heavy;
-                float swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.20f,.58f,p));
-                float recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.69f,1,p));
+                float swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(heavy?.20f:.10f,heavy?.58f:.51f,p));
+                float recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(heavy?.69f:.55f,1,p));
                 Vector3 windup,finish;
                 Vector3 startAngles,endAngles;
                 switch(combo)
                 {
+                    case 18: // Heavy chain two: reverse rising cut.
+                        windup=new Vector3(.12f,.48f,.58f);finish=new Vector3(-.28f,1.40f,.48f);
+                        startAngles=new Vector3(145,35,-15);endAngles=new Vector3(-55,-55,20);break;
+                    case 19: // Heavy chain three: gathered two-handed diagonal finish.
+                        windup=new Vector3(-.28f,1.40f,.48f);finish=new Vector3(.35f,.50f,.66f);
+                        startAngles=new Vector3(-55,-55,20);endAngles=new Vector3(145,65,-25);break;
+                    case 15: // Cut through: tight rising interception into forward cleave.
+                        windup=new Vector3(-.28f,.78f,.16f);finish=new Vector3(.30f,1.25f,.64f);
+                        startAngles=new Vector3(120,-45,30);endAngles=new Vector3(-35,40,-20);break;
+                    case 16: // Heavy-to-light: reverse draw across the torso.
+                        windup=new Vector3(.12f,.48f,.58f);finish=new Vector3(-.40f,1.12f,.45f);
+                        startAngles=new Vector3(145,30,-20);endAngles=new Vector3(25,-65,45);break;
+                    case 17: // Charged airborne cleave.
+                        windup=new Vector3(.08f,1.63f,-.08f);finish=new Vector3(.10f,.46f,.68f);
+                        startAngles=new Vector3(-65,0,0);endAngles=new Vector3(155,0,0);break;
                     case 11: // Guarded straight counterthrust.
                         windup=new Vector3(.12f,1.20f,.16f);finish=new Vector3(.08f,1.08f,.82f);
                         startAngles=new Vector3(45,0,30);endAngles=new Vector3(90,0,0);break;
@@ -123,15 +139,29 @@ namespace TomorinTrial
                         startAngles=heavy?new Vector3(-55,0,-8):new Vector3(0,75,-65);
                         endAngles=heavy?new Vector3(155,0,8):new Vector3(125,-85,55);break;
                 }
-                hand=Vector3.Lerp(Vector3.Lerp(windup,finish,swing),hand,recover);
+                // Windup, fast contact arc, then controlled recovery. Adjacent cuts use
+                // the previous finish as their starting guard, so a chain keeps its flow.
+                Vector3 ready=hand;
+                float wind=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,heavy?.20f:.10f,p));
+                Vector3 arc=(windup+finish)*.5f+Vector3.forward*(heavy?.20f:.16f);
+                Vector3 cut=Vector3.Lerp(Vector3.Lerp(windup,arc,swing),Vector3.Lerp(arc,finish,swing),swing);
+                hand=Vector3.Lerp(Vector3.Lerp(ready,cut,wind),ready,recover);
                 offhand=Vector3.Lerp(heavy?hand+new Vector3(-.12f,-.10f,-.08f):new Vector3(-.35f,1.02f,-.10f),offhand,recover);
-                float side=combo==1?-1:1;
+                float side=combo==1 || combo==2 || combo==4 || combo==10 || combo==16?-1:1;
                 twist=Mathf.Lerp(-42*side,58*side,swing)*(1-recover);
                 lean=Mathf.Lerp(-12,heavy?25:14,swing)*(1-recover);
-                swordAngles=Vector3.Lerp(startAngles,endAngles,swing);
+                var cutRotation=Quaternion.Slerp(Quaternion.Euler(startAngles),Quaternion.Euler(endAngles),swing);
+                swordRotation=Quaternion.Slerp(Quaternion.Slerp(Quaternion.Euler(swordAngles),cutRotation,wind),Quaternion.Euler(swordAngles),recover);
                 model.localPosition+=transform.InverseTransformDirection(transform.forward)*Mathf.Sin(p*Mathf.PI)*.10f;
                 Leg(leftLeg,leftFoot,Mathf.Lerp(-24,15,swing));Leg(rightLeg,rightFoot,Mathf.Lerp(22,-16,swing));
-                if(combo==13)model.localPosition+=Vector3.up*(Mathf.Sin(Mathf.Clamp01(p/.72f)*Mathf.PI)*.75f);
+                if(combo==13 || combo==17)model.localPosition+=Vector3.up*(Mathf.Sin(Mathf.Clamp01(p/.72f)*Mathf.PI)*.75f);
+            }
+            if(action==FighterAction.Charge)
+            {
+                float charge=Mathf.SmoothStep(0,1,Mathf.Clamp01(p/.55f));
+                hand=Vector3.Lerp(hand,new Vector3(.12f,1.48f,-.05f),charge);
+                offhand=hand+new Vector3(-.12f,-.10f,-.06f);swordAngles=new Vector3(-55,0,-5);
+                lean=-10*charge;twist=-12*charge;Leg(leftLeg,leftFoot,-18);Leg(rightLeg,rightFoot,20);
             }
             if(action==FighterAction.Heal)
             {
@@ -162,6 +192,7 @@ namespace TomorinTrial
             // The targets follow the rolling visual root, so arms remain tucked during evasion.
             Vector3 basis=transform.position;
             Quaternion orientation=transform.rotation;
+            if(action==FighterAction.Heavy && (combo==13 || combo==17))basis+=Vector3.up*(Mathf.Sin(Mathf.Clamp01(p/.72f)*Mathf.PI)*.75f);
             if(action==FighterAction.Dodge || action==FighterAction.Dead)
             {
                 orientation=transform.rotation*Quaternion.Inverse(modelRotation)*model.localRotation;
@@ -178,7 +209,7 @@ namespace TomorinTrial
             if(weapon)
             {
                 weapon.position=RightHand?RightHand.position:basis+orientation*hand;
-                weapon.rotation=orientation*Quaternion.Euler(swordAngles);
+                weapon.rotation=orientation*(swordRotation??Quaternion.Euler(swordAngles));
             }
         }
 

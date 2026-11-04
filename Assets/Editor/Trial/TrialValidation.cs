@@ -52,7 +52,7 @@ namespace TomorinTrial.Editor
             var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
             Check(game!=null && game.Ready,"Scene bootstrap, Tomorin reference and four enemies");
             Check(game.Enemies.Count==4,"Three guards and one boss instantiated");
-            game.Input.SetDeviceFilter(new InputDevice[]{keyboard});game.RestartTrial();
+            game.Input.SetDeviceFilter(new InputDevice[]{keyboard});game.RestartTrial();game.Player.ChooseBoon(game.Player.OfferA);
             int frame=Time.frameCount;yield return .15f;Check(Time.frameCount>frame+2,"Player loop advances in Play Mode");
             var origin=game.Player.transform.position;Keys(Key.W);yield return .70f;Keys();yield return .08f;
             Check(game.Player.transform.position.z-origin.z>1.7f,$"WASD moves Tomorin through the Input System (delta={game.Player.transform.position-origin}, mode={game.Mode})");
@@ -73,7 +73,8 @@ namespace TomorinTrial.Editor
             Keys(Key.K);yield return .08f;hp=game.Player.Health;int parries=game.Player.SuccessfulParries;
             game.Player.ReceiveHit(enemy,30,20);
             Check(game.Player.SuccessfulParries==parries+1 && game.Player.Health==hp && enemy.Vulnerable,"Timed guard parries and exposes the attacker");
-            yield return .30f;game.Player.ReceiveHit(enemy,30,20);
+            for(int i=0;i<80 && game.Player.GuardAge<.24f;i++)yield return .02f;
+            game.Player.ReceiveHit(enemy,30,20);
             Check(game.Player.Health<hp && game.Player.Health>hp-10,"Held guard reduces damage after the parry window");
             Keys();yield return .1f;enemy.ResetFighter();enemy.Teleport(new Vector3(11,0,35));
             game.Player.ReceiveHit(null,65,10,true);yield return .6f;
@@ -93,7 +94,7 @@ namespace TomorinTrial.Editor
             Check(boss.PhaseTwo,"Boss switches to the second phase below 55% health");
             boss.ReceiveHit(game.Player,10000,100,true);yield return .1f;
             Check(game.Mode==TrialMode.Victory,"Defeating the boss completes the trial");
-            game.RestartTrial();Keys(Key.Escape);yield return .12f;Keys();yield return .1f;
+            game.RestartTrial();game.Player.ChooseBoon(game.Player.OfferA);Keys();yield return .12f;Keys(Key.Escape);yield return .12f;Keys();yield return .1f;
             Check(game.Mode==TrialMode.Paused && Time.timeScale==0,"Escape pauses gameplay and time");
             Keys(Key.Escape);yield return .12f;Keys();yield return .1f;
             Check(game.Mode==TrialMode.Playing && Time.timeScale>0,"Escape resumes gameplay");

@@ -18,6 +18,7 @@ namespace TomorinTrial
         public int Phase {get;private set;}=1;
         public ChampionMove Move=>TrialChampionCatalog.Move(Kind,MoveIndex);
         public float Age {get;private set;}
+        public float WarningProgress=>Attacking?Mathf.Clamp01(1-(NextImpact-Age)/Mathf.Max(.01f,Mathf.Min(Move.windup,beat==0?Move.windup:Move.interval))):0;
         public float BeatAge=>Age-(beat==0?0:Move.windup+(beat-1)*Move.interval);
         public bool Attacking=>MoveIndex>=0;
         public bool WindingUp=>Attacking && beat<Move.beats && Age<NextImpact;
@@ -73,7 +74,7 @@ namespace TomorinTrial
             fighter=owner;game=trial;Kind=kind;targets.Add(trial.Player);
             Visual=Instantiate(prefab,transform).transform;Visual.name=TrialChampionCatalog.Name(kind);
             Rig=Visual.GetComponent<TrialChampionRig>();Rig.Initialize(owner,this);
-            lineMaterial=new Material(trial.ParticleShader){name=Kind+" pooled skill ink"};
+            lineMaterial=new Material(Resources.Load<Material>("Trial/VFX/TideRibbon")){name=Kind+" pooled skill ink"};
             lineMaterial.SetColor("_BaseColor",Color.white);lineMaterial.SetFloat("_Surface",1);lineMaterial.SetInt("_ZWrite",0);
             lineMaterial.SetInt("_SrcBlend",(int)BlendMode.SrcAlpha);lineMaterial.SetInt("_DstBlend",(int)BlendMode.OneMinusSrcAlpha);lineMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");lineMaterial.renderQueue=3000;
             lineMaterial.SetFloat("_Cull",(float)CullMode.Off);
@@ -89,6 +90,7 @@ namespace TomorinTrial
             for(int i=0;i<hazards.Length;i++){var line=Line("Pooled projectile "+i,.075f,2);line.sharedMaterial=projectileMaterial;line.textureMode=LineTextureMode.Tile;hazards[i]=new Hazard{line=line};}
             Rig.CreateWeapon(trial.World,trial.ChampionGun,projectileMaterial);
             if(Kind==ChampionKind.Anon || Kind==ChampionKind.Penguin)for(int i=0;i<2;i++)hazards[i].prop=Rig.CloneProjectileWeapon(transform);
+            warning.gameObject.AddComponent<TrialSkillSurface>().Initialize(warning);
             ResetEncounter();
         }
         LineRenderer Line(string label,float width,int count)
@@ -136,7 +138,7 @@ namespace TomorinTrial
             if(Attacking){TickAttack(dt);return;}
             if(Mobility!=ChampionMobility.Grounded){TickMobility(dt);return;}
             cooldown-=dt;
-            var delta=Planar(game.CombatTarget.transform.position-transform.position);float distance=delta.magnitude;
+            var delta=Planar(game.CombatTarget.transform.position-transform.position);float distance=delta.magnitude;float range=Mathf.Max(.2f,Move.range-.18f);
             fighter.BossFace(delta,640,dt);
             bool gun=Kind==ChampionKind.Taffy;float desired=gun?10:Kind==ChampionKind.YaYa?5.4f:Kind==ChampionKind.Penguin?3.9f:2.8f;
             bool partnerActive=partner && partner.Alive && partner.Champion.Attacking && !partner.Champion.Recovering;
@@ -277,7 +279,7 @@ namespace TomorinTrial
                 }
                 game.Effects.Burst(transform.position+heading*.7f+Vector3.up*1.2f,TrialChampionCatalog.Color(Kind),8);game.Effects.Sound("hit",transform.position,.7f);return;
             }
-            if(shape==ChampionShape.Ring){SpawnHazard(transform.position+Vector3.up*.08f,Vector3.zero,true);game.Effects.Sound("heavy",transform.position);return;}
+            if(shape==ChampionShape.Ring){game.Effects.SkillImpact(transform.position,TrialChampionCatalog.Color(Kind));SpawnHazard(transform.position+Vector3.up*.08f,Vector3.zero,true);game.Effects.Sound("heavy",transform.position);return;}
             trace.enabled=true;
             trace.startColor=trace.endColor=TrialChampionCatalog.Color(Kind);
             trace.SetPosition(0,transform.position+Vector3.up);trace.SetPosition(1,(shape==ChampionShape.Leap||shape==ChampionShape.Mark?aim:transform.position+heading*Move.range)+Vector3.up*.9f);
@@ -297,17 +299,17 @@ namespace TomorinTrial
         }
         public bool Contains(Vector3 point)
         {
-            Vector3 delta=Planar(point-transform.position);float distance=delta.magnitude;
+            Vector3 delta=Planar(point-transform.position);float distance=delta.magnitude;float range=Mathf.Max(.2f,Move.range-.18f);
             switch(Move.shape)
             {
-                case ChampionShape.Leap:case ChampionShape.Dive:case ChampionShape.TwinPincer:case ChampionShape.Mark:case ChampionShape.Mine:case ChampionShape.Snare:case ChampionShape.Pillars:return Planar(point-aim).sqrMagnitude<Move.range*Move.range;
-                case ChampionShape.Annulus:return distance>=Move.inner && distance<=Move.range;
-                case ChampionShape.Stomp:case ChampionShape.Vacuum:return distance<=Move.range;
-                case ChampionShape.Fissure:return Planar(point-(origin+heading*Move.range*(beat+1)/Move.beats)).sqrMagnitude<1.9f*1.9f;
-                case ChampionShape.CrossLine:return distance<=Move.range && (Mathf.Abs(Vector3.Dot(delta,heading))<.85f || Mathf.Abs(Vector3.Dot(delta,Vector3.Cross(Vector3.up,heading)))<.85f);
+                case ChampionShape.Leap:case ChampionShape.Dive:case ChampionShape.TwinPincer:case ChampionShape.Mark:case ChampionShape.Mine:case ChampionShape.Snare:case ChampionShape.Pillars:return Planar(point-aim).sqrMagnitude<range*range;
+                case ChampionShape.Annulus:return distance>=Move.inner+.10f && distance<=range;
+                case ChampionShape.Stomp:case ChampionShape.Vacuum:return distance<=range;
+                case ChampionShape.Fissure:return Planar(point-(origin+heading*Move.range*(beat+1)/Move.beats)).sqrMagnitude<1.72f*1.72f;
+                case ChampionShape.CrossLine:return distance<=range && (Mathf.Abs(Vector3.Dot(delta,heading))<.70f || Mathf.Abs(Vector3.Dot(delta,Vector3.Cross(Vector3.up,heading)))<.70f);
                 case ChampionShape.Thrust:case ChampionShape.Lash:case ChampionShape.Snipe:case ChampionShape.Tether:
-                    float along=Vector3.Dot(delta,heading);return along>=-.3f && along<=Move.range && Mathf.Abs(Vector3.Dot(delta,Vector3.Cross(Vector3.up,heading)))<=Mathf.Max(.5f,along*Mathf.Tan(Move.angle*.5f*Mathf.Deg2Rad));
-                default:return distance>=Move.inner && distance<=Move.range && Vector3.Angle(heading,delta)<=Move.angle;
+                    float along=Vector3.Dot(delta,heading);return along>=-.3f && along<=range && Mathf.Abs(Vector3.Dot(delta,Vector3.Cross(Vector3.up,heading)))<=Mathf.Max(.36f,along*Mathf.Tan(Mathf.Max(1,Move.angle*.5f-3)*Mathf.Deg2Rad));
+                default:return distance>=Move.inner+.10f && distance<=range && Vector3.Angle(heading,delta)<=Mathf.Max(1,Move.angle-4);
             }
         }
         void SpawnHazard(Vector3 point,Vector3 velocity,bool ring)
@@ -328,7 +330,7 @@ namespace TomorinTrial
                 foreach(var target in Targets)
                 {
                     if(!target || !target.Alive || h.hit.Contains(target))continue;
-                    bool contact=h.ring?Mathf.Abs(Planar(target.transform.position-h.position).magnitude-h.radius)<.38f+8*dt:SegmentDistance(target.transform.position+Vector3.up*1.05f,before,h.position)<.44f;
+                    bool contact=h.ring?Mathf.Abs(Planar(target.transform.position-h.position).magnitude-h.radius)<.24f+8*dt:SegmentDistance(target.transform.position+Vector3.up*1.05f,before,h.position)<.34f;
                     if(!contact)continue;h.hit.Add(target);
                     target.ReceiveHazardHit(fighter,h.damage,30,h.unblockable,h.ring?h.position-target.transform.position:-h.velocity);
                     if(!h.ring){h.active=false;h.line.enabled=false;break;}
@@ -367,7 +369,7 @@ namespace TomorinTrial
                 case ChampionShape.Cut:case ChampionShape.Cross:case ChampionShape.Counter:case ChampionShape.Grab:case ChampionShape.DashCut:case ChampionShape.Spiral:
                     Arc(warning,center,Move.range,Move.angle);Arc(charge,center,Move.range*amount,Move.angle);break;
                 default:
-                    float range=Move.range;float width=Mathf.Clamp(range*Mathf.Tan(Move.angle*.5f*Mathf.Deg2Rad),.45f,14);
+                    float range=Move.range;float width=Mathf.Clamp(range*Mathf.Tan(Mathf.Max(1,Move.angle*.5f-3)*Mathf.Deg2Rad),.45f,14);
                     Vector3 right=Vector3.Cross(Vector3.up,heading);
                     for(int i=0;i<65;i++)
                     {float t=i/64f*3;points[i]=t<1?Vector3.Lerp(center,center+heading*range-right*width,t):t<2?Vector3.Lerp(center+heading*range-right*width,center+heading*range+right*width,t-1):Vector3.Lerp(center+heading*range+right*width,center,t-2);}
@@ -398,7 +400,9 @@ namespace TomorinTrial
         }
         public void ApplyNetwork(TrialChampionState state,float advance)
         {
+            bool newMove=state.move>=0 && (state.move!=MoveIndex || state.age+.1f<Age || state.beat!=beat);
             MoveIndex=state.move;Phase=state.phase;beat=state.beat;Age=state.age+advance;cooldown=state.cooldown;aim=state.aim;heading=state.heading;origin=state.origin;
+            if(newMove && Attacking)game.Effects.Sound("warning",transform.position,Move.Unblockable?.7f:1.15f);
             Mobility=(ChampionMobility)state.mobility;mobilityAge=state.mobilityAge+advance;mobilityDuration=state.mobilityDuration;mobilityDirection=state.mobilityDirection;
             for(int i=0;i<hazards.Length;i++)
             {var h=hazards[i];bool active=state.hazards!=null && i<state.hazards.Length;h.active=active;h.line.enabled=active;if(!active){if(h.prop)h.prop.gameObject.SetActive(false);continue;}var r=state.hazards[i];h.position=r.position;h.velocity=r.velocity;h.endpoint=r.endpoint;h.age=r.age;h.radius=r.radius;h.ring=r.ring;h.limit=r.limit;h.lifetime=r.lifetime;h.aux=r.aux;h.kind=(ChampionHazardKind)r.kind;h.line.positionCount=h.ring?65:2;DrawHazard(h);}

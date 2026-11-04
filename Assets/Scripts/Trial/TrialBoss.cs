@@ -11,6 +11,17 @@ namespace TomorinTrial
     {
         public DeepFishSkill Skill { get; private set; }
         public float SkillProgress => duration>0?Mathf.Clamp01(age/duration):0;
+        public float WarningProgress
+        {
+            get
+            {
+                float p=SkillProgress;
+                if(Skill==DeepFishSkill.ReverseTail)return p<.43f?Mathf.Clamp01(p/.30f):Mathf.InverseLerp(.43f,.66f,p);
+                if(Skill==DeepFishSkill.RiptideRush)return p<.46f?Mathf.Clamp01(p/.20f):Mathf.InverseLerp(.46f,.67f,p);
+                if(Skill==DeepFishSkill.AbyssRain)return p<.5f?Mathf.Clamp01(p/.40f):Mathf.InverseLerp(.5f,.82f,p);
+                return Mathf.Clamp01(p/ImpactPoint);
+            }
+        }
         public bool Enraged { get; private set; }
         public bool Frenzied { get; private set; }
         public TrialBossBoon Boon {get;private set;}
@@ -64,18 +75,22 @@ namespace TomorinTrial
             foreach(var r in meshes)if(r is SkinnedMeshRenderer skin)
             {skin.updateWhenOffscreen=false;var b=skin.localBounds;b.Expand(b.size*.65f);skin.localBounds=b;}
             var rig=gameObject.AddComponent<TrialBossRig>();rig.Initialize(owner,this,Visual);
-            water=new Material(trial.ParticleShader){name="DeepSeek · tidal energy"};
-            water.SetFloat("_Surface",1);water.SetOverrideTag("RenderType","Transparent");water.renderQueue=3000;
-            water.SetInt("_SrcBlend",(int)BlendMode.SrcAlpha);water.SetInt("_DstBlend",(int)BlendMode.OneMinusSrcAlpha);water.SetInt("_ZWrite",0);water.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            bubble=new Material(water){name="DeepSeek · cyan bubbles"};bubble.SetColor("_BaseColor",new Color(.13f,.8f,1,.78f));
+            water=new Material(Resources.Load<Material>("Trial/VFX/TideRibbon"));
+            bubble=new Material(Resources.Load<Material>("Trial/VFX/TideShell"));
             warning=Line("Skill boundary",.10f);fill=Line("Skill charge",.045f);sweep=Line("Tail arc",.20f);
             for(int i=0;i<markWarnings.Length;i++)markWarnings[i]=Line("Abyss rain target "+i,.12f);
+            warning.gameObject.AddComponent<TrialSkillSurface>().Initialize(warning);
+            foreach(var mark in markWarnings)mark.gameObject.AddComponent<TrialSkillSurface>().Initialize(mark);
             for(int i=0;i<hazards.Length;i++)
             {
                 var obj=GameObject.CreatePrimitive(PrimitiveType.Sphere);obj.name="Pooled tide bubble "+i;obj.layer=2;
                 obj.transform.SetParent(transform,false);Destroy(obj.GetComponent<Collider>());
-                var renderer=obj.GetComponent<Renderer>();renderer.sharedMaterial=bubble;renderer.shadowCastingMode=ShadowCastingMode.Off;
+                obj.GetComponent<MeshFilter>().sharedMesh=Resources.Load<Mesh>("Trial/VFX/TidePearl");
+                var tail=obj.AddComponent<TrailRenderer>();tail.time=.22f;tail.minVertexDistance=.08f;tail.startWidth=.28f;tail.endWidth=0;tail.sharedMaterial=water;
+                tail.startColor=new Color(.08f,.65f,1,.65f);tail.endColor=new Color(.02f,.2f,.5f,0);tail.shadowCastingMode=ShadowCastingMode.Off;
+                var renderer=obj.GetComponent<MeshRenderer>();renderer.sharedMaterial=bubble;renderer.shadowCastingMode=ShadowCastingMode.Off;
                 var h=new Hazard{visual=obj.transform,ring=Line("Pooled shockwave "+i,.16f)};
+                h.ring.gameObject.AddComponent<TrialWaveCrest>().Initialize(h.ring,water);
                 obj.SetActive(false);hazards[i]=h;
             }
         }
@@ -116,8 +131,10 @@ namespace TomorinTrial
         }
         public void ApplyNetwork(TrialBossState state)
         {
+            bool newSkill=state.skill!=0 && ((byte)Skill!=state.skill || state.age+.1f<age);
             Skill=(DeepFishSkill)state.skill;age=state.age;duration=state.duration;aim=state.aim;origin=state.origin;heading=state.heading;Enraged=state.enraged;Frenzied=state.frenzied;variant=state.variant;
             Boon=state.boon;
+            if(newSkill)game.Effects.Sound(CanBeDeflected && Unblockable?"tideCharge":"warning",transform.position,Unblockable?.85f:1.1f);
             EnsureMarks(state.marks==null?0:state.marks.Length);markCount=state.marks==null?0:state.marks.Length;for(int i=0;i<markCount;i++)marks[i]=state.marks[i];
             Color tint=Unblockable?new Color(1,.19f,.12f,.9f):new Color(1,.77f,.25f,.9f);
             HideWarnings();DrawTelegraphs(tint);
@@ -195,7 +212,7 @@ namespace TomorinTrial
             if(Boon==TrialBossBoon.SwiftCurrent)duration/=1.06f;
             if(next==DeepFishSkill.AbyssRain)CaptureMarks();
             fighter.BossBegin(Unblockable?FighterAction.Heavy:FighterAction.Light,duration);
-            game.Effects.Sound("warning",transform.position,Unblockable?.65f:1.1f);
+            game.Effects.Sound(CanBeDeflected && Unblockable?"tideCharge":"warning",transform.position,Unblockable?.85f:1.1f);
         }
 
         void TickSkill(float dt)
@@ -253,7 +270,7 @@ namespace TomorinTrial
                 {landed=true;Area(aim,4.2f,45);Impact(aim);SpawnWave(aim,Enraged?9:7);}
             }
             if(Skill==DeepFishSkill.BubbleBarrage && waves<(Frenzied?4:3) && p>=.30f+waves*.14f)
-            {ShootFan(waves++);game.Effects.Sound("swing",transform.position,.65f);}
+            {ShootFan(waves++);game.Effects.Sound("bubbleCast",transform.position,.95f);}
             if(Skill==DeepFishSkill.Maelstrom && waves<(Frenzied?4:3) && p>=.42f+waves*.13f)
             {SpawnWave(transform.position,7.0f+waves*.65f);waves++;game.Effects.Sound("warning",transform.position,.75f);}
             if(Skill==DeepFishSkill.Enrage && !landed && p>=.55f)
@@ -273,7 +290,11 @@ namespace TomorinTrial
         {
             if(capacity<=marks.Length)return;
             int previous=marks.Length;System.Array.Resize(ref marks,capacity);System.Array.Resize(ref markWarnings,capacity);
-            for(int i=previous;i<capacity;i++)markWarnings[i]=Line("Abyss rain target "+i,.12f);
+            for(int i=previous;i<capacity;i++)
+            {
+                markWarnings[i]=Line("Abyss rain target "+i,.12f);
+                markWarnings[i].gameObject.AddComponent<TrialSkillSurface>().Initialize(markWarnings[i]);
+            }
         }
         void CaptureMarks(){EnsureMarks(game.PartySize);markCount=0;foreach(var target in Targets)if(target && target.Alive && !target.ChoosingBoon && markCount<marks.Length)marks[markCount++]=ClampArena(target.transform.position);}
         void DetonateMarks()
@@ -284,7 +305,7 @@ namespace TomorinTrial
             {
                 Impact(marks[i]);SpawnWave(marks[i],4.6f);
                 foreach(var target in Targets)
-                    if(target && target.Alive && !contacted.Contains(target) && Vector3.ProjectOnPlane(target.transform.position-marks[i],Vector3.up).sqrMagnitude<6.76f && !Blocked(marks[i],target.transform.position))
+                    if(target && target.Alive && !contacted.Contains(target) && Vector3.ProjectOnPlane(target.transform.position-marks[i],Vector3.up).sqrMagnitude<5.76f && !Blocked(marks[i],target.transform.position))
                     {contacted.Add(target);target.ReceiveHit(fighter,36,30,true);}
             }
         }
@@ -318,7 +339,7 @@ namespace TomorinTrial
             {
                 if(!target || !target.Alive || contacted.Contains(target))continue;
                 var delta=Vector3.ProjectOnPlane(target.transform.position-transform.position,Vector3.up);
-                if(delta.magnitude>radius+.28f || Blocked(transform.position,target.transform.position))continue;
+                if(delta.magnitude>radius-.12f || Blocked(transform.position,target.transform.position))continue;
                 float angle=Vector3.SignedAngle(transform.forward,delta,Vector3.up);
                 if(from>=0)angle=Mathf.Repeat(angle,360);
                 float margin=Mathf.Asin(Mathf.Clamp01(.45f/Mathf.Max(.45f,delta.magnitude)))*Mathf.Rad2Deg;
@@ -334,16 +355,16 @@ namespace TomorinTrial
             {
                 if(!target||!target.Alive||contacted.Contains(target))continue;
                 var delta=target.transform.position-transform.position;delta.y=0;
-                if(delta.magnitude>range+.28f||Vector3.Angle(transform.forward,delta)>angle||Blocked(transform.position,target.transform.position))continue;
+                if(delta.magnitude>range-.12f||Vector3.Angle(transform.forward,delta)>angle-4||Blocked(transform.position,target.transform.position))continue;
                 contacted.Add(target);landed=true;target.ReceiveHit(fighter,damage,30,unblockable);
                 if(Skill==DeepFishSkill.None)break;
             }
         }
         void Area(Vector3 point,float range,float damage)
-        {foreach(var target in Targets)if(target&&target.Alive&&Vector3.ProjectOnPlane(target.transform.position-point,Vector3.up).magnitude<range+.28f&&!Blocked(point,target.transform.position))target.ReceiveHit(fighter,damage,35,true);}
+        {foreach(var target in Targets)if(target&&target.Alive&&Vector3.ProjectOnPlane(target.transform.position-point,Vector3.up).magnitude<range-.18f&&!Blocked(point,target.transform.position))target.ReceiveHit(fighter,damage,35,true);}
         bool Blocked(Vector3 from,Vector3 to)=>Physics.Linecast(from+Vector3.up*.8f,to+Vector3.up*.8f,1,QueryTriggerInteraction.Ignore);
         void Impact(Vector3 point)
-        {game.Effects.Burst(point+Vector3.up*.2f,new Color(.2f,.8f,1),65);game.CameraRig.Kick(.65f);game.Effects.Sound("hit",point,.55f);}
+        {game.Effects.Burst(point+Vector3.up*.2f,new Color(.2f,.8f,1),25);game.CameraRig.Kick(.65f);game.Effects.SkillImpact(point,new Color(.12f,.7f,1));}
 
         void ShootFan(int wave)
         {
@@ -355,7 +376,7 @@ namespace TomorinTrial
                 var direction=Quaternion.AngleAxis((i-(count-1)*.5f)*12+(variant==0?(wave%2==1?6:0):(wave-1)*9),Vector3.up)*delta;
                 h.position=transform.position+Vector3.up*.85f+direction*.9f;h.velocity=direction*(Enraged?7.5f:6.2f);
                 h.radius=.27f;h.age=0;h.hit=false;h.hitPlayers.Clear();h.active=true;h.shockwave=false;h.visual.gameObject.SetActive(true);
-                h.visual.position=h.position;h.visual.localScale=Vector3.one*.54f;h.ring.enabled=false;
+                h.visual.position=h.position;h.visual.GetComponent<TrailRenderer>().Clear();h.visual.localScale=Vector3.one*.54f;h.ring.enabled=false;
             }
         }
         void SpawnWave(Vector3 point,float speed)
@@ -380,7 +401,7 @@ namespace TomorinTrial
                     {
                         if(!target||!target.Alive||h.hitPlayers.Contains(target))continue;
                         float distance=Vector3.ProjectOnPlane(target.transform.position-h.position,Vector3.up).magnitude;
-                        if(distance>=previous-.45f&&distance<=h.radius+.45f&&!Blocked(h.position,target.transform.position))
+                        if(distance>=previous-.26f&&distance<=h.radius+.26f&&!Blocked(h.position,target.transform.position))
                         {h.hitPlayers.Add(target);target.ReceiveHit(fighter,Enraged?22:20,20,true);}
                     }
                     if(h.radius>15)Release(h);
@@ -395,9 +416,9 @@ namespace TomorinTrial
                         if(!target||!target.Alive)continue;
                         var to=target.transform.position+Vector3.up*.85f-h.position;
                         float fraction=step.sqrMagnitude>.00001f?Mathf.Clamp01(Vector3.Dot(to,step)/step.sqrMagnitude):0;
-                        if((to-step*fraction).sqrMagnitude<.58f*.58f){target.ReceiveHit(fighter,16,12);touched=true;break;}
+                        if((to-step*fraction).sqrMagnitude<.45f*.45f){target.ReceiveHit(fighter,16,12);touched=true;break;}
                     }
-                    if(touched){Release(h);continue;}
+                    if(touched){game.Effects.Burst(h.position,new Color(.15f,.8f,1),12);game.Effects.Sound("bubblePop",h.position);Release(h);continue;}
                     h.position+=step;h.visual.position=h.position;
                     if(h.age>4.5f)Release(h);
                 }

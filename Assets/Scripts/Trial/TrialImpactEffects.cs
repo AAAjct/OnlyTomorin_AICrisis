@@ -14,7 +14,7 @@ namespace TomorinTrial
             public readonly List<MeshRenderer> renderers=new List<MeshRenderer>();public float until;
         }
         readonly ArcEffect[] arcs=new ArcEffect[16];
-        readonly GhostFrame[] ghosts=new GhostFrame[8];
+        readonly GhostFrame[] ghosts=new GhostFrame[5];
         readonly Vector3[] slashPoints=new Vector3[49];
         MaterialPropertyBlock ghostProperties;
         Material ghostMaterial;
@@ -53,8 +53,12 @@ namespace TomorinTrial
             arc.line.SetPositions(slashPoints);arc.line.widthMultiplier=ring?.045f:.13f;arc.tint=tint;arc.until=Time.unscaledTime+(ring?.32f:.19f);arc.lifetime=ring?.32f:.19f;arc.line.enabled=true;
             arc.line.startColor=arc.line.endColor=tint;
         }
+        float nextGhostBake;
         public void Afterimage(TrialPlayer player)
         {
+            // Shared budget bounds BakeMesh cost even in a large cooperative room.
+            if(Time.unscaledTime<nextGhostBake)return;
+            nextGhostBake=Time.unscaledTime+(Application.isMobilePlatform?.13f:.065f);
             var skins=player.GhostSkins;if(skins==null)return;
             int index=nextGhost++%ghosts.Length;var ghost=ghosts[index];
             if(ghost==null)
@@ -77,6 +81,29 @@ namespace TomorinTrial
         bool PlayImpactCue(TrialCombatEvent value,bool local)
         {
             var cue=value.cue;
+            if(cue==TrialCombatCue.HeavyLand)
+            {SlashEffect(value.position+Vector3.up*.06f,value.forward,new Color(1,.68f,.26f),1.65f,true);Burst(value.position,new Color(1,.8f,.45f),30);Sound("landing",value.position);if(local){game.CameraRig.Kick(.22f);Rumble(.35f,.45f,.1f);}return true;}
+            if(cue==TrialCombatCue.Dodge)
+            {SlashEffect(value.position+Vector3.up*.08f,value.forward,new Color(.28f,.85f,1,.6f),.85f,true);Burst(value.position+Vector3.up*.1f,new Color(.4f,.8f,1),12);Sound("dodge",value.position);return true;}
+            if(cue==TrialCombatCue.Heal)
+            {Sound("heal",value.position);if(local)game.Hud.HealFlash();return true;}
+            if(cue==TrialCombatCue.ChargeReady)
+            {SlashEffect(value.position,value.forward,new Color(1,.72f,.25f),.9f,true);Burst(value.position,new Color(1,.8f,.3f),22);Sound("charge",value.position);if(local)Rumble(.15f,.35f,.08f);return true;}
+            if(cue==TrialCombatCue.CutThrough)
+            {SlashEffect(value.position,value.forward,new Color(1,.85f,.45f),2.2f);Burst(value.position,new Color(1,.86f,.5f),60);Sound("counter",value.position);if(local){HitStop(.09f);Rumble(.6f,.85f,.15f);game.CameraRig.Pulse(6);game.Hud.Flash(new Color(1,.84f,.4f,.12f));}return true;}
+            if(cue==TrialCombatCue.SkillImpact)
+            {ShowSkillImpact(value.position,new Color(value.forward.x,value.forward.y,value.forward.z));return true;}
+            if(cue==TrialCombatCue.Hurt)
+            {
+                Sound("hurt",value.position,Random.Range(.94f,1.04f));
+                if(local)
+                {
+                    game.Hud.SetDamageDirection(value.forward);
+                    if(!InkMainMenu.ReducedMotion){game.CameraRig.Kick(.32f);game.CameraRig.Pulse(2);}
+                    Rumble(.65f,.28f,.18f);
+                }
+                return true;
+            }
             if(cue==TrialCombatCue.Hit || cue==TrialCombatCue.HeavyHit || cue==TrialCombatCue.Kill)
             {
                 bool heavy=cue!=TrialCombatCue.Hit,kill=cue==TrialCombatCue.Kill;
@@ -137,12 +164,13 @@ namespace TomorinTrial
                 float seam=Mathf.Min(1,Mathf.Min(t,length-t)*18);
                 data[i]=(melody+drone+drum+noise)*seam;
             }
-            var clip=AudioClip.Create(label,data.Length,1,rate,false);clip.SetData(data,0);sounds[label]=clip;
+            var clip=AudioClip.Create(label,data.Length,1,rate,false);clip.SetData(data,0);sounds[label]=clip;generatedSounds.Add(clip);
             var source=gameObject.AddComponent<AudioSource>();source.clip=clip;source.loop=true;source.spatialBlend=0;source.volume=.13f;source.Play();return source;
         }
         void DisposeImpactEffects()
         {
             Gamepad.current?.ResetHaptics();
+            if(tideMaterial)Destroy(tideMaterial);
             foreach(var ghost in ghosts)if(ghost!=null)foreach(var mesh in ghost.meshes)Destroy(mesh);
             if(ghostMaterial)Destroy(ghostMaterial);
         }

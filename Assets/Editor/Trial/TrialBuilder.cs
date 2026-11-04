@@ -72,10 +72,10 @@ namespace TomorinTrial.Editor
                 BakeClip(actor,rig,targets,controller,"Idle",FighterAction.Free,2,0,0,false,true);
                 BakeClip(actor,rig,targets,controller,"Run",FighterAction.Free,.70f,0,1,false,true);
                 BakeClip(actor,rig,targets,controller,"Sprint",FighterAction.Free,.48f,0,1.5f,false,true);
-                BakeClip(actor,rig,targets,controller,"Slash01",FighterAction.Light,.50f,0,0,false,false);
-                BakeClip(actor,rig,targets,controller,"Slash02",FighterAction.Light,.50f,1,0,false,false);
-                BakeClip(actor,rig,targets,controller,"Slash03",FighterAction.Light,.50f,2,0,false,false);
-                BakeClip(actor,rig,targets,controller,"Slash04",FighterAction.Light,.66f,3,0,false,false);
+                BakeClip(actor,rig,targets,controller,"Slash01",FighterAction.Light,.38f,0,0,false,false);
+                BakeClip(actor,rig,targets,controller,"Slash02",FighterAction.Light,.38f,1,0,false,false);
+                BakeClip(actor,rig,targets,controller,"Slash03",FighterAction.Light,.38f,2,0,false,false);
+                BakeClip(actor,rig,targets,controller,"Slash04",FighterAction.Light,.48f,3,0,false,false);
                 BakeClip(actor,rig,targets,controller,"RisingSlash",FighterAction.Heavy,.76f,4,0,false,false);
                 BakeClip(actor,rig,targets,controller,"ChainThrust",FighterAction.Heavy,.76f,5,0,false,false);
                 BakeClip(actor,rig,targets,controller,"ChainFinisher",FighterAction.Heavy,.76f,6,0,false,false);
@@ -85,6 +85,12 @@ namespace TomorinTrial.Editor
                 BakeClip(actor,rig,targets,controller,"RunningDraw",FighterAction.Light,.68f,12,0,false,false);
                 BakeClip(actor,rig,targets,controller,"AerialCleave",FighterAction.Heavy,.90f,13,0,false,false);
                 BakeClip(actor,rig,targets,controller,"PostureExecution",FighterAction.Heavy,1.12f,14,0,false,false);
+                BakeClip(actor,rig,targets,controller,"InterceptionCut",FighterAction.Heavy,.66f,15,0,false,false);
+                BakeClip(actor,rig,targets,controller,"ReverseDraw",FighterAction.Light,.46f,16,0,false,false);
+                BakeClip(actor,rig,targets,controller,"ChargedCleave",FighterAction.Heavy,1f,17,0,false,false);
+                BakeClip(actor,rig,targets,controller,"HeavyReverse",FighterAction.Heavy,.78f,18,0,false,false);
+                BakeClip(actor,rig,targets,controller,"HeavyFinish",FighterAction.Heavy,.94f,19,0,false,false);
+                BakeClip(actor,rig,targets,controller,"Charge",FighterAction.Charge,1.25f,0,0,false,false);
                 BakeClip(actor,rig,targets,controller,"Heavy",FighterAction.Heavy,.84f,0,0,false,false);
                 BakeClip(actor,rig,targets,controller,"Dodge",FighterAction.Dodge,.44f,0,0,false,false);
                 BakeClip(actor,rig,targets,controller,"Guard",FighterAction.Free,1,0,0,true,true);

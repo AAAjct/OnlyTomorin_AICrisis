@@ -43,6 +43,8 @@ namespace TomorinTrial
             loading=false;fade.blocksRaycasts=true;
             InstallSettings();
             InstallLevelSelection();
+            foreach(var field in new[]{nickname,address,port})
+                if(!field.GetComponent<TrialInputFieldNavigation>())field.gameObject.AddComponent<TrialInputFieldNavigation>();
             NavigationActive=false;RefreshButtonStyles();
             liveMaterial=new Material(inkMaterial);backdrop.material=liveMaterial;
             ReducedMotion=PlayerPrefs.GetInt("Ink.ReducedMotion",0)==1;
@@ -63,7 +65,7 @@ namespace TomorinTrial
             host.onClick.AddListener(()=>{if(Configure())manager.Host();});join.onClick.AddListener(()=>{if(Configure())manager.Join();});
             begin.onClick.AddListener(()=>manager.BeginTogether());leave.onClick.AddListener(()=>manager.Leave());
             back.onClick.AddListener(()=>{if(manager.Busy)manager.Leave();Show(home);});
-            manager.Changed+=RefreshNetwork;RefreshNetwork();Show(home);
+            manager.Changed+=RefreshNetwork;RefreshNetwork();Show(manager.Busy?network:home);
             if(manager.Status.Contains("断开")||manager.Status.Contains("失败"))Show(network);
             fade.alpha=0;StartCoroutine(Reveal());
         }
@@ -115,7 +117,7 @@ namespace TomorinTrial
         {
             home.gameObject.SetActive(panel==home);network.gameObject.SetActive(panel==network);
             if(panel==settings)settingsView.Show();else settingsView.Hide();
-            if(panel==home)solo.Select();else if(panel==network)nickname.Select();
+            if(panel==home)solo.Select();else if(panel==network)SelectNetworkEntry();
         }
         void RefreshNetwork()
         {
@@ -134,6 +136,7 @@ namespace TomorinTrial
             }
             var visibleMembers=new string[System.Math.Min(3,manager.Members.Length)];System.Array.Copy(manager.Members,visibleMembers,visibleMembers.Length);
             members.text=manager.Members.Length==0?"尚无同伴入庭":$"房间人数：{manager.Members.Length}  · "+string.Join(" / ",visibleMembers)+(manager.Members.Length>3?$" 等 {manager.Members.Length} 人":"");
+            RefreshNetworkNavigation();
         }
         void InstallLevelSelection()
         {
@@ -151,6 +154,7 @@ namespace TomorinTrial
             back.GetComponent<RectTransform>().anchoredPosition=new Vector2(38,-758);
             foreach(var label in network.GetComponentsInChildren<UnityEngine.UI.Text>(true))if(label.text.StartsWith("房主本机：")){label.rectTransform.anchoredPosition=new Vector2(38,-722);label.rectTransform.sizeDelta=new Vector2(590,24);}
             levelDropdown.onClick.AddListener(()=>OpenLevelList(true));
+            Label(network,"摇杆 / 方向键选择 · A / Enter 编辑 · B / Esc 结束输入",38,181,590,22,13,Grey);
             foreach(var label in network.GetComponentsInChildren<UnityEngine.UI.Text>(true))
                 if(label.text=="1–4 人协作 · 局域网 / TCP 端口映射")label.text="多人同行 / 竞技决斗 · 局域网联机";
         }
@@ -165,12 +169,15 @@ namespace TomorinTrial
                 (keys.wKey.wasPressedThisFrame||keys.aKey.wasPressedThisFrame||keys.sKey.wasPressedThisFrame||keys.dKey.wasPressedThisFrame))NavigationActive=true;
             if(pad!=null&&(pad.dpad.ReadValue().sqrMagnitude>.1f||pad.leftStick.ReadValue().sqrMagnitude>.25f||pad.buttonSouth.wasPressedThisFrame))NavigationActive=true;
             if(UpdateLevelList())return;
+            UpdateNetworkNavigation(focusedField,pad,keys);
             if(liveMaterial)
             {
                 liveMaterial.SetFloat("_Motion",ReducedMotion?0:1);
                 liveMaterial.SetVector("_Pointer",Vector4.zero);
             }
             if(TrialSettingsPanel.InputBlocked)return;
+            if(keys!=null && keys.escapeKey.wasPressedThisFrame && focusedField && focusedField.isFocused)
+            {focusedField.DeactivateInputField();return;}
             if(Keyboard.current!=null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {if(quitPanel.activeSelf)quitPanel.SetActive(false);else if(settings.gameObject.activeSelf)Show(home);else if(network.gameObject.activeSelf&&!manager.Busy)Show(home);}
         }

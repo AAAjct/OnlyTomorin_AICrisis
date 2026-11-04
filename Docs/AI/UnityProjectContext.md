@@ -50,3 +50,11 @@
 - InkLevelSelection adds difficulty buttons to the existing shared level picker. TrialNetworkManager owns host selection and transmits difficulty in both lobby and world state. PvP damage is unchanged.
 - TrialGame combines difficulty with party scaling; TrialEnemy.ScaleForParty preserves current HP ratio. TrialPlayer shares TickLocomotion between Free and Heal; healing disables sprint and retains existing timing, interruptions and consumption. TrialRig blends gait with the drinking pose.
 - Validation: Unity compilation succeeded; three solo UI buttons and 21 runtime/state/serialization checks passed. No cross-device network test for this change. See Docs/DIFFICULTY_HEALING_VALIDATION.md.
+
+## Responsive combat and original effects (2026-11-04)
+
+- LAN uses explicit, availability-aware navigation; selecting an input field no longer auto-enters editing. TrialInputFieldNavigation allows controller movement to leave deliberate text editing. A/Enter edits; B/Esc exits editing.
+- TrialPlayer reduces ordinary light-action duration/contact startup, adds early defensive links, chained light/heavy actions, buffered healing and recovery steering. Guard movement/rotation/coverage and stamina/chip costs are revised. Host authority and per-swing target deduplication remain in place.
+- TrialHudDamage shows health-loss screen edges, damage amount, source bearing and low-health feedback. Hurt and shared SkillImpact are appended to TrialCombatCue; the former is victim-local, the latter is world presentation. TrialFighter preserves authored material emission when hit flashes end.
+- Resources/Trial includes original tidal shaders, materials, shell/crown meshes, 54 WAV variants and a Blender-authored FrostRelic hammer used by Penguin and flying-hammer clones. Source generators and editable .blend are in Tools. All references load through existing initialization; no scene wiring or new packages are required.
+- Validation: 29 responsiveness/presentation checks, 12 real TCP checks and 21 gameplay smoke checks passed. Unity compilation and custom shader checks passed; actual Unity captures were visually inspected. No player build was made. See Docs/COMBAT_RESPONSIVENESS.md for timings, art sources, evidence and limitations.

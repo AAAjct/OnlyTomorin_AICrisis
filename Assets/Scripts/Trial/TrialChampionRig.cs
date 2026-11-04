@@ -60,11 +60,18 @@ namespace TomorinTrial
             }
             else if(kind==ChampionKind.Penguin)
             {
-                weapon=new GameObject("冰炉重锤").transform;weapon.SetParent(transform,false);
-                TrialWorld.Part("Hammer haft",PrimitiveType.Cylinder,weapon,new Vector3(0,.4f,0),new Vector3(.075f,.9f,.075f),world.DarkWood);
-                TrialWorld.Part("Forged hammer",PrimitiveType.Cube,weapon,new Vector3(0,1.25f,0),new Vector3(.95f,.55f,.55f),world.Steel);
-                for(int i=-1;i<=1;i+=2)TrialWorld.Part("Ice striking face",PrimitiveType.Cube,weapon,new Vector3(i*.5f,1.25f,0),new Vector3(.12f,.64f,.64f),world.Glow);
-                TrialWorld.Part("Hammer core",PrimitiveType.Cube,weapon,new Vector3(0,1.25f,.29f),new Vector3(.25f,.3f,.03f),world.RedGlow);
+                weapon=Instantiate(Resources.Load<GameObject>("Trial/Models/FrostRelic"),transform).transform;
+                weapon.name="冰炉遗锤 · forged frost relic";
+                foreach(var renderer in weapon.GetComponentsInChildren<Renderer>())
+                {
+                    var materials=renderer.sharedMaterials;
+                    for(int i=0;i<materials.Length;i++)
+                    {
+                        string role=materials[i]?materials[i].name:renderer.name;
+                        materials[i]=role.Contains("Ice")?Resources.Load<Material>("Trial/VFX/FrostIce"):role.Contains("Brass")?world.Gold:role.Contains("Leather")?world.DarkWood:role.Contains("Ember")?world.RedGlow:role.Contains("Steel")?world.Steel:world.Armor;
+                    }
+                    renderer.sharedMaterials=materials;
+                }
             }
             else if(kind==ChampionKind.YaYa)
             {
