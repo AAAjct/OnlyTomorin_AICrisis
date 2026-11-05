@@ -136,7 +136,7 @@ namespace TomorinTrial.Editor
                 // Drive the actual encounter at fixed steps while network snapshots are held.
                 game.enabled=false;
                 CheckResponsiveness(game,boss);
-                foreach(var skill in new[]{DeepFishSkill.ReverseTail,DeepFishSkill.RiptideRush,DeepFishSkill.DelayedSlam,DeepFishSkill.AbyssRain})
+                foreach(var skill in new[]{DeepFishSkill.ReverseTail,DeepFishSkill.RiptideRush,DeepFishSkill.AbyssRain})
                 {
                     boss.ResetFighter();host.ResetRunBoon();host.Restore(new Vector3(0,0,24));boss.Teleport(new Vector3(0,0,27));game.SetCombatTarget(host);
                     boss.ReceiveHit(host,1,0);brain.StartSkill(skill);

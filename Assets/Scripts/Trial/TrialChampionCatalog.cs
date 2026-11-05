@@ -146,6 +146,15 @@ namespace TomorinTrial
         public static ChampionMove Move(ChampionKind k,int index)
         {
             index=Mathf.Clamp(index,0,SkillCount-1);var m=index<8?moves[(int)k][index]:extensions[(int)k][index-8];
+            // Preserve slot IDs for saves and replication, but retire repeated aerial slams.
+            if(m.shape==ChampionShape.Leap || m.shape==ChampionShape.Dive || m.shape==ChampionShape.TwinPincer)
+            {
+                if(k==ChampionKind.Anon)m=M("踏影·进步挑斩","看清前摇后弹反或侧闪",ChampionShape.Thrust,ChampionDefense.Deflect,.95f,.62f,1.3f,4.8f,0,42,48);
+                else if(k==ChampionKind.Taffy)m=M("迁步·侧滑点射","沿枪线侧移，贴身反击换弹",ChampionShape.SlideVolley,ChampionDefense.Sidestep,1.2f,.7f,1.5f,24,0,30,38,3);
+                else if(k==ChampionKind.Penguin)m=M("沉炉·横锤破阵","向后撤出锤弧或弹反",ChampionShape.Cross,ChampionDefense.Deflect,1.35f,.8f,1.6f,4.8f,0,140,58);
+                else if(k==ChampionKind.YaYa)m=M("回燕·双折鞭","逐段弹反或退出鞭尖",ChampionShape.Lash,ChampionDefense.Deflect,1.1f,.75f,1.3f,7,0,100,43,2);
+                else m=M("进步·破阵掌","侧闪掌路或弹反",ChampionShape.Thrust,ChampionDefense.Deflect,1.05f,.7f,1.3f,4.2f,0,50,45,2);
+            }
             bool quick=m.shape==ChampionShape.Cut || m.shape==ChampionShape.Cross || m.shape==ChampionShape.Lash;
             bool hammer=k==ChampionKind.Penguin;
             float wind=quick?Mathf.Clamp(m.windup*(hammer?.43f:.48f),hammer?.40f:.30f,hammer?.62f:.66f):m.shape==ChampionShape.Thrust?m.windup*(hammer?.48f:.60f):m.windup*(hammer?.56f:.67f);

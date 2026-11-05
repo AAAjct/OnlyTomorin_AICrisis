@@ -84,7 +84,7 @@ namespace TomorinTrial
             if(cue==TrialCombatCue.HeavyLand)
             {SlashEffect(value.position+Vector3.up*.06f,value.forward,new Color(1,.68f,.26f),1.65f,true);Burst(value.position,new Color(1,.8f,.45f),30);Sound("landing",value.position);if(local){game.CameraRig.Kick(.22f);Rumble(.35f,.45f,.1f);}return true;}
             if(cue==TrialCombatCue.Dodge)
-            {SlashEffect(value.position+Vector3.up*.08f,value.forward,new Color(.28f,.85f,1,.6f),.85f,true);Burst(value.position+Vector3.up*.1f,new Color(.4f,.8f,1),12);Sound("dodge",value.position);return true;}
+            {Sound("dodge",value.position);return true;}
             if(cue==TrialCombatCue.Heal)
             {Sound("heal",value.position);if(local)game.Hud.HealFlash();return true;}
             if(cue==TrialCombatCue.ChargeReady)
@@ -104,18 +104,23 @@ namespace TomorinTrial
                 }
                 return true;
             }
-            if(cue==TrialCombatCue.Hit || cue==TrialCombatCue.HeavyHit || cue==TrialCombatCue.Kill)
+            if(cue==TrialCombatCue.Hit || cue==TrialCombatCue.HeavyHit || cue==TrialCombatCue.FinisherHit || cue==TrialCombatCue.Kill)
             {
-                bool heavy=cue!=TrialCombatCue.Hit,kill=cue==TrialCombatCue.Kill;
+                bool heavy=cue!=TrialCombatCue.Hit,kill=cue==TrialCombatCue.Kill,finish=cue==TrialCombatCue.FinisherHit;
                 Burst(value.position,kill?new Color(1,.4f,.12f):new Color(1,.85f,.6f),kill?85:heavy?50:24);
                 SlashEffect(value.position,value.forward,kill?new Color(1,.35f,.1f):Color.white,heavy?1.8f:1.1f);
-                Sound(kill?"finish":heavy?"impactHeavy":"hit",value.position,Random.Range(.91f,1.08f));
-                if(local){game.CameraRig.Kick(kill?.6f:heavy?.38f:.2f);game.CameraRig.Pulse(kill?5:heavy?3:1);HitStop(kill?.10f:heavy?.06f:.035f);Rumble(heavy?.5f:.18f,kill?.9f:.55f,heavy?.10f:.06f);}
+                Sound(kill || finish?"finish":heavy?"impactHeavy":"hit",value.position,Random.Range(finish?.82f:.94f,finish?.92f:1.05f));
+                if(local){game.CameraRig.Kick(kill || finish?.52f:heavy?.34f:.18f);game.CameraRig.Pulse(kill || finish?4:heavy?2:1);HitStop(kill || finish?.115f:heavy?.085f:.055f);Rumble(finish?.65f:heavy?.5f:.18f,kill || finish?.9f:.55f,finish?.14f:heavy?.10f:.06f);}
                 return true;
             }
             if(cue==TrialCombatCue.PerfectDodge || cue==TrialCombatCue.BlinkSlash || cue==TrialCombatCue.Reversal)
             {
                 bool counter=cue==TrialCombatCue.Reversal;
+                if(cue==TrialCombatCue.PerfectDodge)
+                {
+                    var actor=TrialNetworkManager.SessionActive?TrialNetworkManager.Current.PlayerById(value.player):game.Player;
+                    if(actor)actor.ShowPerfectDodge();
+                }
                 Color tint=counter?new Color(1,.73f,.22f):new Color(.24f,.85f,1);
                 SlashEffect(value.position,value.forward,tint,counter?2.6f:1.7f,cue==TrialCombatCue.PerfectDodge);
                 Burst(value.position,tint,counter?85:40);Sound(counter?"counter":"blink",value.position);
@@ -124,7 +129,7 @@ namespace TomorinTrial
                 {
                     game.CameraRig.Pulse(counter?8:4);Rumble(.3f,counter?.9f:.4f,.12f);
                     game.Hud.Flash(new Color(tint.r,tint.g,tint.b,counter?.16f:.08f));
-                    if(counter)game.Hud.Notify("反斩",.8f);else if(cue==TrialCombatCue.PerfectDodge)game.Hud.Notify("极限闪避 · 下一击：闪身横斩",1.6f);
+                    if(counter)game.Hud.Notify("反斩",.8f);else if(cue==TrialCombatCue.PerfectDodge)game.Hud.Notify("完美闪避 · 轻：闪身横斩 / 重：后跃落劈火龙",1.8f);
                 }
                 return true;
             }

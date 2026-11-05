@@ -95,6 +95,7 @@ namespace TomorinTrial
         {
             TickResolve(dt);
             if(CombatFrozen)return;
+            if(IsBoss)Recoil=Vector3.MoveTowards(Recoil,Vector3.zero,dt*7);
             if(Champion)
             {
                 if(!Alive){ActionTime+=dt;Champion.Tick(dt);return;}
@@ -184,6 +185,7 @@ namespace TomorinTrial
                 bool swordGuard=!counterStance && Champion.Kind==ChampionKind.Anon && !exposed && !Champion.Recovering && Champion.MoveIndex<0 && attacker && Vector3.Angle(transform.forward,attacker.transform.position-transform.position)<95;
                 if(swordGuard){game.Effects.Burst(transform.position+Vector3.up,TrialChampionCatalog.Color(Champion.Kind),12);game.Effects.Sound("parry",transform.position);}
                 Impact(attacker,damage*(exposed?1.65f:countered?.15f:swordGuard?.32f:1));
+                if(attacker && !ResolveActive)Recoil=Vector3.ProjectOnPlane(transform.position-attacker.transform.position,Vector3.up).normalized*(attacker.Action==FighterAction.Heavy?1.0f:.65f);
                 if(!Alive){Champion.CancelAttack(true);game.OnEnemyDied(this);return true;}
                 Awakened=true;if(!ResolveActive)AddChampionPosture(postureDamage*(swordGuard?1.2f:.75f));RecordPressure(attacker);return true;
             }

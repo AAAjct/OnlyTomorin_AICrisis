@@ -115,8 +115,8 @@ namespace TomorinTrial.Editor
                 boss.ResetFighter();brain.ClearBoon();player.Restore(new Vector3(0,0,24));boss.Teleport(new Vector3(0,0,27));boss.ReceiveHit(player,1,0);brain.StartSkill(DeepFishSkill.TidalCharge);
                 input.ApplyNetwork(new TrialControls{held=1,yaw=0});player.Tick(0,input);health=player.Health;
                 player.ReceiveHit(boss,40,30,true);
-                Check(player.Health==health && player.Action==FighterAction.Heavy && player.Combo==10 && brain.Skill==DeepFishSkill.None,"Perfectly deflecting a charge cancels the boss attack and starts the countercut");
-                game.Effects.TickTime();Check(Time.timeScale<.5f,"Countercut triggers a short slow-motion beat");
+                Check(player.Health==health && player.ParryEmpowered && brain.Skill==DeepFishSkill.None,"Perfectly deflecting a charge cancels the boss attack and arms the player's chosen empowered follow-up");
+                game.Effects.TickTime();Check(Time.timeScale<.5f,"Perfect guard triggers a short impact beat");
                 Check(player.CombatFrozen && boss.CombatFrozen,"The blade clash applies a brief pose hold to both combatants");
                 UnityEngine.Object.Destroy(input);Time.timeScale=1;game.enabled=true;game.ReturnToTitle();yield return .3f;
                 Check(runtimeErrors==0,"Menu, boons, new model, camera, device hints and combat checks produce no runtime errors");

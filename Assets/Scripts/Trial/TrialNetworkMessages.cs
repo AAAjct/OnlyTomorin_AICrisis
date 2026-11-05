@@ -23,7 +23,7 @@ namespace TomorinTrial
         public float yaw;
         public byte held, pressed;
     }
-    public enum TrialCombatCue : byte { Parry, Block, GuardBreak, Death, Hit, HeavyHit, Kill, PerfectDodge, BlinkSlash, Reversal, Hurt, SkillImpact, Dodge, Heal, ChargeReady, CutThrough, HeavyLand }
+    public enum TrialCombatCue : byte { Parry, Block, GuardBreak, Death, Hit, HeavyHit, Kill, PerfectDodge, BlinkSlash, Reversal, Hurt, SkillImpact, Dodge, Heal, ChargeReady, CutThrough, HeavyLand, FinisherHit, CrimsonBlade, MoonBlade, BlueSand, SakuraScatter, SandImpact, FireDragon, SpiralSword, ThrustTrace, RisingCut, CrescentCut, EmpoweredStep }
     // Transient feedback is separate from snapshots: several contacts may occur
     // between snapshots, and each belongs to the player who received the hit.
     public struct TrialCombatEvent : NetworkMessage
@@ -31,6 +31,8 @@ namespace TomorinTrial
         public int player;
         public TrialCombatCue cue;
         public Vector3 position, forward;
+        public Vector3 end;
+        public float amount;
     }
     public struct TrialActorState
     {
@@ -43,8 +45,9 @@ namespace TomorinTrial
         public TrialBoon boon,offerA,offerB,offerC;
         public float maxStamina;
         public float bossResolve;
+        public float swordCharge,parryReady,dodgeFollowup;
         public byte action, combo, flasks;
-        public bool guard, awake;
+        public bool guard, awake,dragonLanded;
     }
     public struct TrialHazardState { public Vector3 position; public float radius; public bool active, wave; }
     public struct TrialBossState

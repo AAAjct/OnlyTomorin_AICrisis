@@ -69,11 +69,16 @@ namespace TomorinTrial.Editor
             var origin=boss.transform.position;yield return 1.2f;
             Check(Vector3.Distance(boss.transform.position,origin)>3 && brain.Unblockable,"Charge travels along its committed direction and is unblockable");
             boss.Parried();boss.Teleport(new Vector3(0,0,25));player.Restore(new Vector3(0,0,20));
-            brain.StartSkill(DeepFishSkill.BellySlam);yield return .95f;
-            Check(boss.Visual.localPosition.y>1,"Fish leap lifts the actual model off the ground");
-            // Escape after the landing target has been committed.
+            int attacks=brain.AttacksStarted;
+            brain.StartSkill(DeepFishSkill.DelayedSlam);
+            Check(brain.Skill==DeepFishSkill.None && brain.AttacksStarted==attacks && brain.ActiveHazards==0,"Retired feint slam cannot start or spawn hazards");
+            brain.StartSkill(DeepFishSkill.BellySlam);
+            var slamOrigin=boss.transform.position;yield return .95f;
+            Check(brain.Skill==DeepFishSkill.BellySlam && boss.Visual.localPosition.y>1,"Ordinary slam still lifts the model off the ground");
+            Check(Vector3.ProjectOnPlane(boss.transform.position-slamOrigin,Vector3.up).sqrMagnitude<.0001f && Vector3.ProjectOnPlane(brain.CaptureNetwork().aim-slamOrigin,Vector3.up).sqrMagnitude<.0001f,"Airborne slam stays over its fixed replicated landing point");
             player.Teleport(new Vector3(-7,0,20));hp=player.Health;yield return .65f;
-            Check(player.Health==hp && brain.ActiveHazards>0,"Leaving the slam marker avoids impact while a shockwave spawns");
+            Check(player.Health==hp && brain.ActiveHazards>0,"Leaving the stationary slam avoids impact while its shockwave spawns");
+            Check(Vector3.ProjectOnPlane(boss.transform.position-slamOrigin,Vector3.up).sqrMagnitude<.0001f,"Slam lands without horizontal travel");
             boss.Parried();boss.Teleport(new Vector3(0,0,25));player.Restore(new Vector3(0,0,19));
             brain.StartSkill(DeepFishSkill.BubbleBarrage);yield return 1.12f;
             Check(brain.ActiveHazards>=7 && brain.ActiveHazards<=32,"Bubble barrage emits a bounded pool of moving projectiles");

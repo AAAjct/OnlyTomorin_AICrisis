@@ -12,8 +12,8 @@ ROOT = Path(__file__).resolve().parents[1] / 'Assets/Resources/Trial/Audio'
 ROOT.mkdir(parents=True, exist_ok=True)
 RATE = 44100
 SPECS = {
-    'swing': (.29, 'air', .65), 'hit': (.32, 'impact', .85),
-    'impactHeavy': (.55, 'impact', 1), 'finish': (.85, 'impact', 1),
+    'swing': (.29, 'air', .65), 'hit': (.26, 'slice', .85),
+    'impactHeavy': (.40, 'slice', 1), 'finish': (.60, 'slice', 1),
     'parry': (1.05, 'metal', .8), 'block': (.48, 'metal', .55),
     'hurt': (.48, 'hurt', .8), 'warning': (.8, 'charge', .45),
     'dodge': (.35, 'air', .42), 'heal': (1.1, 'chime', .5),
@@ -41,6 +41,16 @@ def render(key, length, kind, gain, take):
             env = math.sin(math.pi*p)**1.3
             value = (mid*.9+high*.13)*env*(.5+.5*math.sin(math.pi*p))
             value += math.sin(2*math.pi*(650*t-500*t*t))*math.exp(-((p-.58)*19)**2)*.05
+        elif kind == 'slice':
+            # Short blade bite, compressed body thump, then a tearing release.
+            # Avoid the long resonant modes that made sword hits sound like wood.
+            bite = high*math.exp(-t*145)*.65 + mid*math.exp(-t*58)*1.1
+            body = math.sin(2*math.pi*(72*tune*t+1.2*(1-math.exp(-t*42))))*math.exp(-t*33)*.55
+            release = max(0, t-.018)
+            tear = (mid*.9+high*.22)*math.exp(-release*29)*min(1,release*150)
+            value = math.tanh((bite+body+tear)*1.4)
+            if key != 'hit':
+                value += math.sin(2*math.pi*48*t)*math.exp(-t*15)*.32
         elif kind == 'impact':
             body = math.sin(2*math.pi*(100*tune*t+2.8*(1-math.exp(-t*24))))
             value = body*math.exp(-t*17)*.6 + mid*math.exp(-t*24)*.8

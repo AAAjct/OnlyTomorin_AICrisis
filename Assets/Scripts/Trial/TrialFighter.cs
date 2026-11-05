@@ -24,8 +24,8 @@ namespace TomorinTrial
         protected void ClearCombatHold(){combatFreezeUntil=0;}
         public bool Alive => Health > 0;
         public float Progress => ActionDuration > 0 ? Mathf.Clamp01(ActionTime / ActionDuration) : 0;
-        public bool AttackActive => (Action == FighterAction.Light || Action == FighterAction.Heavy || (this is TrialPlayer && Action==FighterAction.Dodge && Combo==7)) && Progress >= (this is TrialPlayer && Action==FighterAction.Light?.22f:.33f) && Progress <= (this is TrialPlayer && Action==FighterAction.Light?.54f:.63f);
-        public bool Invulnerable => this is TrialEnemy enemy && enemy.BreakoutInvulnerable || Action == FighterAction.Dodge && ActionTime >= .025f && ActionTime <= .32f || this is TrialPlayer && (Action==FighterAction.Light && Combo==9 && Progress<.32f || Action==FighterAction.Heavy && Combo==10 && Progress<.48f);
+        public bool AttackActive => (!(this is TrialPlayer) || TrialPlayer.HasSwordContact(Combo)) && (Action == FighterAction.Light || Action == FighterAction.Heavy || (this is TrialPlayer && Action==FighterAction.Dodge && Combo==7)) && Progress >= (this is TrialPlayer && Action==FighterAction.Light?.22f:.33f) && Progress <= (this is TrialPlayer && Action==FighterAction.Light?.54f:.63f);
+        public bool Invulnerable => this is TrialEnemy enemy && enemy.BreakoutInvulnerable || Action == FighterAction.Dodge && ActionTime >= .025f && ActionTime <= .32f || this is TrialPlayer && (Action==FighterAction.Light && (Combo==9 || Combo==TrialPlayer.BehindThrust) && Progress<.32f || Action==FighterAction.Heavy && Combo==10 && Progress<.48f);
         public Transform Visual { get; protected set; }
         public Transform Weapon { get; protected set; }
         protected TrialGame game;
@@ -97,8 +97,7 @@ namespace TomorinTrial
             if (recoveryDelay <= 0 && Action == FighterAction.Free)
                 Stamina = Mathf.Min(MaxStamina, Stamina + StaminaRecoveryRate * dt);
             Posture = Mathf.Max(0, Posture - 7 * dt);
-            verticalSpeed = motor.isGrounded ? -2 : verticalSpeed - 24 * dt;
-            motor.Move(Vector3.up * (verticalSpeed * dt));
+            TickGravity(dt);
             if (trail != null) trail.emitting = AttackActive;
             if (hitFlash > 0)
             {
@@ -106,6 +105,12 @@ namespace TomorinTrial
                 SetHitEmission(new Color(2,.58f,.17f) * (hitFlash / .16f));
             }
             if (transform.position.y < -8 && Alive) ReceiveHit(null, 9999, 0, true);
+        }
+
+        protected virtual void TickGravity(float dt)
+        {
+            verticalSpeed = motor.isGrounded ? -2 : verticalSpeed - 24 * dt;
+            motor.Move(Vector3.up * (verticalSpeed * dt));
         }
 
         protected void SetHitEmission(Color pulse)

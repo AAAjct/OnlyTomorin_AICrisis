@@ -32,6 +32,7 @@ namespace TomorinTrial
             surface.enabled=boundary.enabled && boundary.gameObject.activeInHierarchy;
             if(!surface.enabled)return;
             int count=Mathf.Min(65,boundary.positionCount);
+            if(count<2){surface.enabled=false;return;}
             boundary.GetPositions(points);
             Vector3 center=Vector3.zero;
             for(int i=0;i<count;i++)center+=points[i];
@@ -46,6 +47,8 @@ namespace TomorinTrial
             else for(int i=0;i<count;i++)vertices[i]=points[i];
             // Convert world coordinates once; pooled surfaces can remain under moving actors.
             for(int i=0;i<count;i++)vertices[i]=surface.transform.InverseTransformPoint(vertices[i]-Vector3.up*.016f);
+            // Remove old indices before a smaller vertex buffer makes them invalid.
+            if(previousCount!=count)mesh.Clear();
             mesh.SetVertices(vertices,0,count);
             if(previousCount!=count)
             {

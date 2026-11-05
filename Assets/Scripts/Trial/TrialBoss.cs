@@ -179,11 +179,11 @@ namespace TomorinTrial
                 {choice=DeepFishSkill.ReverseTail;reactiveCooldown=5;}
                 else if(reactiveCooldown<=0 && game.CombatTarget.Action==FighterAction.Heal)
                 {choice=DeepFishSkill.AbyssRain;reactiveCooldown=5;}
-                else switch(sequence++%8)
+                else switch(sequence++%7)
                 {case 0:choice=distance<5?DeepFishSkill.ReverseTail:DeepFishSkill.RiptideRush;break;
-                 case 1:choice=DeepFishSkill.BubbleBarrage;break;case 2:choice=DeepFishSkill.DelayedSlam;break;
-                 case 3:choice=DeepFishSkill.TailSweep;break;case 4:choice=DeepFishSkill.AbyssRain;break;
-                 case 5:choice=DeepFishSkill.RiptideRush;break;case 6:choice=DeepFishSkill.BellySlam;break;
+                 case 1:choice=DeepFishSkill.BubbleBarrage;break;case 2:choice=DeepFishSkill.TailSweep;break;
+                 case 3:choice=DeepFishSkill.AbyssRain;break;case 4:choice=DeepFishSkill.RiptideRush;break;
+                 case 5:choice=DeepFishSkill.BellySlam;break;
                  default:choice=Enraged?DeepFishSkill.Maelstrom:DeepFishSkill.BubbleBarrage;break;}
                 comboDepth=0;
                 StartSkill(choice);return;
@@ -200,9 +200,14 @@ namespace TomorinTrial
         public void StartSkill(DeepFishSkill next)
         {
             if(!fighter.Alive || next==DeepFishSkill.None)return;
+            // Retain the enum ID for serialized/network data, but retire the tracking feint slam.
+            if(next==DeepFishSkill.DelayedSlam)return;
+            if(next==DeepFishSkill.BellySlam)next=DeepFishSkill.TailSweep;
             HideWarnings();Skill=next;age=0;waves=0;markCount=0;variant=AttacksStarted%2;landed=false;contacted.Clear();AttacksStarted++;
             origin=transform.position;aim=game.CombatTarget.transform.position;
             aim.x=Mathf.Clamp(aim.x,-10.5f,10.5f);aim.z=Mathf.Clamp(aim.z,18,32);aim.y=0;
+            // The ordinary leap lands in place; its telegraph, damage and wave share this point.
+            if(next==DeepFishSkill.BellySlam)aim=new Vector3(origin.x,0,origin.z);
             heading=Vector3.ProjectOnPlane(aim-origin,Vector3.up).normalized;
             if(heading.sqrMagnitude<.01f)heading=transform.forward;
             fighter.BossFace(heading,36000,.02f);
@@ -264,8 +269,6 @@ namespace TomorinTrial
             {fighter.BossMove(heading*(Enraged?18:15),dt);Contact(1.9f,100,38,true);}
             if(Skill==DeepFishSkill.BellySlam)
             {
-                if(p>.24f && p<.54f)
-                {var destination=Vector3.Lerp(origin,aim,Mathf.SmoothStep(0,1,(p-.24f)/.30f));fighter.BossMove((destination-transform.position)/Mathf.Max(dt,.001f),dt);}
                 if(p>=.54f && !landed)
                 {landed=true;Area(aim,4.2f,45);Impact(aim);SpawnWave(aim,Enraged?9:7);}
             }

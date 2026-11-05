@@ -99,6 +99,7 @@ namespace TomorinTrial.Editor
                 foreach(var t in model.GetComponentsInChildren<Transform>().Reverse())
                     if(t!=model.transform && t.childCount==0 && !t.GetComponent<Renderer>() && !used.Contains(t) && !bones.Contains(t))UnityEngine.Object.DestroyImmediate(t.gameObject);
                 var rig=root.AddComponent<TrialChampionRig>();rig.Configure(kind,model.transform,bones);
+                if(kind==ChampionKind.Anon)TrialAnonSkirtRepair.Apply(root);
                 if(kind==ChampionKind.Taffy)
                 {var so=new SerializedObject(rig);so.FindProperty("weaponMaterial").objectReferenceValue=AssetDatabase.LoadAssetAtPath<Material>(MeshFolder+"/ChampionGun.mat");so.ApplyModifiedPropertiesWithoutUndo();}
                 rig.Pose(-1,0,0,false,0);

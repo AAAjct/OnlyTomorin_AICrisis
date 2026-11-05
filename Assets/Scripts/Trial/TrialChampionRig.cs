@@ -16,6 +16,8 @@ namespace TomorinTrial
         [SerializeField] Quaternion leftFootRotation,rightFootRotation;
         [SerializeField] float strideCycle=2.6f;
         [SerializeField] Material weaponMaterial;
+        [SerializeField] TrialSkirtRig skirt;
+        public void SetSkirt(TrialSkirtRig value){skirt=value;}
         TrialEnemy fighter;
         TrialChampion brain;
         Transform actor,weapon;
@@ -194,12 +196,18 @@ namespace TomorinTrial
                 Rotate(10,actor.right,-jump*48);Rotate(13,actor.right,jump*34);Rotate(11,actor.right,jump*72);Rotate(14,actor.right,jump*55);
             }
             Rotate(1,actor.right,lean*.55f);Rotate(2,actor.right,lean*.45f);Rotate(2,Vector3.up,twist);Rotate(3,actor.right,-lean*.4f);
+            if(fighter && fighter.Alive && fighter.Recoil.sqrMagnitude>.001f)
+            {
+                var recoil=actor.InverseTransformDirection(fighter.Recoil);
+                Rotate(2,actor.right,-recoil.z*12);Rotate(2,actor.forward,recoil.x*10);
+            }
             if(!dead)model.localPosition+=Vector3.up*(sole-SupportHeight()+lift);
             else{float fall=Mathf.SmoothStep(0,1,p);model.localRotation=Quaternion.AngleAxis(-83*fall,Vector3.right)*modelRotation;model.localPosition+=Vector3.down*.12f*fall;}
             Vector3 center=actor.position;Quaternion basis=actor.rotation;
             right+=Vector3.up*lift;left+=Vector3.up*lift;
             TrialRig.SolveArm(J(7),J(8),J(9),center+basis*right,center+basis*new Vector3(.8f,1.0f,-.22f));
             TrialRig.SolveArm(J(4),J(5),J(6),center+basis*left,center+basis*new Vector3(-.8f,1.0f,-.22f));
+            if(skirt)skirt.Pose();
             if(weapon)
             {
                 weapon.gameObject.SetActive(!brain || !brain.WeaponAway);

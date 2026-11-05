@@ -8,6 +8,8 @@ namespace TomorinTrial
         Image damageVeil,damageBearing,healingVeil;
         float healUntil;
         public void HealFlash(){healUntil=Time.unscaledTime+.85f;}
+        public void ResetDamageFeedback()
+        {healUntil=damageUntil=bearingUntil=0;observedHealth=game.Player.Health;if(healingVeil)healingVeil.color=Color.clear;}
         Text damageCaption;
         Texture2D damageTexture;
         Sprite damageSprite;
@@ -44,7 +46,9 @@ namespace TomorinTrial
         {
             float hp=game.Player.Health,now=Time.unscaledTime;
             bool playing=game.Mode==TrialMode.Playing && game.Player.Alive;
-            if(playing && hp>observedHealth+.5f)HealFlash();
+            // Healing is signalled by the actual flask event. Respawn and snapshots
+            // also increase health, and must never be mistaken for drinking.
+            if(!playing)healUntil=0;
             healingVeil.color=new Color(.12f,.9f,.40f,playing?Mathf.Clamp01((healUntil-now)/.85f)*.35f:0);
             if(playing && hp<observedHealth)
             {

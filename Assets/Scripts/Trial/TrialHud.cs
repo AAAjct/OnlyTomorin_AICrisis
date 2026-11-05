@@ -87,7 +87,7 @@ namespace TomorinTrial
             if(uiModule && uiModule.actionsAsset==null)uiModule.AssignDefaultActions();
             var nav=new UnityEngine.UI.Navigation{mode=UnityEngine.UI.Navigation.Mode.Explicit,selectOnDown=secondaryButton};mainButton.navigation=nav;
             nav.selectOnDown=null;nav.selectOnUp=mainButton;secondaryButton.navigation=nav;
-            InitializeSettings();InitializeArtwork();InitializeTouchControls();InitializeDamageFeedback();
+            InitializeSettings();InitializeArtwork();InitializeTouchControls();InitializeDamageFeedback();InitializeInkResult();
         }
 
         UnityEngine.UI.Button roomButton;
@@ -104,7 +104,7 @@ namespace TomorinTrial
             UpdateRunChoices();UpdatePlayerNameplates();
             if(TrialNetworkManager.SessionActive)playerName.text=TrialNetworkManager.Current.NameOf(game.Player);
             health.fillAmount=game.Player.Health/game.Player.MaxHealth;stamina.fillAmount=game.Player.Stamina/game.Player.MaxStamina;
-            UpdateDamageFeedback();UpdateHealthShake();
+            UpdateDamageFeedback();UpdateHealthShake();UpdateInkResult();
             int hp=Mathf.CeilToInt(game.Player.Health),sp=Mathf.CeilToInt(game.Player.Stamina);
             if(hp!=shownHealth || sp!=shownStamina)
             {shownHealth=hp;shownStamina=sp;hpText.text=$"{hp} / {game.Player.MaxHealth:0}";}
@@ -114,6 +114,12 @@ namespace TomorinTrial
             if(game.IsArena)objectiveText.text=TrialNetworkManager.Current.ArenaScoreboard();
             promptText.text=game.IsArena?(!game.Player.Alive?"阵亡 · 3 秒后重生":game.Player.SpawnProtected?"重生保护 · 主动攻击后解除":""):game.Mode==TrialMode.Playing && Vector3.Distance(game.Player.transform.position,game.World.ShrinePosition)<2.6f?interactPrompt:"";
             noticeText.text=game.Mode==TrialMode.Playing && Time.unscaledTime<noticeUntil?notice:"";
+            if(game.Mode==TrialMode.Playing)
+            {
+                if(game.Player.ParryEmpowered)promptText.text="格挡强化 · 轻击三连刺 / 重击火龙（可蓄力）/ 闪避远闪";
+                else if(game.Player.ParryDodgeFollowup)promptText.text="远闪追击 · 轻击闪至背后 / 重击螺旋回旋刀";
+                else if(game.Player.Action==FighterAction.Charge && game.Player.Combo==TrialPlayer.FireDragon)promptText.text=$"火龙蓄力 {game.Player.ChargeAmount*100:0}% · 松开重击释放";
+            }
             var boss=game.Enemies[game.Enemies.Count-1];
             if(game.IsChampionStage)foreach(var e in game.Enemies)if(e.Alive && (!boss.Alive || e.Champion.WindingUp))boss=e;
             bool showBoss=!game.IsArena && boss.Alive && boss.Awakened && game.Mode==TrialMode.Playing;
@@ -191,7 +197,7 @@ namespace TomorinTrial
                 TrialBindings.Display("Guard")+"  格挡    "+TrialBindings.Display("Dodge")+"  闪避\n"+
                 TrialBindings.Display("Heal")+"  灵露    "+TrialBindings.Display("Lock")+"  锁定    "+TrialBindings.Display("Interact")+"  休息\n\n手柄："+
                 TrialBindings.Display("Attack",2)+" 轻斩 · "+TrialBindings.Display("Heavy",2)+" 重斩\n"+
-                TrialBindings.Display("Guard",2)+" 格挡 · "+TrialBindings.Display("Dodge",2)+" 闪避\n轻击→重击：升斩 / 突刺 / 终结斩\n两段轻击→闪避：回风斩 · 闪避→轻击：追击";mainButtonLabel.text="继续";}
+                TrialBindings.Display("Guard",2)+" 格挡 · "+TrialBindings.Display("Dodge",2)+" 闪避\n轻击：前方左下挑右上 → 横刀半月 → 平刀突刺转身 → 空跃\n空中：三次暗红远程斩 → 斜向下冲·暗蓝飞沙\n二轻→重：六米樱花突进 · 三轻→重：长后撤三月刃\n空跃→重：插剑下落 → 轻：长距离樱花突刺\n完美格挡：轻→三连刺 / 重→后翻火龙（可蓄力）\n完美格挡→闪：远闪；再轻→背闪 / 再重→螺旋回旋刀\n完美闪避→重：后跃落地劈火龙；招式可接闪避或格挡";mainButtonLabel.text="继续";}
             if(game.Mode==TrialMode.Dead)
             {menuTitle.text="败北";menuCaption.text="";mainButtonLabel.text="重来";}
             if(game.Mode==TrialMode.Victory)
@@ -230,6 +236,6 @@ namespace TomorinTrial
             Label("Caption",rect,caption,new Vector2(0,1),new Vector2(23,-14),size-new Vector2(38,10),22,ivory);
             button.transition=UnityEngine.UI.Selectable.Transition.None;rect.gameObject.AddComponent<TrialMenuFocus>();return button;
         }
-        void OnDestroy(){DisposeDamageFeedback();if(ownsFont && font)Destroy(font);if(barSprite)Destroy(barSprite);}
+        void OnDestroy(){DisposeInkResult();DisposeDamageFeedback();if(ownsFont && font)Destroy(font);if(barSprite)Destroy(barSprite);}
     }
 }

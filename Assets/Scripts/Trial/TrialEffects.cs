@@ -20,6 +20,7 @@ namespace TomorinTrial
             particles.SetFloat("_Surface",1);particles.SetFloat("_Blend",0);particles.SetOverrideTag("RenderType","Transparent");particles.renderQueue=3000;
             particles.SetInt("_SrcBlend",(int)UnityEngine.Rendering.BlendMode.SrcAlpha);particles.SetInt("_DstBlend",(int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);particles.SetInt("_ZWrite",0);
             particles.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            particles.SetInt("_Cull",0);
             for(int i=0;i<10;i++)
             {
                 var obj=new GameObject("Spark pool "+i);obj.transform.SetParent(transform,false);
@@ -98,9 +99,10 @@ namespace TomorinTrial
         public void HitStop(float duration){stopUntil=Mathf.Max(stopUntil,Time.unscaledTime+duration);}
         public void PlayCombat(TrialCombatEvent value,bool localPlayer)
         {
+            if(PlaySwordCue(value,localPlayer))return;
             if(TrialNetworkManager.SessionActive)
             {
-                float hold=value.cue==TrialCombatCue.Parry?.085f:value.cue==TrialCombatCue.Block?.03f:value.cue==TrialCombatCue.Kill?.09f:value.cue==TrialCombatCue.HeavyHit?.055f:value.cue==TrialCombatCue.Hit?.035f:0;
+                float hold=value.cue==TrialCombatCue.Parry?.085f:value.cue==TrialCombatCue.Block?.03f:value.cue==TrialCombatCue.Kill || value.cue==TrialCombatCue.FinisherHit?.12f:value.cue==TrialCombatCue.HeavyHit?.095f:value.cue==TrialCombatCue.Hit?.065f:0;
                 if(hold>0)TrialNetworkManager.Current.PlayerById(value.player)?.HoldCombat(hold);
             }
             if(PlayImpactCue(value,localPlayer))return;
@@ -109,7 +111,7 @@ namespace TomorinTrial
                 Burst(value.position+value.forward+Vector3.up,new Color(1,.86f,.38f),45);
                 Sound("parry",value.position);
                 SlashEffect(value.position+Vector3.up,value.forward,new Color(1,.87f,.4f),2.3f,true);
-                if(localPlayer){game.CameraRig.Kick(.55f);HitStop(.095f);game.CameraRig.Pulse(5);Rumble(.45f,.85f,.13f);game.Hud.Flash(new Color(1,.88f,.5f,.13f));game.Hud.Notify("完美弹反",.6f);}
+                if(localPlayer){game.CameraRig.Kick(.55f);HitStop(.095f);game.CameraRig.Pulse(5);Rumble(.45f,.85f,.13f);game.Hud.Flash(new Color(1,.88f,.5f,.13f));game.Hud.Notify("完美格挡 · 下一击强化",1.5f);}
             }
             else if(value.cue==TrialCombatCue.Block)
             {
@@ -122,7 +124,7 @@ namespace TomorinTrial
             else if(localPlayer && value.cue==TrialCombatCue.Death)game.OnPlayerDied();
         }
         public void TickTime()
-        {TickImpactEffects();TickTides();TickCombatAudio();Time.timeScale=game.Mode==TrialMode.Victory || game.Mode==TrialMode.Dead?0:TrialNetworkManager.SessionActive?(Time.unscaledTime<slowUntil?.35f:1):game.Mode==TrialMode.Playing?(Time.unscaledTime<stopUntil?.08f:Time.unscaledTime<slowUntil?.30f:1):0;}
-        void OnDestroy(){DisposeImpactEffects();Time.timeScale=1;foreach(var clip in generatedSounds)if(clip)Destroy(clip);if(particles)Destroy(particles);}
+        {TickImpactEffects();TickTides();TickCombatAudio();TickSwordEffects();Time.timeScale=game.Mode==TrialMode.Victory || game.Mode==TrialMode.Dead?0:TrialNetworkManager.SessionActive?(Time.unscaledTime<slowUntil?.35f:1):game.Mode==TrialMode.Playing?(Time.unscaledTime<stopUntil?.08f:Time.unscaledTime<slowUntil?.30f:1):0;}
+        void OnDestroy(){DisposeImpactEffects();DisposeSwordArtEffects();Time.timeScale=1;foreach(var clip in generatedSounds)if(clip)Destroy(clip);if(particles)Destroy(particles);if(petalMesh)Destroy(petalMesh);}
     }
 }

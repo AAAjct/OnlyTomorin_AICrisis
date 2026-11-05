@@ -436,12 +436,14 @@ namespace TomorinTrial
                 if(connection.isReady && !(connection is LocalConnectionToClient))connection.Send(value);
         }
         public void BroadcastCombat(TrialPlayer player, TrialCombatCue cue,Vector3? point=null,Vector3? direction=null)
+        {BroadcastSwordCombat(player,cue,point??player.transform.position,direction??player.transform.forward,Vector3.zero,0);}
+        public void BroadcastSwordCombat(TrialPlayer player,TrialCombatCue cue,Vector3 point,Vector3 direction,Vector3 end,float amount)
         {
             if (!NetworkServer.active || !boundGame) return;
             foreach (var actor in actors)
             {
                 if (actor.Value != player) continue;
-                var value = new TrialCombatEvent { player = actor.Key, cue = cue, position = point??player.transform.position, forward = direction??player.transform.forward };
+                var value = new TrialCombatEvent { player = actor.Key, cue = cue, position = point, forward = direction,end=end,amount=amount };
                 boundGame.Effects.PlayCombat(value, actor.Key == LocalId);
                 foreach (var connection in NetworkServer.connections.Values)
                     if (connection.isReady && !(connection is LocalConnectionToClient)) connection.Send(value);

@@ -48,7 +48,7 @@ namespace TomorinTrial
             deathPoseTime=fighter.Action==FighterAction.Dead?deathPoseTime+Time.unscaledDeltaTime:0;
             for(int i=0;i<bones.Length;i++)previousRotations[i]=bones[i].localRotation;
             Pose(fighter.Action,fighter.Action==FighterAction.Dead?Mathf.Clamp01(deathPoseTime/1.3f):fighter.Progress,fighter.Combo,fighter.MoveBlend,fighter.Guarding,phase);
-            float blend=1-Mathf.Exp(-28*Time.deltaTime);
+            float blend=1-Mathf.Exp(-((fighter.Action==FighterAction.Light || fighter.Action==FighterAction.Heavy) && fighter.Progress<.55f?48:28)*Time.deltaTime);
             if(fighter.Action!=FighterAction.Dodge && fighter.Action!=FighterAction.Dead)
                 for(int i=0;i<bones.Length;i++)bones[i].localRotation=Quaternion.Slerp(previousRotations[i],bones[i].localRotation,blend);
             if(flask && leftHand)flask.position=leftHand.position;
@@ -81,10 +81,58 @@ namespace TomorinTrial
                 bool heavy=action==FighterAction.Heavy;
                 float swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(heavy?.20f:.10f,heavy?.58f:.51f,p));
                 float recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(heavy?.69f:.55f,1,p));
+                if(combo==TrialPlayer.ParryTriple){float beat=Mathf.Repeat(Mathf.Max(0,p-.08f),.22f)/.22f;swing=Mathf.Sin(Mathf.Clamp01(beat)*Mathf.PI);recover=0;}
+                if(combo==TrialPlayer.DodgeDragon){swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.64f,.82f,p));recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.86f,1,p));}
                 Vector3 windup,finish;
                 Vector3 startAngles,endAngles;
                 switch(combo)
                 {
+                    case 0 when !heavy: // Front-facing rising cut: low left to high right.
+                        windup=new Vector3(-.43f,.64f,.40f);finish=new Vector3(.46f,1.24f,.56f);
+                        startAngles=Quaternion.FromToRotation(Vector3.up,new Vector3(-.65f,-.3f,1)).eulerAngles;
+                        endAngles=Quaternion.FromToRotation(Vector3.up,new Vector3(.7f,.6f,1)).eulerAngles;break;
+                    case TrialPlayer.ParryTriple:
+                    case TrialPlayer.BehindThrust:
+                        windup=new Vector3(.20f,1.0f,.15f);finish=new Vector3(.05f,1.08f,.92f);
+                        startAngles=endAngles=new Vector3(90,0,0);break;
+                    case TrialPlayer.FireDragon:
+                        windup=new Vector3(-.38f,.85f,.26f);finish=new Vector3(.42f,1.12f,.60f);
+                        startAngles=new Vector3(80,-95,12);endAngles=new Vector3(90,80,-15);break;
+                    case TrialPlayer.DodgeDragon:
+                        windup=new Vector3(.10f,1.48f,-.04f);finish=new Vector3(.12f,.48f,.70f);
+                        startAngles=new Vector3(-65,0,0);endAngles=new Vector3(150,0,0);break;
+                    case TrialPlayer.SpiralSword:
+                        windup=new Vector3(.38f,1.32f,.12f);finish=new Vector3(.10f,1.05f,.95f);
+                        startAngles=new Vector3(-30,25,10);endAngles=new Vector3(90,0,0);break;
+                    case 20: // Sword points straight down throughout the planted aerial plunge.
+                    case TrialPlayer.AirSandDive:
+                        windup=new Vector3(.08f,1.24f,.28f);finish=new Vector3(.08f,.42f,.30f);
+                        startAngles=endAngles=new Vector3(180,0,0);break;
+                    case TrialPlayer.AirBladeFirst:
+                    case TrialPlayer.AirBladeThird:
+                        windup=new Vector3(.48f,1.35f,.08f);finish=new Vector3(-.45f,.78f,.58f);
+                        startAngles=new Vector3(10,70,-55);endAngles=new Vector3(120,-75,45);break;
+                    case TrialPlayer.AirBladeSecond:
+                        windup=new Vector3(-.45f,.78f,.58f);finish=new Vector3(.48f,1.35f,.30f);
+                        startAngles=new Vector3(120,-75,45);endAngles=new Vector3(10,70,-55);break;
+                    case TrialPlayer.SakuraFollowup:
+                        windup=new Vector3(.20f,.94f,.04f);finish=new Vector3(.06f,1.04f,.96f);
+                        startAngles=new Vector3(85,0,0);endAngles=new Vector3(90,0,0);break;
+                    case 21: // Rising heavy into a reverse waist-height sweep.
+                        windup=new Vector3(-.42f,1.32f,.15f);finish=new Vector3(.58f,.82f,.58f);
+                        startAngles=new Vector3(75,-110,25);endAngles=new Vector3(95,100,-30);break;
+                    case 22: // Retract a thrust and draw the edge across at close range.
+                        windup=new Vector3(.08f,1.08f,.78f);finish=new Vector3(-.44f,.94f,.28f);
+                        startAngles=new Vector3(90,0,0);endAngles=new Vector3(85,-95,30);break;
+                    case 23: // Recover a deep cleave with a stepping-back rising draw.
+                        windup=new Vector3(.32f,.48f,.66f);finish=new Vector3(-.36f,1.22f,.36f);
+                        startAngles=new Vector3(150,55,-20);endAngles=new Vector3(-35,-60,35);break;
+                    case 24: // Spinning dodge cut into a broad planted reverse cleave.
+                        windup=new Vector3(-.50f,1.18f,-.06f);finish=new Vector3(.57f,.65f,.56f);
+                        startAngles=new Vector3(65,-120,20);endAngles=new Vector3(125,100,-35);break;
+                    case 25: // Rolling pursuit thrust into a two-handed driving thrust.
+                        windup=new Vector3(.18f,.98f,.10f);finish=new Vector3(.04f,1.08f,.96f);
+                        startAngles=new Vector3(85,0,0);endAngles=new Vector3(90,0,0);break;
                     case 18: // Heavy chain two: reverse rising cut.
                         windup=new Vector3(.12f,.48f,.58f);finish=new Vector3(-.28f,1.40f,.48f);
                         startAngles=new Vector3(145,35,-15);endAngles=new Vector3(-55,-55,20);break;
@@ -112,21 +160,25 @@ namespace TomorinTrial
                     case 14: // Deliberate posture-break execution.
                         windup=new Vector3(-.36f,1.38f,-.10f);finish=new Vector3(.32f,.55f,.72f);
                         startAngles=new Vector3(-50,-70,10);endAngles=new Vector3(145,70,-30);break;
-                    case 1: // Reverse cut across the shoulders.
-                        windup=new Vector3(-.42f,1.18f,.06f);finish=new Vector3(.48f,.72f,.45f);
-                        startAngles=new Vector3(10,-85,65);endAngles=new Vector3(105,85,-60);break;
-                    case 2: // Low rising diagonal.
-                    case 4:
-                        windup=new Vector3(.40f,.43f,.08f);finish=new Vector3(-.27f,1.35f,.45f);
-                        startAngles=new Vector3(145,60,-45);endAngles=new Vector3(-65,-60,35);break;
+                    case 1: // Waist-high, forward half-moon sweep.
+                        windup=new Vector3(.48f,1.0f,.28f);finish=new Vector3(-.45f,1.0f,.48f);
+                        startAngles=new Vector3(90,85,0);endAngles=new Vector3(90,-85,0);break;
+                    case 2: // Upright torso and a horizontal blade, then thrust and turn out.
+                        windup=new Vector3(.24f,1.03f,.20f);finish=new Vector3(.06f,1.04f,.92f);
+                        startAngles=endAngles=new Vector3(90,0,0);break;
+                    case 4: // Reverse the rising first cut into a broad descending diagonal.
+                        windup=new Vector3(.46f,1.24f,.56f);finish=new Vector3(-.54f,.52f,.62f);
+                        startAngles=new Vector3(55,40,-25);endAngles=new Vector3(125,-50,30);break;
                     case 5: // Lunging thrust after two light attacks.
                     case 8:
                         windup=new Vector3(.26f,.94f,-.08f);finish=new Vector3(.05f,1.02f,.78f);
                         startAngles=new Vector3(76,0,0);endAngles=new Vector3(90,0,0);break;
-                    case 3:
-                    case 6: // Full-body overhead finisher.
-                        windup=new Vector3(.14f,1.50f,-.08f);finish=new Vector3(.12f,.42f,.58f);
-                        startAngles=new Vector3(-60,0,-12);endAngles=new Vector3(155,0,12);break;
+                    case 3: // Empty leap: draw the sword close and tuck the knees.
+                        windup=new Vector3(-.28f,1.22f,.25f);finish=new Vector3(.30f,1.30f,.18f);
+                        startAngles=new Vector3(-25,-50,20);endAngles=new Vector3(-30,55,-30);break;
+                    case 6: // Retreat, gather, then cast three round crescent cuts.
+                        windup=new Vector3(-.42f,1.18f,.12f);finish=new Vector3(.50f,.92f,.58f);
+                        startAngles=new Vector3(75,-95,15);endAngles=new Vector3(100,95,-20);break;
                     case 9: // Blink step: low draw into a level, full-body horizontal cut.
                         windup=new Vector3(-.38f,.75f,-.12f);finish=new Vector3(.56f,.95f,.56f);
                         startAngles=new Vector3(90,-105,8);endAngles=new Vector3(90,110,-8);break;
@@ -143,18 +195,36 @@ namespace TomorinTrial
                 // the previous finish as their starting guard, so a chain keeps its flow.
                 Vector3 ready=hand;
                 float wind=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,heavy?.20f:.10f,p));
-                Vector3 arc=(windup+finish)*.5f+Vector3.forward*(heavy?.20f:.16f);
+                bool thrust=combo==2 || combo==5 || combo==8 || combo==11 || combo==25 || combo==TrialPlayer.SakuraFollowup || combo==TrialPlayer.ParryTriple || combo==TrialPlayer.BehindThrust;
+                Vector3 arc=(windup+finish)*.5f+Vector3.forward*(thrust?0:heavy?.20f:.16f);
                 Vector3 cut=Vector3.Lerp(Vector3.Lerp(windup,arc,swing),Vector3.Lerp(arc,finish,swing),swing);
                 hand=Vector3.Lerp(Vector3.Lerp(ready,cut,wind),ready,recover);
                 offhand=Vector3.Lerp(heavy?hand+new Vector3(-.12f,-.10f,-.08f):new Vector3(-.35f,1.02f,-.10f),offhand,recover);
-                float side=combo==1 || combo==2 || combo==4 || combo==10 || combo==16?-1:1;
+                float side=combo==1 || combo==2 || combo==4 || combo==10 || combo==16 || combo==TrialPlayer.AirBladeSecond?-1:1;
                 twist=Mathf.Lerp(-42*side,58*side,swing)*(1-recover);
                 lean=Mathf.Lerp(-12,heavy?25:14,swing)*(1-recover);
+                if(thrust){twist=Mathf.Lerp(-22,8,swing)*(1-recover);lean=Mathf.Lerp(-6,22,swing)*(1-recover);}
+                if(combo==2){lean=3+5*swing;twist=Mathf.Lerp(0,150,Mathf.SmoothStep(0,1,Mathf.InverseLerp(.46f,.85f,p)))*(1-recover*.7f);}
+                if(combo==TrialPlayer.DodgeDragon && p<.64f){lean=-10;twist=0;Leg(leftLeg,leftFoot,-40);Leg(rightLeg,rightFoot,32);}
                 var cutRotation=Quaternion.Slerp(Quaternion.Euler(startAngles),Quaternion.Euler(endAngles),swing);
                 swordRotation=Quaternion.Slerp(Quaternion.Slerp(Quaternion.Euler(swordAngles),cutRotation,wind),Quaternion.Euler(swordAngles),recover);
                 model.localPosition+=transform.InverseTransformDirection(transform.forward)*Mathf.Sin(p*Mathf.PI)*.10f;
                 Leg(leftLeg,leftFoot,Mathf.Lerp(-24,15,swing));Leg(rightLeg,rightFoot,Mathf.Lerp(22,-16,swing));
                 if(combo==13 || combo==17)model.localPosition+=Vector3.up*(Mathf.Sin(Mathf.Clamp01(p/.72f)*Mathf.PI)*.75f);
+                if(combo==3 || TrialPlayer.IsAirBlade(combo))
+                {
+                    float tuck=combo==3?Mathf.SmoothStep(0,1,Mathf.InverseLerp(.08f,.4f,p)):1;
+                    Leg(leftLeg,leftFoot,-48*tuck);Leg(rightLeg,rightFoot,30*tuck);lean=-8;bank=0;
+                }
+                if(TrialPlayer.IsDive(combo))
+                {lean=combo==TrialPlayer.AirSandDive?48:14;twist=0;offhand=hand+new Vector3(-.12f,-.1f,0);Leg(leftLeg,leftFoot,-22);Leg(rightLeg,rightFoot,22);}
+                if(combo==TrialPlayer.FireDragon && p<.44f)
+                {
+                    float roll=Mathf.SmoothStep(0,1,p/.44f);var rotation=Quaternion.Euler(-360*roll,0,-25*Mathf.Sin(roll*Mathf.PI));
+                    model.localRotation=modelRotation*rotation;var pivot=Vector3.up*.75f;
+                    model.localPosition=modelOrigin+pivot-rotation*pivot+Vector3.up*(Mathf.Sin(roll*Mathf.PI)*.4f);
+                    Leg(leftLeg,leftFoot,-45);Leg(rightLeg,rightFoot,40);
+                }
             }
             if(action==FighterAction.Charge)
             {
@@ -193,7 +263,7 @@ namespace TomorinTrial
             Vector3 basis=transform.position;
             Quaternion orientation=transform.rotation;
             if(action==FighterAction.Heavy && (combo==13 || combo==17))basis+=Vector3.up*(Mathf.Sin(Mathf.Clamp01(p/.72f)*Mathf.PI)*.75f);
-            if(action==FighterAction.Dodge || action==FighterAction.Dead)
+            if(action==FighterAction.Dodge || action==FighterAction.Dead || action==FighterAction.Heavy && combo==TrialPlayer.FireDragon && p<.44f)
             {
                 orientation=transform.rotation*Quaternion.Inverse(modelRotation)*model.localRotation;
                 basis=transform.position+transform.rotation*(model.localPosition-modelOrigin);

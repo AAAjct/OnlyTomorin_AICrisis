@@ -154,9 +154,12 @@ namespace TomorinTrial
             back.GetComponent<RectTransform>().anchoredPosition=new Vector2(38,-758);
             foreach(var label in network.GetComponentsInChildren<UnityEngine.UI.Text>(true))if(label.text.StartsWith("房主本机：")){label.rectTransform.anchoredPosition=new Vector2(38,-722);label.rectTransform.sizeDelta=new Vector2(590,24);}
             levelDropdown.onClick.AddListener(()=>OpenLevelList(true));
-            Label(network,"摇杆 / 方向键选择 · A / Enter 编辑 · B / Esc 结束输入",38,181,590,22,13,Grey);
+            Label(network,"方向键选择 · A / Enter 编辑 · B / Esc 结束",180,180,448,22,13,Grey,TextAnchor.MiddleRight);
             foreach(var label in network.GetComponentsInChildren<UnityEngine.UI.Text>(true))
+            {
+                if(label.text=="你的名字")label.rectTransform.sizeDelta=new Vector2(120,27);
                 if(label.text=="1–4 人协作 · 局域网 / TCP 端口映射")label.text="多人同行 / 竞技决斗 · 局域网联机";
+            }
         }
         void Update()
         {
@@ -272,7 +275,7 @@ namespace TomorinTrial
         {foreach(var button in GetComponentsInChildren<InkButtonMotion>(true))button.Restyle(uiFont?uiFont:inkFont);}
         UnityEngine.UI.InputField Field(Transform p,string title,float x,float y,float w,string value)
         {
-            Label(p,title,x,y-28,w,27,16,Grey);
+            Label(p,title,x,y-28,title=="你的名字"?120:w,27,16,Grey);
             var r=Panel(title,p,x,y,w,48,new Color(.13f,.14f,.13f,.045f));var image=r.GetComponent<UnityEngine.UI.Image>();image.raycastTarget=true;
             var input=r.gameObject.AddComponent<UnityEngine.UI.InputField>();var text=Label(r,value,13,0,w-26,48,22,Ink);input.textComponent=text;input.text=value;input.lineType=UnityEngine.UI.InputField.LineType.SingleLine;input.targetGraphic=image;
             Line(r,0,47,w,1,new Color(.13f,.14f,.13f,.24f));return input;

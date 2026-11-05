@@ -75,10 +75,16 @@ namespace TomorinTrial.Editor
                 BakeClip(actor,rig,targets,controller,"Slash01",FighterAction.Light,.38f,0,0,false,false);
                 BakeClip(actor,rig,targets,controller,"Slash02",FighterAction.Light,.38f,1,0,false,false);
                 BakeClip(actor,rig,targets,controller,"Slash03",FighterAction.Light,.38f,2,0,false,false);
-                BakeClip(actor,rig,targets,controller,"Slash04",FighterAction.Light,.48f,3,0,false,false);
+                BakeClip(actor,rig,targets,controller,"Slash04",FighterAction.Light,.82f,3,0,false,false);
+                BakeClip(actor,rig,targets,controller,"AirCrimson01",FighterAction.Light,.56f,TrialPlayer.AirBladeFirst,0,false,false);
+                BakeClip(actor,rig,targets,controller,"AirCrimson02",FighterAction.Light,.56f,TrialPlayer.AirBladeSecond,0,false,false);
+                BakeClip(actor,rig,targets,controller,"AirCrimson03",FighterAction.Light,.56f,TrialPlayer.AirBladeThird,0,false,false);
+                BakeClip(actor,rig,targets,controller,"SandDive",FighterAction.Light,.78f,TrialPlayer.AirSandDive,0,false,false);
+                BakeClip(actor,rig,targets,controller,"SwordPlunge",FighterAction.Heavy,.92f,20,0,false,false);
+                BakeClip(actor,rig,targets,controller,"SakuraLunge",FighterAction.Light,.64f,TrialPlayer.SakuraFollowup,0,false,false);
                 BakeClip(actor,rig,targets,controller,"RisingSlash",FighterAction.Heavy,.76f,4,0,false,false);
                 BakeClip(actor,rig,targets,controller,"ChainThrust",FighterAction.Heavy,.76f,5,0,false,false);
-                BakeClip(actor,rig,targets,controller,"ChainFinisher",FighterAction.Heavy,.76f,6,0,false,false);
+                BakeClip(actor,rig,targets,controller,"ChainFinisher",FighterAction.Heavy,1.02f,6,0,false,false);
                 BakeClip(actor,rig,targets,controller,"WindDodgeSlash",FighterAction.Dodge,.44f,7,0,false,false);
                 BakeClip(actor,rig,targets,controller,"DodgePursuit",FighterAction.Light,.48f,8,0,false,false);
                 BakeClip(actor,rig,targets,controller,"GuardThrust",FighterAction.Light,.58f,11,0,false,false);

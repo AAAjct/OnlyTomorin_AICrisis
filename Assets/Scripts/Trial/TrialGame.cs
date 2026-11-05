@@ -219,6 +219,7 @@ namespace TomorinTrial
         public void StartTrial()
         {
             Mode=TrialMode.Playing;CameraRig.Frozen=false;Input.ResetSprint();Time.timeScale=1;
+            Hud.ResetDamageFeedback();
             if(!IsArena && (!TrialNetworkManager.SessionActive || Mirror.NetworkServer.active))
             {Player.RollRunBoons();var fish=enemies[enemies.Count-1].Boss;if(fish && fish.Boon==TrialBossBoon.None)fish.RollBoon();}
             SetCursor(!Player.ChoosingBoon);
