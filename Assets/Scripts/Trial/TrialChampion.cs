@@ -150,7 +150,9 @@ namespace TomorinTrial
             if(TickRespite(dt,delta))return;
             if(TickSwordDefense(dt,target,distance))return;
             pursuitAge+=dt;
-            if(pursuitAge>2.6f && distance>desired+2){BeginRespite();TickRespite(dt,delta);return;}
+            // Running away must not award another full recovery window.
+            // Re-evaluate the route and use the existing gap closer instead.
+            if(pursuitAge>2.6f && distance>desired+2){pursuitAge=0;decisionClock=0;mobilityCooldown=Mathf.Min(mobilityCooldown,0);orbitSide=-orbitSide;}
             // Commands come from the same authoritative player simulation for local and remote peers.
             if(mobilityCooldown<=0 && decisionClock<=0)
             {
@@ -175,7 +177,7 @@ namespace TomorinTrial
             if(cooldown>0 || distance>(gun?32:Kind==ChampionKind.YaYa?14:Kind==ChampionKind.Penguin?13:8))return;
             // Dual pressure is sequenced. Only a specifically telegraphed cross-combo overlaps.
             if(partnerActive){cooldown=.12f;return;}
-            int index=ChooseMove(distance);BeginMove(index);
+            int index=ChooseMove(distance);if(index>=0)BeginMove(index);
         }
         TrialEnemy Partner()
         {
@@ -190,7 +192,7 @@ namespace TomorinTrial
             for(int i=0;i<max;i++)
             {
                 var m=TrialChampionCatalog.Move(Kind,i);float score=(usedMoves&(1u<<i))!=0?0:1;
-                if((m.shape==ChampionShape.Cut || m.shape==ChampionShape.Cross) && distance>m.range+.8f)score*=.08f;
+                score*=MoveSuitability(m,distance);
                 if(distance>6 && (m.shape==ChampionShape.Thrust || m.shape==ChampionShape.Leap || m.shape==ChampionShape.Lash))score*=3;
                 if(player.Guarding && player.GuardAge>.3f && m.Unblockable)score*=2.5f;
                 if(player.Action==FighterAction.Heal && (m.shape==ChampionShape.Thrust || m.shape==ChampionShape.Snipe || m.shape==ChampionShape.Mark))score*=3;
@@ -199,12 +201,20 @@ namespace TomorinTrial
                 if(i>=8)score*=1.4f;
                 moveWeights[i]=score;total+=score;
             }
+            // Refresh the bag when all *reachable* moves have been used. Never
+            // spend several attacks on short cuts just to finish the full bag.
+            if(total<=0)
+            {
+                usedMoves=0;
+                for(int i=0;i<max;i++){moveWeights[i]=MoveSuitability(TrialChampionCatalog.Move(Kind,i),distance);total+=moveWeights[i];}
+            }
+            if(total<=0)return -1;
             if(IsRemnant || Kind==ChampionKind.Anon)
             {
                 int best=0;float highest=-1;
                 for(int i=0;i<max;i++)
                 {
-                    var m=TrialChampionCatalog.Move(Kind,i);float score=moveWeights[i];
+                    var m=TrialChampionCatalog.Move(Kind,i);float score=moveWeights[i]*Random.Range(.85f,1.15f);
                     if(Kind==ChampionKind.Anon){if(distance>5 && i==4)score*=5;if(player.CommandHeavy && i==10)score*=4;if(ActiveHazards>4 && i==4)score=0;}
                     if(player.CommandDodge || player.Action==FighterAction.Dodge)score*=m.windup>.65f?3.5f:.3f;
                     if(player.CommandHeavy || player.Action==FighterAction.Charge)score*=m.shape==ChampionShape.Thrust || m.shape==ChampionShape.BladeWave?3:1;
@@ -213,7 +223,21 @@ namespace TomorinTrial
                 }
                 return best;
             }
-            float roll=Random.value*total;for(int i=0;i<max;i++){roll-=moveWeights[i];if(roll<=0)return i;}return max-1;
+            float roll=Random.value*total;for(int i=0;i<max;i++){roll-=moveWeights[i];if(moveWeights[i]>0 && roll<=0)return i;}return -1;
+        }
+        static float MoveSuitability(ChampionMove move,float distance)
+        {
+            switch(move.shape)
+            {
+                case ChampionShape.Cut:case ChampionShape.Cross:case ChampionShape.Counter:
+                case ChampionShape.Grab:case ChampionShape.Stomp:case ChampionShape.Vacuum:
+                case ChampionShape.Spiral:case ChampionShape.CrossLine:
+                case ChampionShape.Thrust:case ChampionShape.Lash:case ChampionShape.Tether:
+                    return distance<=move.range+.6f?1:0;
+                case ChampionShape.Annulus:
+                    return distance>=move.inner && distance<=move.range+.4f?1:0;
+                default:return 1;
+            }
         }
         void StartMobility(ChampionMobility move,Vector3 direction,float duration,float speed,int followup)
         {
@@ -245,7 +269,7 @@ namespace TomorinTrial
         public void BeginMove(int index)
         {
             if(!fighter.Alive)return;
-            guardTime=0;fighter.BossGuard(false);
+            respite=0;guardTime=0;fighter.BossGuard(false);
             MoveIndex=Mathf.Clamp(index,0,TrialChampionCatalog.SkillCount-1);previous=MoveIndex;usedMoves|=1u<<MoveIndex;sequence++;beat=0;Age=0;AttacksStarted++;contacted.Clear();counterTriggered=false;
             Mobility=ChampionMobility.Grounded;pressureAge=0;steering=Vector3.zero;
             origin=transform.position;origin.y=0;LockAim();firstHeading=heading;aimLockedAt=-1;
@@ -320,7 +344,7 @@ namespace TomorinTrial
             game.Effects.Sound("swing",transform.position,Kind==ChampionKind.Penguin?.6f:1.1f);
             foreach(var target in Targets)
             {
-                if(!target || !target.Alive || !Contains(target.transform.position) || contacted.Contains(target))continue;
+                if(!target || !target.Alive || !target.OverlapsAttackHeight(transform.position.y,transform.position.y+(IsGroundShape(Move.shape)?.3f:1.6f)) || !Contains(target.transform.position) || contacted.Contains(target))continue;
                 if(Physics.Linecast(transform.position+Vector3.up,target.transform.position+Vector3.up,1,QueryTriggerInteraction.Ignore))continue;
                 contacted.Add(target);
                 bool hit=target.ReceiveHit(fighter,Move.damage,40,Move.Unblockable);
@@ -331,6 +355,7 @@ namespace TomorinTrial
             if(IsAerialStrike(shape) || shape==ChampionShape.Mark || shape==ChampionShape.Stomp || shape==ChampionShape.Vacuum)
             {game.Effects.Burst(aim+Vector3.up*.15f,TrialChampionCatalog.Color(Kind),30);if((game.Player.transform.position-aim).sqrMagnitude<70)game.CameraRig.Kick(.22f);}
         }
+        static bool IsGroundShape(ChampionShape shape)=>IsAerialStrike(shape) || shape==ChampionShape.Mark || shape==ChampionShape.Annulus || shape==ChampionShape.Stomp || shape==ChampionShape.Vacuum || shape==ChampionShape.CrossLine;
         public bool Contains(Vector3 point)
         {
             Vector3 delta=Planar(point-transform.position);float distance=delta.magnitude;float range=Mathf.Max(.2f,Move.range-.18f);
@@ -364,7 +389,7 @@ namespace TomorinTrial
                 foreach(var target in Targets)
                 {
                     if(!target || !target.Alive || h.hit.Contains(target))continue;
-                    bool contact=h.ring?Mathf.Abs(Planar(target.transform.position-h.position).magnitude-h.radius)<.24f+8*dt:SegmentDistance(target.transform.position+Vector3.up*1.05f,before,h.position)<.34f;
+                    bool contact=h.ring?target.OverlapsAttackHeight(h.position.y-.1f,h.position.y+.3f) && Mathf.Abs(Planar(target.transform.position-h.position).magnitude-h.radius)<.24f+8*dt:SegmentDistance(target.transform.position+Vector3.up*1.05f,before,h.position)<.34f;
                     if(!contact)continue;h.hit.Add(target);
                     target.ReceiveHazardHit(fighter,h.damage,30,h.unblockable,h.ring?h.position-target.transform.position:-h.velocity);
                     if(!h.ring){h.active=false;h.line.enabled=false;break;}

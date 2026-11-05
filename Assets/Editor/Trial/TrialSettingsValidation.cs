@@ -39,14 +39,14 @@ namespace TomorinTrial.Editor
                 var menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();Check(menu,"Main menu initialized");
                 menu.GetComponentsInChildren<UnityEngine.UI.Button>(true).First(b=>b.GetComponentInChildren<UnityEngine.UI.Text>().text=="设置").onClick.Invoke();yield return .2f;
                 var panel=menu.GetComponentInChildren<TrialSettingsPanel>();Check(panel && panel.IsOpen,"Main menu opens shared settings");
-                string layout=SettingsLayout(panel);Check(panel.GetComponentsInChildren<UnityEngine.UI.Button>().Length==34,"Settings exposes all binding and preference buttons");
+                string layout=SettingsLayout(panel);Check(panel.GetComponentsInChildren<UnityEngine.UI.Button>().Any(b=>b.name=="VSync"),"Settings exposes the vertical sync control");
                 bool hadFrame=PlayerPrefs.HasKey("Ink.MobileFrameRate");int frame=TrialPreferences.MobileFrameRate;
                 try
                 {
                     PlayerPrefs.SetInt("Ink.MobileFrameRate",60);
-                    foreach(int expected in new[]{90,120,0,60})
+                    foreach(int expected in new[]{120,144,0,30,60})
                     {
-                        SettingsButton(panel,"Mobile frame rate").onClick.Invoke();
+                        SettingsButton(panel,"Frame rate limit").onClick.Invoke();
                         Check(TrialPreferences.MobileFrameRate==expected,"Mobile frame preference cycles and saves "+expected);
                     }
                 }

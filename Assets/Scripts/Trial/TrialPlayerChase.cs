@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace TomorinTrial
 {
@@ -16,10 +16,10 @@ namespace TomorinTrial
             {
                 if(!candidate || !candidate.Alive)continue;
                 var offset=candidate.transform.position-transform.position;
-                if(Mathf.Abs(offset.y)>1.8f)continue;
+                if(Mathf.Abs(offset.y)>3.5f)continue;
                 offset.y=0;float distance=offset.magnitude;
                 float angle=Vector3.Angle(transform.forward,offset);
-                if(distance>5.5f || angle>(candidate==LockTarget?100:55))continue;
+                if(distance>(candidate==LockTarget?24:10) || angle>(candidate==LockTarget?180:80))continue;
                 if(Physics.Linecast(transform.position+Vector3.up,candidate.transform.position+Vector3.up,1,QueryTriggerInteraction.Ignore))continue;
                 float rank=distance+angle*.035f-(candidate==LockTarget?2:0);
                 if(rank<score){score=rank;best=candidate;}

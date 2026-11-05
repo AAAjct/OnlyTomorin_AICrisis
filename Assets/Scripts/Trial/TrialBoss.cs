@@ -38,10 +38,13 @@ namespace TomorinTrial
         TrialEnemy fighter;
         TrialGame game;
         float age,duration,cooldown=1.2f;
-        int sequence,waves,variant,comboDepth,markCount;
+        int waves,variant,comboDepth,markCount;
         float reactiveCooldown;
         float regroupTime,pursuitTime;
         int orbitSide=1;
+        DeepFishSkill previousChoice;
+        static readonly DeepFishSkill[] attackChoices={DeepFishSkill.TailSweep,DeepFishSkill.ReverseTail,DeepFishSkill.TidalCharge,DeepFishSkill.RiptideRush,DeepFishSkill.BubbleBarrage,DeepFishSkill.AbyssRain,DeepFishSkill.Maelstrom};
+        readonly float[] attackWeights=new float[7];
         public bool Regrouping=>regroupTime>0;
         Vector3[] marks=new Vector3[4];
         LineRenderer[] markWarnings=new LineRenderer[4];
@@ -174,10 +177,10 @@ namespace TomorinTrial
             fighter.BossFace(delta,190,dt);
             if(regroupTime>0)
             {
-                if(ActiveHazards==0)regroupTime=Mathf.Max(0,regroupTime-dt);
+                regroupTime=Mathf.Max(0,regroupTime-dt);
                 cooldown=Mathf.Max(cooldown,regroupTime+.1f);
                 Vector3 radial=delta.normalized,tangent=Vector3.Cross(Vector3.up,radial)*orbitSide;
-                Vector3 step=(distance<6?-radial+tangent*.4f:distance<11?tangent:Vector3.zero).normalized;
+                Vector3 step=(distance<4?-radial+tangent*.4f:distance<7?tangent:radial+tangent*.25f).normalized;
                 Vector3 next=transform.position+step*1.8f*dt;
                 if(next.x>-10 && next.x<10 && next.z>18 && next.z<33 && !Physics.SphereCast(transform.position+Vector3.up,.7f,step,out _,1,1,QueryTriggerInteraction.Ignore))
                     fighter.BossMove(step*1.8f,dt);
@@ -185,24 +188,19 @@ namespace TomorinTrial
                 fighter.BossMotion(step.sqrMagnitude>.01f?1:0);return;
             }
             pursuitTime+=dt;
-            if(pursuitTime>3 && distance>5){regroupTime=1.7f;pursuitTime=0;orbitSide=-orbitSide;return;}
+            if(pursuitTime>3 && distance>5){pursuitTime=0;cooldown=Mathf.Min(cooldown,.15f);orbitSide=-orbitSide;}
             // Set the gait target once: easing toward zero and then one each frame
             // previously cancelled out, leaving the walking animation at zero.
             fighter.BossMotion(distance>3.8f?1:0);
             if(cooldown<=0 && distance<19)
             {
-                // React to back-hugging and healing, then rotate through distinct patterns.
+                // React to visible commitments, then choose a reachable attack.
                 DeepFishSkill choice;
                 if(reactiveCooldown<=0 && distance<5.5f && Vector3.Angle(transform.forward,delta)>100)
                 {choice=DeepFishSkill.ReverseTail;reactiveCooldown=5;}
                 else if(reactiveCooldown<=0 && game.CombatTarget.Action==FighterAction.Heal)
                 {choice=DeepFishSkill.AbyssRain;reactiveCooldown=5;}
-                else switch(sequence++%7)
-                {case 0:choice=distance<5?DeepFishSkill.ReverseTail:DeepFishSkill.RiptideRush;break;
-                 case 1:choice=DeepFishSkill.BubbleBarrage;break;case 2:choice=DeepFishSkill.TailSweep;break;
-                 case 3:choice=DeepFishSkill.AbyssRain;break;case 4:choice=DeepFishSkill.RiptideRush;break;
-                 case 5:choice=DeepFishSkill.BellySlam;break;
-                 default:choice=Enraged?DeepFishSkill.Maelstrom:DeepFishSkill.BubbleBarrage;break;}
+                else choice=ChooseAttack(distance);
                 comboDepth=0;
                 StartSkill(choice);return;
             }
@@ -211,8 +209,33 @@ namespace TomorinTrial
                 Vector3 direction=delta.normalized;
                 if(Physics.SphereCast(transform.position+Vector3.up,.65f,direction,out var hit,1.6f,1,QueryTriggerInteraction.Ignore))
                     direction=Vector3.ProjectOnPlane(direction,hit.normal).normalized;
-                fighter.BossMove(direction*(Enraged?3.3f:2.6f),dt);
+                fighter.BossMove(direction*(Enraged?4.2f:3.5f),dt);
             }
+        }
+
+        DeepFishSkill ChooseAttack(float distance)
+        {
+            float total=0;
+            for(int i=0;i<attackChoices.Length;i++)
+            {
+                var skill=attackChoices[i];float weight;
+                switch(skill)
+                {
+                    case DeepFishSkill.TailSweep:weight=distance<4.8f?3:0;break;
+                    case DeepFishSkill.ReverseTail:weight=distance<5.3f?2.5f:0;break;
+                    case DeepFishSkill.TidalCharge:weight=distance>5?2:0;break;
+                    case DeepFishSkill.RiptideRush:weight=distance>6?3:distance>3?1:0;break;
+                    case DeepFishSkill.BubbleBarrage:weight=distance>5?2: .5f;break;
+                    case DeepFishSkill.Maelstrom:weight=Enraged && distance<11?2:0;break;
+                    default:weight=distance>5?2:1;break;
+                }
+                if(skill==previousChoice)weight*=.15f;
+                if(game.CombatTarget.Guarding && (skill==DeepFishSkill.AbyssRain || skill==DeepFishSkill.Maelstrom))weight*=1.8f;
+                attackWeights[i]=weight;total+=weight;
+            }
+            float roll=Random.value*total;
+            for(int i=0;i<attackChoices.Length;i++){roll-=attackWeights[i];if(attackWeights[i]>0 && roll<=0)return attackChoices[i];}
+            return DeepFishSkill.AbyssRain;
         }
 
         public void StartSkill(DeepFishSkill next)
@@ -221,7 +244,7 @@ namespace TomorinTrial
             // Retain the enum ID for serialized/network data, but retire the tracking feint slam.
             if(next==DeepFishSkill.DelayedSlam)return;
             if(next==DeepFishSkill.BellySlam)next=DeepFishSkill.TailSweep;
-            HideWarnings();Skill=next;age=0;waves=0;markCount=0;variant=AttacksStarted%2;landed=false;contacted.Clear();AttacksStarted++;
+            HideWarnings();Skill=next;previousChoice=next;regroupTime=0;age=0;waves=0;markCount=0;variant=AttacksStarted%2;landed=false;contacted.Clear();AttacksStarted++;
             origin=transform.position;aim=game.CombatTarget.transform.position;
             aim.x=Mathf.Clamp(aim.x,-10.5f,10.5f);aim.z=Mathf.Clamp(aim.z,18,32);aim.y=0;
             // The ordinary leap lands in place; its telegraph, damage and wave share this point.
@@ -301,8 +324,8 @@ namespace TomorinTrial
             {
                 var previous=Skill;Skill=DeepFishSkill.None;fighter.BossBegin(FighterAction.Free,0);HideWarnings();
                 if(Enraged && comboDepth<1 && previous!=DeepFishSkill.Enrage && previous!=DeepFishSkill.AbyssRain)
-                {comboDepth++;StartSkill(previous==DeepFishSkill.BubbleBarrage?DeepFishSkill.RiptideRush:previous==DeepFishSkill.BellySlam || previous==DeepFishSkill.DelayedSlam?DeepFishSkill.ReverseTail:DeepFishSkill.AbyssRain);return;}
-                comboDepth=0;regroupTime=Frenzied?1.5f:Enraged?1.8f:2.1f;cooldown=regroupTime;pursuitTime=0;orbitSide=-orbitSide;
+                {comboDepth++;StartSkill(ChooseAttack(Vector3.ProjectOnPlane(game.CombatTarget.transform.position-transform.position,Vector3.up).magnitude));return;}
+                comboDepth=0;regroupTime=Frenzied?.65f:Enraged?.8f:1.05f;cooldown=regroupTime;pursuitTime=0;orbitSide=-orbitSide;
             }
         }
 
@@ -326,7 +349,7 @@ namespace TomorinTrial
             {
                 Impact(marks[i]);SpawnWave(marks[i],4.6f);
                 foreach(var target in Targets)
-                    if(target && target.Alive && !contacted.Contains(target) && Vector3.ProjectOnPlane(target.transform.position-marks[i],Vector3.up).sqrMagnitude<5.76f && !Blocked(marks[i],target.transform.position))
+                    if(target && target.Alive && !contacted.Contains(target) && target.OverlapsAttackHeight(marks[i].y-.1f,marks[i].y+.3f) && Vector3.ProjectOnPlane(target.transform.position-marks[i],Vector3.up).sqrMagnitude<5.76f && !Blocked(marks[i],target.transform.position))
                     {contacted.Add(target);target.ReceiveHit(fighter,36,30,true);}
             }
         }
@@ -358,7 +381,7 @@ namespace TomorinTrial
             Arc(sweep,transform.position+Vector3.up*.8f,radius,current-7,current+7,new Color(.25f,.9f,1,.95f));
             foreach(var target in Targets)
             {
-                if(!target || !target.Alive || contacted.Contains(target))continue;
+                if(!target || !target.Alive || contacted.Contains(target) || !target.OverlapsAttackHeight(transform.position.y,transform.position.y+1.6f))continue;
                 var delta=Vector3.ProjectOnPlane(target.transform.position-transform.position,Vector3.up);
                 if(delta.magnitude>radius-.12f || Blocked(transform.position,target.transform.position))continue;
                 float angle=Vector3.SignedAngle(transform.forward,delta,Vector3.up);
@@ -374,7 +397,7 @@ namespace TomorinTrial
         {
             foreach(var target in Targets)
             {
-                if(!target||!target.Alive||contacted.Contains(target))continue;
+                if(!target||!target.Alive||contacted.Contains(target)||!target.OverlapsAttackHeight(transform.position.y,transform.position.y+1.6f))continue;
                 var delta=target.transform.position-transform.position;delta.y=0;
                 if(delta.magnitude>range-.12f||Vector3.Angle(transform.forward,delta)>angle-4||Blocked(transform.position,target.transform.position))continue;
                 contacted.Add(target);landed=true;target.ReceiveHit(fighter,damage,30,unblockable);
@@ -382,7 +405,7 @@ namespace TomorinTrial
             }
         }
         void Area(Vector3 point,float range,float damage)
-        {foreach(var target in Targets)if(target&&target.Alive&&Vector3.ProjectOnPlane(target.transform.position-point,Vector3.up).magnitude<range-.18f&&!Blocked(point,target.transform.position))target.ReceiveHit(fighter,damage,35,true);}
+        {foreach(var target in Targets)if(target&&target.Alive&&target.OverlapsAttackHeight(point.y-.1f,point.y+.3f)&&Vector3.ProjectOnPlane(target.transform.position-point,Vector3.up).magnitude<range-.18f&&!Blocked(point,target.transform.position))target.ReceiveHit(fighter,damage,35,true);}
         bool Blocked(Vector3 from,Vector3 to)=>Physics.Linecast(from+Vector3.up*.8f,to+Vector3.up*.8f,1,QueryTriggerInteraction.Ignore);
         void Impact(Vector3 point)
         {game.Effects.Burst(point+Vector3.up*.2f,new Color(.2f,.8f,1),25);game.CameraRig.Kick(.65f);game.Effects.SkillImpact(point,new Color(.12f,.7f,1));}
@@ -420,7 +443,7 @@ namespace TomorinTrial
                     Circle(h.ring,h.position,h.radius,new Color(.18f,.85f,1,Mathf.Clamp01(1-h.radius/15)));
                     foreach(var target in Targets)
                     {
-                        if(!target||!target.Alive||h.hitPlayers.Contains(target))continue;
+                        if(!target||!target.Alive||h.hitPlayers.Contains(target)||!target.OverlapsAttackHeight(h.position.y-.1f,h.position.y+.3f))continue;
                         float distance=Vector3.ProjectOnPlane(target.transform.position-h.position,Vector3.up).magnitude;
                         if(distance>=previous-.26f&&distance<=h.radius+.26f&&!Blocked(h.position,target.transform.position))
                         {h.hitPlayers.Add(target);target.ReceiveHit(fighter,Enraged?22:20,20,true);}
@@ -468,7 +491,7 @@ namespace TomorinTrial
         void HideWarnings(){if(warning)warning.enabled=false;if(fill)fill.enabled=false;if(sweep)sweep.enabled=false;foreach(var line in markWarnings)if(line)line.enabled=false;}
         public void CancelAttack()
         {Skill=DeepFishSkill.None;age=duration=0;markCount=comboDepth=0;cooldown=.9f;HideWarnings();foreach(var h in hazards)if(h!=null)Release(h);}
-        public void ResetBoss(){CancelAttack();Enraged=Frenzied=false;reactiveCooldown=regroupTime=pursuitTime=0;sequence=waves=AttacksStarted=0;orbitSide=1;}
+        public void ResetBoss(){CancelAttack();Enraged=Frenzied=false;previousChoice=DeepFishSkill.None;reactiveCooldown=regroupTime=pursuitTime=0;waves=AttacksStarted=0;orbitSide=1;}
         void OnDestroy(){if(water)Destroy(water);if(bubble)Destroy(bubble);}
     }
 }

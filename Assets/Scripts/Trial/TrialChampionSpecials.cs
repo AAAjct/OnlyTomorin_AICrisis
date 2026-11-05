@@ -120,7 +120,7 @@ namespace TomorinTrial
             if(h.kind==ChampionHazardKind.Mine)
             {
                 if(h.age>.7f && h.aux==0)foreach(var target in Targets)
-                    if(target && target.Alive && Planar(target.transform.position-h.position).sqrMagnitude<(h.radius+.4f)*(h.radius+.4f)){h.aux=h.age+.65f;game.Effects.Sound("warning",h.position,1.4f);break;}
+                    if(target && target.Alive && target.OverlapsAttackHeight(h.position.y-.1f,h.position.y+.3f) && Planar(target.transform.position-h.position).sqrMagnitude<(h.radius+.4f)*(h.radius+.4f)){h.aux=h.age+.65f;game.Effects.Sound("warning",h.position,1.4f);break;}
                 if(h.aux>0 && h.age>=h.aux){Explode(h,h.radius);return;}
             }
             else if(h.kind==ChampionHazardKind.Turret)
@@ -138,6 +138,7 @@ namespace TomorinTrial
                 if(h.age>delay)foreach(var target in Targets)
                 {
                     if(!target || !target.Alive || h.hit.Contains(target))continue;
+                    if(!target.OverlapsAttackHeight(h.position.y-.1f,h.position.y+(h.kind==ChampionHazardKind.Silk?.3f:h.aux<0?.3f:1.5f)))continue;
                     bool contact=h.kind==ChampionHazardKind.Silk?SegmentDistance(Planar(target.transform.position)+Vector3.up*.045f,h.position,h.endpoint)<.30f:Planar(target.transform.position-h.position).sqrMagnitude<Mathf.Max(.1f,h.radius-.14f)*Mathf.Max(.1f,h.radius-.14f);
                     if(contact){h.hit.Add(target);target.ReceiveHazardHit(fighter,h.damage,35,true,h.position-target.transform.position);}
                 }
@@ -152,6 +153,7 @@ namespace TomorinTrial
                 if(h.age>.6f)foreach(var target in Targets)
                 {
                     if(!target || !target.Alive || h.hit.Contains(target))continue;
+                    if(!target.OverlapsAttackHeight(h.position.y-.15f,h.position.y+.15f))continue;
                     float previousAge=Mathf.Max(.6f,h.age-dt);
                     float previousTurn=h.kind==ChampionHazardKind.WhipOrbit?Mathf.Clamp01((previousAge-.6f)/1.8f)*h.aux:Mathf.Lerp(-55,55,Mathf.Clamp01((previousAge-.6f)/1.8f));
                     Vector3 delta=Planar(target.transform.position-h.position);float distance=delta.magnitude;
@@ -192,7 +194,10 @@ namespace TomorinTrial
             game.Effects.Burst(h.position,TrialChampionCatalog.Color(Kind),24);game.Effects.Sound("heavy",h.position,.7f);
             foreach(var target in Targets)
             {
-                if(!target || !target.Alive || Planar(target.transform.position-h.position).sqrMagnitude>Mathf.Max(.1f,radius-.18f)*Mathf.Max(.1f,radius-.18f))continue;
+                if(!target || !target.Alive)continue;
+                if(h.kind==ChampionHazardKind.Mine && !target.OverlapsAttackHeight(h.position.y-.1f,h.position.y+.3f))continue;
+                if(h.kind==ChampionHazardKind.Rocket && (target.transform.position+Vector3.up*1.05f-h.position).sqrMagnitude>radius*radius)continue;
+                if(Planar(target.transform.position-h.position).sqrMagnitude>Mathf.Max(.1f,radius-.18f)*Mathf.Max(.1f,radius-.18f))continue;
                 if(Physics.Linecast(h.position+Vector3.up*.25f,target.transform.position+Vector3.up,1,QueryTriggerInteraction.Ignore))continue;
                 bool hit=target.ReceiveHazardHit(fighter,h.damage,40,true,h.position-target.transform.position);
                 if(hit && Kind==ChampionKind.YaYa)target.ApplyCombatImpulse(Planar(h.position-target.transform.position).normalized*8);

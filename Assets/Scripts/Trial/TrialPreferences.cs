@@ -22,22 +22,34 @@ namespace TomorinTrial
             set { toggleSprint=value;PlayerPrefs.SetInt("Ink.ToggleSprint",value?1:0);PlayerPrefs.Save(); }
         }
         public static string SprintCaption => "奔跑模式："+(ToggleSprint?"切换":"长按");
-        // Mobile's default (-1) can select 30 fps. Use an explicit budget and
-        // offer the display refresh rate for devices that can sustain it.
-        public static int MobileFrameRate => PlayerPrefs.GetInt("Ink.MobileFrameRate",60);
-        public static string MobileFrameCaption => "帧率限制："+(MobileFrameRate==0?"跟随屏幕":MobileFrameRate+" FPS");
+        // Keep the saved key so existing installations retain their preference.
+        // Zero means unlimited; migrate the retired 90 FPS option to 120 FPS.
+        public static int MobileFrameRate
+        {
+            get
+            {
+                int saved=PlayerPrefs.GetInt("Ink.MobileFrameRate",60);
+                return saved==0 || saved==30 || saved==60 || saved==120 || saved==144?saved:saved==90?120:60;
+            }
+        }
+        public static bool VSyncEnabled
+        {
+            get=>PlayerPrefs.GetInt("Ink.VSync",0)!=0;
+            set{PlayerPrefs.SetInt("Ink.VSync",value?1:0);PlayerPrefs.Save();ApplyMobileFrameRate();}
+        }
+        public static string MobileFrameCaption => "帧率限制："+(MobileFrameRate==0?"无限制":MobileFrameRate+" FPS");
         public static void CycleMobileFrameRate()
         {
             int current=MobileFrameRate;
-            PlayerPrefs.SetInt("Ink.MobileFrameRate",current==30?60:current==60?90:current==90?120:current==120?144:current==144?0:30);
+            PlayerPrefs.SetInt("Ink.MobileFrameRate",current==30?60:current==60?120:current==120?144:current==144?0:30);
             PlayerPrefs.Save();ApplyMobileFrameRate();
         }
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         public static void ApplyMobileFrameRate()
         {
-            QualitySettings.vSyncCount=0;
+            QualitySettings.vSyncCount=VSyncEnabled?1:0;
             int requested=MobileFrameRate;
-            Application.targetFrameRate=requested==0?Mathf.Max(60,Mathf.RoundToInt((float)Screen.currentResolution.refreshRateRatio.value)):requested;
+            Application.targetFrameRate=(VSyncEnabled && !Application.isMobilePlatform) || requested==0?-1:requested;
         }
     }
 }

@@ -148,7 +148,7 @@ namespace TomorinTrial
             {
                 if(Progress<.25f)Turn(delta,IsBoss?100:155,dt);
                 if(Progress>.26f && Progress<.53f)Move(transform.forward*(IsBoss?4.5f:3),dt);
-                if(AttackActive && !attackLanded && distance<(IsBoss?3.5f:1.95f) && Vector3.Angle(transform.forward,delta)<(Unblockable?115:65))
+                if(AttackActive && !attackLanded && target.OverlapsAttackHeight(transform.position.y,transform.position.y+1.6f) && distance<(IsBoss?3.5f:1.95f) && Vector3.Angle(transform.forward,delta)<(Unblockable?115:65))
                 {
                     if(!Physics.Linecast(transform.position+Vector3.up,target.transform.position+Vector3.up,1,QueryTriggerInteraction.Ignore))
                     {attackLanded=true;target.ReceiveHit(this,IsBoss?(Unblockable?45:32):23,30,Unblockable);}

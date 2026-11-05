@@ -57,7 +57,7 @@ namespace TomorinTrial.Editor
         }
         static IEnumerator Validate()
         {
-            Check(TrialPlayer.BaseStamina==280*1.5f,"Base stamina is exactly 1.5 x 280 = 420");
+            Check(TrialPlayer.BaseStamina==630,"Base stamina supports extended sword chains (630)");
             var names=new HashSet<string>();
             for(int kind=0;kind<7;kind++)for(int i=0;i<16;i++)
                 Check(names.Add(TrialChampionCatalog.Move((ChampionKind)kind,i).name),"Unique move name "+(ChampionKind)kind+" / "+i);

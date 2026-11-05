@@ -115,20 +115,29 @@ namespace TomorinTrial.Editor
             try
             {
                 player.Restore(point);
-                Check(player.MaxHealth==200 && player.MaxStamina==420,"Player starts with 200 health and 420 stamina");
+                Check(player.MaxHealth==200 && player.MaxStamina==630,"Player starts with 200 health and 630 stamina");
                 Set(player,"Stamina",100f);Tick(player,1);
-                Check(player.Stamina==85,"Light attack costs 15 stamina");
+                Check(player.Stamina==88,"Light attack costs 12 stamina");
                 player.Restore(point);Set(player,"Stamina",100f);Tick(player,2);
-                Check(player.Stamina==72,"Heavy attack costs 28 stamina");
+                Check(player.Stamina==78,"Heavy attack costs 22 stamina");
                 player.Restore(point);Set(player,"Stamina",100f);Tick(player,4);
-                Check(player.Stamina==80,"Dodge costs 20 stamina");
+                Check(player.Stamina==84,"Dodge costs 16 stamina");
                 player.Restore(point);Set(player,"Stamina",0f);Tick(player,dt:.5f);
-                Check(player.Stamina==63,"Standing still recovers 126 stamina per second, including from empty");
+                Check(Mathf.Abs(player.Stamina-82.5f)<.001f,"Standing still recovers 165 stamina per second, including from empty");
                 player.Restore(point);Set(player,"Stamina",50f);Tick(player,held:1);Tick(player,held:1,dt:.5f);
-                Check(player.Stamina==65,"Holding guard recovers 30 stamina per second");
+                Check(player.Stamina==70,"Holding guard recovers 40 stamina per second");
                 player.Restore(point);Set(player,"Stamina",100f);Tick(player,1);Set(player,"Action",FighterAction.Free);
-                Tick(player,dt:.2f);Check(player.Stamina==85,"Spending stamina waits briefly before natural recovery");
-                Tick(player,dt:.15f);Check(player.Stamina>85,"Natural recovery resumes after the shortened delay");
+                Tick(player,dt:.1f);Check(player.Stamina==88,"Spending stamina waits briefly before natural recovery");
+                Tick(player,dt:.15f);Check(player.Stamina>88,"Natural recovery resumes after the shortened delay");
+                player.Restore(point);Set(player,"Stamina",100f);Tick(player,2);
+                Tick(player,dt:.1f);Check(player.Stamina==78,"Attack recovery still honors the spend delay");
+                Tick(player,dt:.2f);
+                Check(player.Action==FighterAction.Heavy && Mathf.Abs(player.Stamina-80.16f)<.01f,"Committed attacks regenerate 18 per second after 0.18 seconds without returning to idle");
+                foreach(var action in new[]{FighterAction.Dodge,FighterAction.Heal,FighterAction.Stagger,FighterAction.Charge})
+                {
+                    player.Restore(point);Set(player,"Stamina",50f);Set(player,"Action",action);Tick(player,held:action==FighterAction.Charge?(byte)4:(byte)0,dt:.1f);
+                    Check(player.Stamina==50,action+" does not receive attack regeneration");
+                }
                 player.Restore(point);Set(player,"Stamina",20f);
                 Tick(player,8);
                 Check(player.Action==FighterAction.Heal,"Full-health player can drink to recover stamina");

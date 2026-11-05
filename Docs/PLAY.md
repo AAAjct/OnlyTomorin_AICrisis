@@ -18,6 +18,7 @@ Windows 独立版若已构建，入口为 `Builds/AshenCourt/Tomorin_AshenCourt.
 | 重斩 | Q | RB / R1 |
 | 格挡 / 弹反 | 按住右键或 K | LB / L1 |
 | 闪避翻滚 | Space | B / 东侧按钮 |
+| 跳跃 / 小跃起手 | 左 Ctrl / 右 Ctrl | Y / △ |
 | 锁定 / 解除 | Tab 或鼠标中键 | 按下右摇杆 |
 | 饮用灵露 | R | 方向键上 |
 | 香炉休息 | E | A / 南侧按钮 |

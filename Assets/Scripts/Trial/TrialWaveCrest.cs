@@ -29,15 +29,16 @@ namespace TomorinTrial
         {
             if(!ring)return;sheet.enabled=ring.enabled;if(!sheet.enabled)return;
             ring.GetPositions(points);var bounds=new Bounds(points[0],Vector3.zero);foreach(var p in points)bounds.Encapsulate(p);
+            var worldToLocal=sheet.transform.worldToLocalMatrix;
             for(int i=0;i<65;i++)
             {
                 var outward=Vector3.ProjectOnPlane(points[i]-bounds.center,Vector3.up).normalized;
                 float height=.16f+.16f*Mathf.Sin(i*.98f+Time.time*8);
-                vertices[i*3]=sheet.transform.InverseTransformPoint(points[i]-outward*.22f-Vector3.up*.06f);
-                vertices[i*3+1]=sheet.transform.InverseTransformPoint(points[i]+Vector3.up*height);
-                vertices[i*3+2]=sheet.transform.InverseTransformPoint(points[i]+outward*.22f-Vector3.up*.06f);
+                vertices[i*3]=worldToLocal.MultiplyPoint3x4(points[i]-outward*.22f-Vector3.up*.06f);
+                vertices[i*3+1]=worldToLocal.MultiplyPoint3x4(points[i]+Vector3.up*height);
+                vertices[i*3+2]=worldToLocal.MultiplyPoint3x4(points[i]+outward*.22f-Vector3.up*.06f);
             }
-            mesh.vertices=vertices;mesh.RecalculateBounds();
+            mesh.SetVertices(vertices);mesh.RecalculateBounds();
             properties.SetColor("_BaseColor",ring.startColor);sheet.SetPropertyBlock(properties);
         }
         void OnDestroy(){if(mesh)Destroy(mesh);}

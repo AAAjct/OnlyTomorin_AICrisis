@@ -35,8 +35,8 @@ namespace TomorinTrial
             if(game.Level!=TrialLevel.Twins)return;
             if(!twinFeibiHealth)
             {
-                twinFeibiHealth=Bar("Feibi health",bossPanel,Vector2.zero,new Vector2(430,8),TrialChampionCatalog.Color(ChampionKind.FeiBi));
-                twinNuonuoHealth=Bar("Nuonuo health",bossPanel,new Vector2(450,0),new Vector2(430,8),TrialChampionCatalog.Color(ChampionKind.NuoNuo));
+                twinFeibiHealth=Bar("Feibi health",bossPanel,new Vector2(0,-66),new Vector2(430,8),TrialChampionCatalog.Color(ChampionKind.FeiBi));
+                twinNuonuoHealth=Bar("Nuonuo health",bossPanel,new Vector2(450,-66),new Vector2(430,8),TrialChampionCatalog.Color(ChampionKind.NuoNuo));
                 bossHealth.transform.parent.gameObject.SetActive(false);
             }
             twinFeibiHealth.fillAmount=game.Enemies[0].Health/game.Enemies[0].MaxHealth;

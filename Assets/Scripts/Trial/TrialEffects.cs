@@ -103,16 +103,20 @@ namespace TomorinTrial
             if(PlaySwordCue(value,localPlayer))return;
             if(TrialNetworkManager.SessionActive)
             {
-                float hold=value.cue==TrialCombatCue.Parry?.085f:value.cue==TrialCombatCue.Block?.03f:value.cue==TrialCombatCue.Kill || value.cue==TrialCombatCue.FinisherHit?.12f:value.cue==TrialCombatCue.HeavyHit?.095f:value.cue==TrialCombatCue.Hit?.065f:0;
+                float hold=value.cue==TrialCombatCue.Parry?.115f:value.cue==TrialCombatCue.Block?.03f:value.cue==TrialCombatCue.Kill || value.cue==TrialCombatCue.FinisherHit?.12f:value.cue==TrialCombatCue.HeavyHit?.095f:value.cue==TrialCombatCue.Hit?.065f:0;
                 if(hold>0)TrialNetworkManager.Current.PlayerById(value.player)?.HoldCombat(hold);
             }
             if(PlayImpactCue(value,localPlayer))return;
             if(value.cue==TrialCombatCue.Parry)
             {
-                Burst(value.position+value.forward+Vector3.up,new Color(1,.86f,.38f),45);
-                Sound("parry",value.position);
-                SlashEffect(value.position+Vector3.up,value.forward,new Color(1,.87f,.4f),2.3f,true);
-                if(localPlayer){game.CameraRig.Kick(.55f);HitStop(.095f);game.CameraRig.Pulse(5);Rumble(.45f,.85f,.13f);game.Hud.Flash(new Color(1,.88f,.5f,.13f));game.Hud.Notify("完美格挡 · 下一击强化",1.5f);}
+                Vector3 contact=value.position+value.forward*.8f+Vector3.up;
+                InkBloom(contact,-value.forward*.8f,2.1f);
+                Burst(contact,new Color(2.4f,.16f,.045f),72);
+                Sound("parry",value.position,.86f);Sound("impactHeavy",value.position,.68f);
+                SlashEffect(contact,value.forward,new Color(1,.12f,.08f),2.7f,true);
+                SlashEffect(contact,value.forward,new Color(1,.76f,.38f),1.6f);
+                Art(new TrialCombatEvent{cue=TrialCombatCue.CrescentCut,position=contact,forward=value.forward,player=value.player},.24f);
+                if(localPlayer){game.CameraRig.BladeClash();HitStop(.12f);Rumble(.8f,1,.19f);game.Hud.Flash(new Color(1,.45f,.22f,.15f));game.Hud.Notify("完美格挡 · 下一击强化",1.5f);}
             }
             else if(value.cue==TrialCombatCue.Block)
             {

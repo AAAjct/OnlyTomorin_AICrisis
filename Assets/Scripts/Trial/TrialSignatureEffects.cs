@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace TomorinTrial
@@ -97,6 +97,7 @@ namespace TomorinTrial
             if(cue.cue!=TrialCombatCue.FireDragon && cue.cue!=TrialCombatCue.SpiralSword && cue.cue!=TrialCombatCue.SakuraScatter && cue.cue!=TrialCombatCue.ThrustTrace)return;
             bool fire=cue.cue==TrialCombatCue.FireDragon,petal=cue.cue==TrialCombatCue.SakuraScatter;
             Color color=fire?new Color(1,.35f,.075f):petal?new Color(1,.48f,.72f):new Color(.4f,.85f,1);
+            if(cue.style>0 && !fire && !petal)color=StyleColor(cue.style);
             Vector3 forward=cue.forward.sqrMagnitude>.1f?cue.forward.normalized:Vector3.forward;
             Vector3 side=Vector3.Cross(Vector3.up,forward).normalized;
             for(int j=0;j<2;j++)

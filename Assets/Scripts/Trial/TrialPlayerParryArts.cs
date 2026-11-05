@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 namespace TomorinTrial
@@ -41,7 +41,7 @@ namespace TomorinTrial
         {
             if(!ParryEmpowered || !input.HeavyHeld)return false;
             if(!Spend(8))return false;
-            parryReadyUntil=0;blinkReadyUntil=0;bufferedHeavy=bufferedLight=-10;
+            parryReadyUntil=0;blinkReadyUntil=0;ClearAttackInputs();
             protectedUntil=0;dragonPower=0;chargeReady=false;chargeTime=0;Combo=FireDragon;
             Begin(FighterAction.Charge,DragonChargeLimit);return true;
         }
@@ -144,8 +144,8 @@ namespace TomorinTrial
         }
         void EmitSwordCue(TrialCombatCue cue,Vector3 from,Vector3 direction,Vector3 end,float amount)
         {
-            if(Mirror.NetworkServer.active)TrialNetworkManager.Current.BroadcastSwordCombat(this,cue,from,direction,end,amount);
-            else game.Effects.PlayCombat(new TrialCombatEvent{cue=cue,position=from,forward=direction,end=end,amount=amount},this==game.Player);
+            if(Mirror.NetworkServer.active)TrialNetworkManager.Current.BroadcastSwordCombat(this,cue,from,direction,end,amount,SwordStyle);
+            else game.Effects.PlayCombat(new TrialCombatEvent{cue=cue,position=from,forward=direction,end=end,amount=amount,style=SwordStyle},this==game.Player);
         }
         void ResetParryArts(){parryReadyUntil=parryDodgeUntil=dragonPower=0;dodgeDragonLanded=false;parryFlights.Clear();if(game && game.Effects)game.Effects.ClearSwordArts(this);}
     }

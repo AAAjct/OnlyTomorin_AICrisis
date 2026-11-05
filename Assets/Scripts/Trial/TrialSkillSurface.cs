@@ -46,7 +46,8 @@ namespace TomorinTrial
             }
             else for(int i=0;i<count;i++)vertices[i]=points[i];
             // Convert world coordinates once; pooled surfaces can remain under moving actors.
-            for(int i=0;i<count;i++)vertices[i]=surface.transform.InverseTransformPoint(vertices[i]-Vector3.up*.016f);
+            var worldToLocal=surface.transform.worldToLocalMatrix;
+            for(int i=0;i<count;i++)vertices[i]=worldToLocal.MultiplyPoint3x4(vertices[i]-Vector3.up*.016f);
             // Remove old indices before a smaller vertex buffer makes them invalid.
             if(previousCount!=count)mesh.Clear();
             mesh.SetVertices(vertices,0,count);

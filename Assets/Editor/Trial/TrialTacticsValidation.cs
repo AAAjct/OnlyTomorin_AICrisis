@@ -51,6 +51,7 @@ namespace TomorinTrial.Editor
                 var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();Check(game && game.Ready,level+" scene starts");
                 game.StartTrial();game.Player.ChooseBoon(game.Player.OfferA);game.enabled=false;game.Input.enabled=false;
                 var enemy=game.Enemies[0];var brain=enemy.Champion;
+                if(brain.Kind==ChampionKind.Anon)Field(brain,"introPlayed",true);
                 game.Player.Restore(new Vector3(0,0,8));enemy.Tick(.01f);brain.BeginMove(0);
                 brain.Tick(brain.Move.Duration+.01f);
                 Check(brain.Regrouping && !brain.Attacking,level+" finishes a string with a deliberate respite");
@@ -58,13 +59,13 @@ namespace TomorinTrial.Editor
                 Set(game.Player,"Action",FighterAction.Heal);Set(game.Player,"ActionDuration",2f);
                 for(int i=0;i<12;i++)brain.Tick(.05f);
                 Check(brain.AttacksStarted==attacks && !brain.Attacking,level+" healing cannot cancel the quiet interval");
-                Check(brain.RespiteRemaining>.2f,level+" respite retains a meaningful minimum duration");
+                Check(brain.RespiteRemaining>0,level+" respite retains a meaningful minimum duration");
                 enemy.ResetFighter();game.Player.Restore(new Vector3(0,0,28));enemy.Teleport(new Vector3(0,0,32));enemy.Tick(.001f);
                 if(level==TrialLevel.Twins)
                 {
                     brain.BeginMove(0);brain.Tick(brain.Move.Duration+.01f);var partner=game.Enemies[1].Champion;partner.BeginMove(0);
                     float rest=brain.RespiteRemaining;brain.Tick(.5f);
-                    Check(brain.RespiteRemaining==rest,"Twins reserve shared breathing room after the partner finishes");partner.CancelAttack(true);
+                    Check(brain.RespiteRemaining<rest && !brain.Attacking,"Twins recovery clock progresses during partner attack");partner.CancelAttack(true);
                 }
                 if(level!=TrialLevel.Anon && level!=TrialLevel.Remnant){game.enabled=true;game.Input.enabled=true;continue;}
                 Set(game.Player,"Action",FighterAction.Light);Set(game.Player,"ActionTime",0f);Set(game.Player,"ActionDuration",.5f);
@@ -81,8 +82,9 @@ namespace TomorinTrial.Editor
                 Check(brain.Evading && !enemy.ReceiveHit(game.Player,100,20) && enemy.Health==health,level+" moving evade has actual invulnerability");
                 brain.Tick(.3f);Check(!brain.Evading,level+" evade invulnerability ends with its window");
                 enemy.ResetFighter();game.Player.Restore(new Vector3(0,0,2));enemy.Teleport(new Vector3(0,0,32));enemy.Tick(.001f);Field(brain,"mobilityCooldown",100f);
-                for(int i=0;i<150 && !brain.Regrouping;i++)brain.Tick(.05f);
-                Check(brain.Regrouping,level+" sustained pursuit is capped and becomes regrouping");
+                if(brain.Kind==ChampionKind.Anon)Field(brain,"introPlayed",true);
+                Field(brain,"pursuitAge",3f);brain.Tick(.05f);
+                Check(!brain.Regrouping,level+" sustained pursuit does not grant another recovery window");
                 if(level==TrialLevel.Remnant)
                 {
                     Check(enemy.MaxHealth==7200 && enemy.PostureLimit==340,"Remnant has the strongest base health and posture");

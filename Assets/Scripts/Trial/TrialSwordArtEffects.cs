@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace TomorinTrial
@@ -21,6 +21,11 @@ namespace TomorinTrial
             public bool flight;
             public Transform head;
             public float nextEmber;
+            public float waveStopAge,wavePreviousAge;
+            public Mesh wakeMesh;
+            public MeshRenderer wakeSurface;
+            public Vector3[] wakeVertices;
+            public Color[] wakeColors;
         }
         readonly SwordArtVisual[] swordArts=new SwordArtVisual[40];
         int nextSwordArt;
@@ -30,6 +35,8 @@ namespace TomorinTrial
         Texture2D flameTexture;
         Texture2D swordGlowTexture;
         Material swordGlowMaterial;
+        Material crimsonEdgeMaterial,crimsonGlowMaterial;
+        static readonly Color CrimsonWave=new Color(1,.012f,.045f);
         static readonly Color SakuraPink=new Color(1,.44f,.68f);
         static readonly Vector3[] DragonOutline={new Vector3(-.18f,.1f,-.7f),new Vector3(-.52f,.65f,-.8f),new Vector3(-.28f,.27f,-.24f),new Vector3(-.25f,.16f,.23f),new Vector3(-.13f,.1f,.75f),new Vector3(.13f,.1f,.75f),new Vector3(.25f,.16f,.23f),new Vector3(.28f,.27f,-.24f),new Vector3(.52f,.65f,-.8f),new Vector3(.18f,.1f,-.7f),new Vector3(.3f,-.16f,-.1f),new Vector3(.16f,-.20f,.56f),new Vector3(-.16f,-.20f,.56f),new Vector3(-.3f,-.16f,-.1f),new Vector3(-.25f,.05f,.30f),new Vector3(-.72f,.14f,.45f),new Vector3(-1,.28f,.18f),new Vector3(-.72f,.14f,.45f),new Vector3(-.25f,.05f,.30f),new Vector3(.25f,.05f,.30f),new Vector3(.72f,.14f,.45f),new Vector3(1,.28f,.18f)};
 
@@ -51,6 +58,8 @@ namespace TomorinTrial
                 art.mesh=new Mesh{name="Sword art curved surface "+index};art.mesh.MarkDynamic();
                 root.gameObject.AddComponent<MeshFilter>().sharedMesh=art.mesh;art.surface=root.gameObject.AddComponent<MeshRenderer>();art.surface.sharedMaterial=particles;art.surface.shadowCastingMode=ShadowCastingMode.Off;art.surface.receiveShadows=false;
                 for(int i=0;i<64;i++){int j=i*6,v=i*2;art.triangles[j]=v;art.triangles[j+1]=v+1;art.triangles[j+2]=v+2;art.triangles[j+3]=v+1;art.triangles[j+4]=v+3;art.triangles[j+5]=v+2;}
+                art.mesh.vertices=art.vertices;art.mesh.triangles=art.triangles;
+                var uv=new Vector2[130];for(int i=0;i<65;i++){uv[i*2]=new Vector2(i/64f,0);uv[i*2+1]=new Vector2(i/64f,1);}art.mesh.uv=uv;
                 foreach(var line in new[]{art.core,art.glow,art.filament,art.detail}){line.useWorldSpace=true;line.positionCount=65;line.numCornerVertices=3;line.widthCurve=new AnimationCurve(new Keyframe(0,0),new Keyframe(.2f,.8f),new Keyframe(.75f,1),new Keyframe(1,0));}
                 art.head=new GameObject("Sculpted dragon head").transform;art.head.SetParent(root,false);
                 if(!dragonHeadMesh)BuildDragonHead();
@@ -61,16 +70,43 @@ namespace TomorinTrial
             if(art.owner && art.owner.Weapon)art.owner.Weapon.gameObject.SetActive(true);
             art.root.gameObject.SetActive(true);art.root.SetPositionAndRotation(Vector3.zero,Quaternion.identity);
             art.cue=cue;art.age=0;art.duration=duration;art.flight=flight;
+            art.waveStopAge=-1;art.wavePreviousAge=0;
+            if(art.wakeSurface)art.wakeSurface.enabled=false;
             art.nextEmber=0;art.head.gameObject.SetActive(cue.cue==TrialCombatCue.FireDragon);
             art.owner=TrialNetworkManager.SessionActive?TrialNetworkManager.Current.PlayerById(cue.player):game.Player;
             art.surface.enabled=true;art.detail.enabled=false;
             art.core.enabled=art.glow.enabled=art.filament.enabled=true;
+            bool inkCut=cue.cue==TrialCombatCue.RisingCut || cue.cue==TrialCombatCue.CrescentCut || cue.cue==TrialCombatCue.RollFlash || cue.cue==TrialCombatCue.WeaveSigil || cue.cue==TrialCombatCue.MartialStroke;
+            bool crimson=inkCut || cue.cue==TrialCombatCue.CrimsonBlade || cue.cue==TrialCombatCue.MoonBlade || IsSwordMotionCue(cue.cue);
+            art.surface.sharedMaterial=crimson?InkMaterial:particles;
+            if(crimson && !crimsonEdgeMaterial)
+            {
+                // HDR unlit red drives bloom without washing the edge into white or pink.
+                crimsonEdgeMaterial=new Material(particles){name="Scarlet crescent emissive edge"};
+                crimsonEdgeMaterial.SetColor("_BaseColor",new Color(4.6f,.035f,.12f,1));
+                crimsonEdgeMaterial.SetInt("_DstBlend",(int)BlendMode.One);
+                crimsonGlowMaterial=new Material(swordGlowMaterial){name="Scarlet crescent soft radiance"};
+                crimsonGlowMaterial.SetColor("_BaseColor",new Color(3.2f,.015f,.07f,1));
+            }
+            // Slots are reused by all sword arts: restore their original materials as well.
+            art.core.sharedMaterial=art.filament.sharedMaterial=crimson?crimsonEdgeMaterial:particles;
+            art.glow.sharedMaterial=crimson?crimsonGlowMaterial:swordGlowMaterial;
+            art.detail.sharedMaterial=crimson?crimsonGlowMaterial:particles;
+            if(crimson || cue.style>0)ApplySwordPalette(art);
             UpdateArt(art);return art;
         }
         bool PlaySwordArtCue(TrialCombatEvent cue,bool local)
         {
+            if(PlayMartialCue(cue,local))return true;
+            if(PlaySwordMotionCue(cue,local))return true;
+            if(cue.cue==TrialCombatCue.WeaveSigil){Art(cue,.42f);Burst(cue.position,StyleColor(cue.style),18);return true;}
+            if(cue.cue==TrialCombatCue.RollFlash)
+            {
+                Art(cue,.24f);InkBloom(cue.position,-cue.forward,1.2f);Sound("swing",cue.position,.72f);
+                if(local){game.CameraRig.Kick(.16f);Rumble(.24f,.45f,.07f);}return true;
+            }
             if(cue.cue==TrialCombatCue.CrimsonBlade || cue.cue==TrialCombatCue.MoonBlade)
-            {Art(cue,TrialSwordFlight.Lifetime(cue.cue));Sound("swing",cue.position,.95f);return true;}
+            {Art(cue,TrialSwordFlight.Lifetime(cue.cue)+CrescentTrailSeconds);Sound("swing",cue.position,.95f);return true;}
             if(cue.cue==TrialCombatCue.FireDragon || cue.cue==TrialCombatCue.SpiralSword)
             {
                 Art(cue,TrialParryFlight.Duration(cue.cue,cue.amount),true);
@@ -90,13 +126,125 @@ namespace TomorinTrial
         void PaintLine(LineRenderer line,Vector3[] points,Color tint,float width,float fade)
         {line.SetPositions(points);tint.a*=fade;line.startColor=line.endColor=tint;line.widthMultiplier=width;}
 
+        const float CrescentTrailSeconds=.26f;
+        const int CrescentWakeRows=9;
+        static float CrescentEnvelope(float u)
+        {
+            // Float sin(PI) can be negative: fractional powers need a clamped base.
+            return u<=0 || u>=1?0:Mathf.Pow(Mathf.Max(0,Mathf.Sin(u*Mathf.PI)),.75f);
+        }
+        static bool Finite(Vector3 p)=>float.IsFinite(p.x) && float.IsFinite(p.y) && float.IsFinite(p.z);
+        bool UploadSwordMesh(SwordArtVisual art)
+        {
+            foreach(var p in art.vertices)if(!Finite(p)){art.root.gameObject.SetActive(false);return false;}
+            art.mesh.vertices=art.vertices;art.mesh.colors=art.colors;art.mesh.RecalculateBounds();return true;
+        }
+        void InitializeCrescentWake(SwordArtVisual art)
+        {
+            if(art.wakeMesh)return;
+            var obj=new GameObject("Black scarlet flight wake");obj.transform.SetParent(art.root,false);
+            art.wakeMesh=new Mesh{name="Crescent swept flight history"};art.wakeMesh.MarkDynamic();
+            obj.AddComponent<MeshFilter>().sharedMesh=art.wakeMesh;
+            art.wakeSurface=obj.AddComponent<MeshRenderer>();art.wakeSurface.sharedMaterial=InkMaterial;
+            art.wakeSurface.shadowCastingMode=ShadowCastingMode.Off;art.wakeSurface.receiveShadows=false;
+            art.wakeVertices=new Vector3[65*CrescentWakeRows];art.wakeColors=new Color[art.wakeVertices.Length];
+            var indices=new int[(CrescentWakeRows-1)*64*6];
+            for(int row=0;row<CrescentWakeRows-1;row++)for(int i=0;i<64;i++)
+            {
+                int v=row*65+i,j=(row*64+i)*6;
+                indices[j]=v;indices[j+1]=v+65;indices[j+2]=v+1;
+                indices[j+3]=v+1;indices[j+4]=v+65;indices[j+5]=v+66;
+            }
+            art.wakeMesh.vertices=art.wakeVertices;art.wakeMesh.triangles=indices;
+            var uv=new Vector2[art.wakeVertices.Length];
+            for(int row=0;row<CrescentWakeRows;row++)for(int i=0;i<65;i++)uv[row*65+i]=new Vector2(i/64f,1-row/(float)(CrescentWakeRows-1));
+            art.wakeMesh.uv=uv;
+        }
+        void UpdateCrescentArt(SwordArtVisual art)
+        {
+            var cue=art.cue;
+            Vector3 forward=cue.forward.sqrMagnitude>.01f?cue.forward.normalized:Vector3.forward;
+            Vector3 right=Vector3.Cross(Vector3.up,forward).normalized;
+            if(right.sqrMagnitude<.01f)right=Vector3.right;
+            // Equal orthogonal axes retain a circular edge on the tilted air slash.
+            Vector3 axis=cue.cue==TrialCombatCue.CrimsonBlade?(right+Vector3.Cross(forward,right)*.32f).normalized:right;
+            float radius=cue.cue==TrialCombatCue.MoonBlade?1.6f:1.4f;
+            float speed=TrialSwordFlight.Speed(cue.cue),lifetime=TrialSwordFlight.Lifetime(cue.cue);
+            float headAge=Mathf.Min(art.age,lifetime);
+            if(art.waveStopAge<0 && headAge>art.wavePreviousAge)
+            {
+                Vector3 from=cue.position+forward*(speed*art.wavePreviousAge);
+                float travel=speed*(headAge-art.wavePreviousAge);
+                if(Physics.SphereCast(from,TrialSwordFlight.Radius(cue.cue),forward,out var hit,travel,1,QueryTriggerInteraction.Ignore))
+                    art.waveStopAge=art.wavePreviousAge+hit.distance/speed;
+                else if(art.age>=lifetime)art.waveStopAge=lifetime;
+            }
+            if(art.waveStopAge>=0)headAge=Mathf.Min(headAge,art.waveStopAge);
+            art.wavePreviousAge=headAge;
+            float fade=art.waveStopAge<0?1:1-Mathf.SmoothStep(0,1,(art.age-art.waveStopAge)/CrescentTrailSeconds);
+            if(fade<=0){art.root.gameObject.SetActive(false);return;}
+            Vector3 centre=cue.position+forward*(speed*headAge);
+            for(int i=0;i<65;i++)
+            {
+                float u=i/64f,angle=Mathf.Lerp(-1.65f,1.65f,u),envelope=CrescentEnvelope(u);
+                Vector3 radial=axis*Mathf.Sin(angle)+forward*Mathf.Cos(angle);
+                Vector3 point=centre+radial*radius;
+                art.points[i]=point;
+                float bleed=.8f+Mathf.PerlinNoise(u*18,headAge*1.2f)*.32f;
+                art.vertices[i*2]=point-radial*(.60f*envelope*bleed);art.vertices[i*2+1]=point;
+                // The near-black alpha-blended body remains visible inside the red rim.
+                art.colors[i*2]=new Color(.003f,.0002f,.001f,.98f*fade*envelope);
+                art.colors[i*2+1]=new Color(.012f,.001f,.003f,.98f*fade*envelope);
+            }
+            if(!UploadSwordMesh(art))return;
+            PaintLine(art.core,art.points,new Color(1,1,1,.98f),.038f,fade);
+            PaintLine(art.glow,art.points,new Color(1,1,1,.27f),.20f,fade);
+            if(art.age>=art.nextEmber)
+            {art.nextEmber=art.age+.055f;InkBloom(centre-forward*.35f,-forward*.6f,.55f);}
+            InitializeCrescentWake(art);art.wakeSurface.enabled=true;
+            for(int row=0;row<CrescentWakeRows;row++)
+            {
+                float history=row/(float)(CrescentWakeRows-1),sampleAge=Mathf.Max(0,headAge-history*CrescentTrailSeconds);
+                Vector3 past=cue.position+forward*(speed*sampleAge);
+                for(int i=0;i<65;i++)
+                {
+                    float u=i/64f,angle=Mathf.Lerp(-1.65f,1.65f,u),envelope=CrescentEnvelope(u);
+                    Vector3 radial=axis*Mathf.Sin(angle)+forward*Mathf.Cos(angle);
+                    int v=row*65+i;
+                    float bleed=Mathf.PerlinNoise(u*21,history*8+headAge)*.17f*history;
+                    art.wakeVertices[v]=past+radial*(radius*(1-history*.22f)-(.25f+bleed)*envelope);
+                    float alpha=Mathf.Pow(1-history,2)*envelope*fade*.70f;
+                    art.wakeColors[v]=new Color(.006f,.002f,.009f,alpha);
+                }
+            }
+            foreach(var p in art.wakeVertices)if(!Finite(p)){art.root.gameObject.SetActive(false);return;}
+            art.wakeMesh.vertices=art.wakeVertices;art.wakeMesh.colors=art.wakeColors;art.wakeMesh.RecalculateBounds();
+            // Both tip streaks trace past flight positions, rather than offset arcs.
+            for(int side=0;side<2;side++)
+            {
+                float angle=side==0?-1.48f:1.48f;
+                Vector3 radial=axis*Mathf.Sin(angle)+forward*Mathf.Cos(angle);
+                for(int i=0;i<65;i++)
+                {
+                    float history=1-i/64f,sampleAge=Mathf.Max(0,headAge-history*CrescentTrailSeconds);
+                    art.points[i]=cue.position+forward*(speed*sampleAge)+radial*radius*(1-history*.22f);
+                }
+                var line=side==0?art.filament:art.detail;line.enabled=true;line.positionCount=65;
+                PaintLine(line,art.points,new Color(1,1,1,.30f),.018f,fade);
+            }
+        }
+
         void UpdateArt(SwordArtVisual art)
         {
+            if(art.cue.cue==TrialCombatCue.MartialStroke){UpdateMartialStroke(art);return;}
+            if(art.cue.cue==TrialCombatCue.WeaveSigil){UpdateWeaveSigil(art);return;}
+            if(IsSwordMotionCue(art.cue.cue)){UpdateSwordMotionArt(art);return;}
+            if(art.cue.cue==TrialCombatCue.CrimsonBlade || art.cue.cue==TrialCombatCue.MoonBlade){UpdateCrescentArt(art);return;}
+            if(art.cue.cue==TrialCombatCue.RisingCut || art.cue.cue==TrialCombatCue.CrescentCut || art.cue.cue==TrialCombatCue.RollFlash){UpdateInkCut(art);return;}
             var cue=art.cue;float t=Mathf.Clamp01(art.age/art.duration),fade=1-Mathf.SmoothStep(0,1,t);
             Vector3 forward=cue.forward.sqrMagnitude>.01f?cue.forward.normalized:Vector3.forward,right=Vector3.Cross(Vector3.up,forward).normalized;
-            Color tint=SakuraPink;float width=.045f;
+            Color tint=cue.style>0?StyleColor(cue.style):SakuraPink;float width=.045f;
             bool dragon=cue.cue==TrialCombatCue.FireDragon,spiral=cue.cue==TrialCombatCue.SpiralSword;
-            bool wave=cue.cue==TrialCombatCue.CrimsonBlade || cue.cue==TrialCombatCue.MoonBlade;
             Vector3 hand=art.owner?art.owner.transform.position+Vector3.up:cue.position;
             if(art.flight && art.age>0)
             {
@@ -108,21 +256,12 @@ namespace TomorinTrial
             }
             if(dragon)tint=new Color(1,.32f,.055f);
             else if(spiral)tint=new Color(.42f,.78f,1);
-            else if(cue.cue==TrialCombatCue.CrimsonBlade)tint=new Color(.82f,.06f,.19f);
-            else if(cue.cue==TrialCombatCue.RisingCut || cue.cue==TrialCombatCue.CrescentCut)tint=new Color(1,.83f,.60f);
+            else if(cue.style==0 && (cue.cue==TrialCombatCue.RisingCut || cue.cue==TrialCombatCue.CrescentCut))tint=new Color(1,.83f,.60f);
             float scale=dragon?Mathf.Lerp(.75f,1.35f,cue.amount):1;
             for(int i=0;i<65;i++)
             {
                 float u=i/64f;Vector3 point,across;
-                if(wave)
-                {
-                    float angle=Mathf.Lerp(-1.48f,1.48f,u),radius=cue.cue==TrialCombatCue.MoonBlade?1.3f:1.1f;
-                    Vector3 radial=right*Mathf.Sin(angle)*radius+forward*Mathf.Cos(angle)*.55f;
-                    point=cue.position+forward*(TrialSwordFlight.Speed(cue.cue)*art.age)+radial;
-                    if(cue.cue==TrialCombatCue.CrimsonBlade)point+=Vector3.up*(Mathf.Sin(angle)*.36f);
-                    across=forward*(.25f*Mathf.Sin(u*Mathf.PI));
-                }
-                else if(art.flight)
+                if(art.flight)
                 {
                     float trail=dragon?.40f:.23f,age=Mathf.Max(0,t-(1-u)*trail);
                     point=TrialParryFlight.Point(cue.cue,cue.position,cue.end,hand,age,cue.amount);
@@ -138,7 +277,7 @@ namespace TomorinTrial
                 else if(cue.cue==TrialCombatCue.RisingCut || cue.cue==TrialCombatCue.CrescentCut)
                 {
                     float angle=Mathf.Lerp(-Mathf.PI*.5f,Mathf.PI*.5f,u);
-                    Vector3 axis=cue.cue==TrialCombatCue.RisingCut?(right+Vector3.up*.65f).normalized:right;
+                    Vector3 axis=cue.cue==TrialCombatCue.RisingCut?(cue.amount<0?Vector3.down:(right+Vector3.up*.65f).normalized):right;
                     Vector3 radial=axis*Mathf.Sin(angle)+forward*Mathf.Cos(angle);
                     point=cue.position+radial*(2.5f+t*.22f);across=radial*(.30f*Mathf.Sin(u*Mathf.PI));
                 }
@@ -150,14 +289,9 @@ namespace TomorinTrial
                 art.points[i]=point;art.vertices[i*2]=point-across;art.vertices[i*2+1]=point+across;
                 Color inner=tint;inner.a=fade*(dragon?.65f:.25f)*Mathf.Sin(u*Mathf.PI);
                 art.colors[i*2]=inner;inner.a=0;art.colors[i*2+1]=inner;
+
             }
-            art.mesh.vertices=art.vertices;art.mesh.colors=art.colors;art.mesh.triangles=art.triangles;art.mesh.RecalculateBounds();
-            if(wave)
-            {
-                Vector3 step=forward*TrialSwordFlight.Speed(cue.cue)*Time.deltaTime;
-                Vector3 centre=cue.position+forward*(TrialSwordFlight.Speed(cue.cue)*art.age);
-                if(step.sqrMagnitude>0 && Physics.SphereCast(centre-step,TrialSwordFlight.Radius(cue.cue),forward,out _,step.magnitude,1,QueryTriggerInteraction.Ignore)){art.root.gameObject.SetActive(false);return;}
-            }
+            if(!UploadSwordMesh(art))return;
             if(dragon)width=.17f*scale;
             if(cue.cue==TrialCombatCue.EmpoweredStep){width=.025f;tint=new Color(.5f,.85f,1);}
             PaintLine(art.core,art.points,Color.Lerp(tint,Color.white,.75f),width,art.flight?1:fade);
@@ -166,6 +300,44 @@ namespace TomorinTrial
             PaintLine(art.filament,art.points,tint,width*.35f,fade);
             if(dragon)DragonHead(art,t,hand,scale,fade);
             if(spiral)FlyingSword(art,t,hand,fade);
+        }
+        void UpdateInkCut(SwordArtVisual art)
+        {
+            var cue=art.cue;float t=Mathf.Clamp01(art.age/art.duration),fade=1-Mathf.SmoothStep(0,1,t);
+            Vector3 forward=cue.forward.sqrMagnitude>.01f?cue.forward.normalized:Vector3.forward;
+            Vector3 right=Vector3.Cross(Vector3.up,forward).normalized;
+            bool flash=cue.cue==TrialCombatCue.RollFlash || cue.cue==TrialCombatCue.WeaveSigil || cue.cue==TrialCombatCue.MartialStroke;
+            Vector3 axis=cue.cue==TrialCombatCue.RisingCut?(right+Vector3.up*.65f).normalized:right;
+            float radius=flash?2.8f:2.5f;
+            for(int i=0;i<65;i++)
+            {
+                float u=i/64f,envelope=CrescentEnvelope(u);
+                // Flash starts low behind the right hip and sweeps into the front.
+                float angle=flash?Mathf.Lerp(2.4f,-.22f,u):Mathf.Lerp(-1.65f,1.65f,u);
+                Vector3 radial=axis*Mathf.Sin(angle)+forward*Mathf.Cos(angle);
+                Vector3 point=cue.position+radial*radius;
+                if(flash)point+=Vector3.up*Mathf.Lerp(-.65f,.12f,u);
+                art.points[i]=point;art.vertices[i*2+1]=point;
+                float feather=.75f+Mathf.PerlinNoise(u*16,1.3f)*.4f;
+                art.vertices[i*2]=point-radial*(flash?.62f:.42f)*envelope*feather;
+                art.colors[i*2]=new Color(.003f,.001f,.006f,fade*.95f*envelope);
+                art.colors[i*2+1]=new Color(.012f,.001f,.004f,fade*.98f*envelope);
+            }
+            if(!UploadSwordMesh(art))return;
+            PaintLine(art.core,art.points,Color.white,flash?.052f:.032f,fade);
+            PaintLine(art.glow,art.points,new Color(1,1,1,.30f),flash?.22f:.15f,fade);
+            art.filament.enabled=art.cue.style>0;art.detail.enabled=false;
+            if(art.cue.style>0)
+            {
+                for(int i=0;i<65;i++)
+                {
+                    float u=i/64f,wave=Mathf.Sin(u*Mathf.PI*(art.cue.style==4?6:art.cue.style==2?10:3)-t*5);
+                    art.points[i]+=-forward*.12f+Vector3.up*wave*(art.cue.style==4?.26f:.10f);
+                }
+                PaintLine(art.filament,art.points,Color.white,.012f,fade*.7f);
+            }
+            if(art.age>=art.nextEmber)
+            {art.nextEmber=art.age+.08f;InkBloom(cue.position+forward*1.8f,-forward*.4f,flash?1:.55f);}
         }
         void DragonHead(SwordArtVisual art,float t,Vector3 hand,float scale,float fade)
         {
@@ -240,6 +412,6 @@ namespace TomorinTrial
             if(owner.Weapon)owner.Weapon.gameObject.SetActive(true);
         }
         void DisposeSwordArtEffects()
-        {foreach(var art in swordArts)if(art!=null && art.mesh)Destroy(art.mesh);if(dragonHeadMesh)Destroy(dragonHeadMesh);if(flameMaterial)Destroy(flameMaterial);if(flameTexture)Destroy(flameTexture);if(swordGlowMaterial)Destroy(swordGlowMaterial);if(swordGlowTexture)Destroy(swordGlowTexture);}
+        {DisposeSwordPalette();foreach(var art in swordArts)if(art!=null){if(art.mesh)Destroy(art.mesh);if(art.wakeMesh)Destroy(art.wakeMesh);}if(dragonHeadMesh)Destroy(dragonHeadMesh);if(flameMaterial)Destroy(flameMaterial);if(flameTexture)Destroy(flameTexture);if(swordGlowMaterial)Destroy(swordGlowMaterial);if(swordGlowTexture)Destroy(swordGlowTexture);if(crimsonEdgeMaterial)Destroy(crimsonEdgeMaterial);if(crimsonGlowMaterial)Destroy(crimsonGlowMaterial);}
     }
 }

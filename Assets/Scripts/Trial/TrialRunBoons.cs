@@ -25,7 +25,7 @@ namespace TomorinTrial
         public TrialBoon OfferB {get;private set;}
         public TrialBoon OfferC {get;private set;}
         public bool ChoosingBoon=>Boon==TrialBoon.None && OfferA!=TrialBoon.None && !game.IsArena;
-        public float DodgeCost=>Boon==TrialBoon.LightStep?16:20;
+        public float DodgeCost=>Boon==TrialBoon.LightStep?12:16;
         public void RollRunBoons()
         {
             if(game.IsArena || Boon!=TrialBoon.None || OfferA!=TrialBoon.None)return;

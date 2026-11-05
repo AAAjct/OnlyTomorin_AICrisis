@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 
@@ -59,12 +59,14 @@ namespace TomorinTrial
             flaskText=Label("Spirit dew",root,"",new Vector2(0,0),new Vector2(50,99),new Vector2(310,34),23,gold);
             promptText=Label("Interact",root,"",new Vector2(.5f,0),new Vector2(-320,119),new Vector2(640,40),20,ivory,TextAnchor.MiddleCenter);
             noticeText=Label("Announcement",root,"",new Vector2(.5f,.67f),new Vector2(-260,0),new Vector2(520,32),19,gold,TextAnchor.MiddleCenter);
+            promptText.gameObject.SetActive(false);noticeText.gameObject.SetActive(false);
 
             bossPanel=Panel("Boss",root,new Vector2(.5f,1),new Vector2(-440,-38),new Vector2(880,96),Color.clear);
             bossName=Label("Boss name",bossPanel,"大肥鱼 · DeepSeek",new Vector2(.5f,1),new Vector2(-330,-30),new Vector2(660,28),20,ivory,TextAnchor.MiddleCenter);
             bossSkill=Label("Boss move",bossPanel,"",new Vector2(.5f,1),new Vector2(-330,-62),new Vector2(660,28),18,gold,TextAnchor.MiddleCenter);
-            bossHealth=Bar("Boss vitality",bossPanel,Vector2.zero,new Vector2(880,8),new Color(.61f,.12f,.085f));
-            posture=Bar("Boss posture",bossPanel,new Vector2(140,-16),new Vector2(600,5),gold);
+            bossSkill.gameObject.SetActive(false);
+            bossHealth=Bar("Boss vitality",bossPanel,new Vector2(0,-66),new Vector2(880,8),new Color(.61f,.12f,.085f));
+            posture=Bar("Boss posture",bossPanel,new Vector2(140,-82),new Vector2(600,5),gold);
             lockMarker=Panel("Lock diamond",root,new Vector2(.5f,.5f),Vector2.zero,new Vector2(12,12),gold);lockMarker.localRotation=Quaternion.Euler(0,0,45);
             markerImage=lockMarker.GetComponent<UnityEngine.UI.Image>();
             dangerText=Label("Peril warning",root,"危",new Vector2(.5f,.5f),Vector2.zero,new Vector2(110,90),52,new Color(1,.12f,.055f),TextAnchor.MiddleCenter);
@@ -132,7 +134,7 @@ namespace TomorinTrial
             string nextSkill=boss.Champion?ChampionSkill(boss):boss.Boss && boss.WindingUp?boss.Boss.SkillName+(boss.Boss.CanBeDeflected?" · 可完美弹反":""):"";
             if(shownSkill!=nextSkill){shownSkill=nextSkill;bossSkill.text=nextSkill;}
             bossSkill.color=boss.Unblockable?new Color(1,.29f,.17f):gold;
-            dangerText.gameObject.SetActive(showBoss && boss.WindingUp && boss.Unblockable);
+            dangerText.gameObject.SetActive(false);
             if(dangerText.gameObject.activeSelf)ScreenPosition(dangerText.rectTransform,boss.transform.position+Vector3.up*3.3f);
             TrialFighter target=game.Player.Locked?game.Player.LockTarget:game.NearestOpponent(game.Player,7);
             bool showEnemy=target is TrialEnemy foe && !foe.IsBoss && target.Alive && game.Mode==TrialMode.Playing;
@@ -177,6 +179,10 @@ namespace TomorinTrial
             mainButton.GetComponent<RectTransform>().anchoredPosition=new Vector2(66,game.Mode==TrialMode.Paused?-632:-647);
             secondaryButton.GetComponent<RectTransform>().anchoredPosition=new Vector2(66,game.Mode==TrialMode.Paused?-782:-722);
             menuCaption.fontSize=game.Mode==TrialMode.Paused?16:18;
+            menuCaption.rectTransform.anchoredPosition=new Vector2(66,game.Mode==TrialMode.Paused?-332:-380);
+            menuCaption.rectTransform.sizeDelta=new Vector2(530,game.Mode==TrialMode.Paused?280:210);
+            menuCaption.resizeTextForBestFit=game.Mode==TrialMode.Paused;menuCaption.resizeTextMinSize=14;menuCaption.resizeTextMaxSize=16;
+            menuCaption.verticalOverflow=game.Mode==TrialMode.Paused?VerticalWrapMode.Truncate:VerticalWrapMode.Overflow;
             ConfigurePauseNavigation();
             stats.SetActive(!show);objectiveText.gameObject.SetActive(!show);
             secondaryButton.gameObject.SetActive(game.Mode==TrialMode.Paused || game.Mode==TrialMode.Title || game.Mode==TrialMode.Dead || game.Mode==TrialMode.Victory);
@@ -192,12 +198,21 @@ namespace TomorinTrial
             if(game.Mode==TrialMode.Title)
             {menuTitle.text=game.IsChampionStage?TrialChampionCatalog.LevelName(game.Level):"雾庭";menuCaption.text=game.IsChampionStage?TrialChampionCatalog.Lesson(game.Level):"击败三名奶蛙，进入庭心。";mainButtonLabel.text="进入";}
             if(game.Mode==TrialMode.Paused)
-            {menuTitle.text="暂停";menuCaption.text=TrialBindings.Display("Up")+" / "+TrialBindings.Display("Left")+" / "+TrialBindings.Display("Down")+" / "+TrialBindings.Display("Right")+"  移动    "+TrialBindings.Display("Sprint")+"  "+(TrialPreferences.ToggleSprint?"切换奔跑":"长按奔跑")+"\n"+
-                TrialBindings.Display("Attack")+"  轻斩    "+TrialBindings.Display("Heavy")+"  重斩\n"+
-                TrialBindings.Display("Guard")+"  格挡    "+TrialBindings.Display("Dodge")+"  闪避\n"+
-                TrialBindings.Display("Heal")+"  灵露    "+TrialBindings.Display("Lock")+"  锁定    "+TrialBindings.Display("Interact")+"  休息\n\n手柄："+
-                TrialBindings.Display("Attack",2)+" 轻斩 · "+TrialBindings.Display("Heavy",2)+" 重斩\n"+
-                TrialBindings.Display("Guard",2)+" 格挡 · "+TrialBindings.Display("Dodge",2)+" 闪避\n轻击：前方左下挑右上 → 横刀半月 → 平刀突刺转身 → 空跃\n空中：三次暗红远程斩 → 斜向下冲·暗蓝飞沙\n二轻→重：六米樱花突进 · 三轻→重：长后撤三月刃\n空跃→重：插剑下落 → 轻：长距离樱花突刺\n完美格挡：轻→三连刺 / 重→后翻火龙（可蓄力）\n完美格挡→闪：远闪；再轻→背闪 / 再重→螺旋回旋刀\n完美闪避→重：后跃落地劈火龙；招式可接闪避或格挡";mainButtonLabel.text="继续";}
+            {menuTitle.text="暂停";menuCaption.text=
+                TrialBindings.Display("Up")+" / "+TrialBindings.Display("Left")+" / "+TrialBindings.Display("Down")+" / "+TrialBindings.Display("Right")+" 移动 · "+TrialBindings.Display("Sprint")+" 奔跑\n"+
+                TrialBindings.Display("Attack")+" 轻斩 · "+TrialBindings.Display("Heavy")+" 重斩 · "+TrialBindings.Display("Guard")+" 格挡\n"+
+                TrialBindings.Display("Dodge")+" 闪避 · "+TrialBindings.Display("Jump")+" 小跃 · "+TrialBindings.Display("Heal")+" 灵露\n"+
+                TrialBindings.Display("Lock")+" 锁定 · "+TrialBindings.Display("Interact")+" 休息\n手柄："+
+                TrialBindings.Display("Attack",2)+" 轻 · "+TrialBindings.Display("Heavy",2)+" 重 · "+TrialBindings.Display("Guard",2)+" 格挡\n"+
+                TrialBindings.Display("Dodge",2)+" 闪避 · "+TrialBindings.Display("Jump",2)+" 小跃\n"+
+                "交错连轻：柄击→扫腿→低跃→腾身→剪脚→落斩\n"+
+                "交错 / 扫腿 / 穿针后重：挑空→重：三飞刃\n"+
+                "腾身 / 剪脚后重：三飞刃→轻云回 / 重落地\n"+
+                "翻滚轻：前刺 / 重：一闪；小跃仅耗5气力\n"+
+                "连招长按轻：穿针 / 重：风轮；空中有派生\n"+
+                "插格挡→轻反架刺 / 重散华；剑招可接闪避\n"+
+                "完美格挡：轻三刺 / 重火龙 / 闪后追击\n"+
+                "完美闪避：轻闪斩 / 重后跃；轻重可预输入两次";mainButtonLabel.text="继续";}
             if(game.Mode==TrialMode.Dead)
             {menuTitle.text="败北";menuCaption.text="";mainButtonLabel.text="重来";}
             if(game.Mode==TrialMode.Victory)

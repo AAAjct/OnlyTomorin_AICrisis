@@ -20,6 +20,7 @@ namespace TomorinTrial
         float flashUntil;
         public void Flash(Color color)
         {
+            if(InkMainMenu.ReducedMotion)return;
             if(!impactFlash)
             {
                 var rect=Panel("Impact flash",root,Vector2.zero,Vector2.zero,Vector2.zero,Color.clear);rect.anchorMax=Vector2.one;rect.offsetMin=rect.offsetMax=Vector2.zero;
@@ -30,7 +31,11 @@ namespace TomorinTrial
 
         void UpdateRunChoices()
         {
-            if(impactFlash){var color=flashTint;color.a*=Mathf.Clamp01((flashUntil-Time.unscaledTime)/.16f);impactFlash.color=color;}
+            if(impactFlash)
+            {
+                if(InkMainMenu.ReducedMotion){flashUntil=0;impactFlash.color=Color.clear;}
+                else {var color=flashTint;color.a*=Mathf.Clamp01((flashUntil-Time.unscaledTime)/.16f);impactFlash.color=color;}
+            }
             bool choosing=game.Player.ChoosingBoon && game.Mode==TrialMode.Playing;
             bool waiting=TrialNetworkManager.SessionActive && TrialNetworkManager.Current.WaitingForBoons && !choosing && game.Mode==TrialMode.Playing;
             if(waiting && !partyWaiting)partyWaiting=Label("Party boon waiting",root,"等待同伴选择祝福…",new Vector2(.5f,.5f),new Vector2(-260,80),new Vector2(520,50),25,gold,TextAnchor.MiddleCenter);

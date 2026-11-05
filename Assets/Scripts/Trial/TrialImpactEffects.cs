@@ -11,7 +11,7 @@ namespace TomorinTrial
         sealed class GhostFrame
         {
             public GameObject root;public readonly List<Mesh> meshes=new List<Mesh>();
-            public readonly List<MeshRenderer> renderers=new List<MeshRenderer>();public float until;
+            public readonly List<MeshRenderer> renderers=new List<MeshRenderer>();public float until,lifetime,strength;
         }
         readonly ArcEffect[] arcs=new ArcEffect[16];
         readonly GhostFrame[] ghosts=new GhostFrame[5];
@@ -26,7 +26,7 @@ namespace TomorinTrial
         void InitializeImpactEffects()
         {
             ghostProperties=new MaterialPropertyBlock();
-            ghostMaterial=new Material(particles);ghostMaterial.SetColor("_BaseColor",new Color(.2f,.75f,1,.32f));
+            ghostMaterial=new Material(InkMaterial);ghostMaterial.SetFloat("_Feather",0);
             for(int i=0;i<arcs.Length;i++)
             {
                 var obj=new GameObject("Impact slash "+i);obj.transform.SetParent(transform,false);
@@ -54,7 +54,7 @@ namespace TomorinTrial
             arc.line.startColor=arc.line.endColor=tint;
         }
         float nextGhostBake;
-        public void Afterimage(TrialPlayer player)
+        public void Afterimage(TrialPlayer player,bool perfect=true)
         {
             // Shared budget bounds BakeMesh cost even in a large cooperative room.
             if(Time.unscaledTime<nextGhostBake)return;
@@ -71,10 +71,13 @@ namespace TomorinTrial
                     var renderer=obj.AddComponent<MeshRenderer>();renderer.sharedMaterial=ghostMaterial;renderer.shadowCastingMode=ShadowCastingMode.Off;renderer.receiveShadows=false;ghost.renderers.Add(renderer);
                 }
             }
-            ghost.root.SetActive(true);ghost.until=Time.unscaledTime+.28f;
+            ghost.root.SetActive(true);ghost.lifetime=perfect?.38f:.18f;ghost.strength=perfect?.76f:.32f;ghost.until=Time.unscaledTime+ghost.lifetime;
+            InkBloom(player.transform.position+Vector3.up*.8f,-player.DodgeDirection*.6f,perfect?1.2f:.55f);
             for(int i=0;i<Mathf.Min(skins.Length,ghost.meshes.Count);i++)
             {
-                skins[i].BakeMesh(ghost.meshes[i]);var t=ghost.renderers[i].transform;
+                // Compensate for the imported renderer scale before applying it to the ghost.
+                // Without this, the baked pose is scaled twice and can cover the whole sky.
+                skins[i].BakeMesh(ghost.meshes[i],true);var t=ghost.renderers[i].transform;
                 t.SetPositionAndRotation(skins[i].transform.position,skins[i].transform.rotation);t.localScale=skins[i].transform.lossyScale;
             }
         }
@@ -84,9 +87,12 @@ namespace TomorinTrial
             if(cue==TrialCombatCue.HeavyLand)
             {SlashEffect(value.position+Vector3.up*.06f,value.forward,new Color(1,.68f,.26f),1.65f,true);Burst(value.position,new Color(1,.8f,.45f),30);Sound("landing",value.position);if(local){game.CameraRig.Kick(.22f);Rumble(.35f,.45f,.1f);}return true;}
             if(cue==TrialCombatCue.Dodge)
-            {var dodger=TrialNetworkManager.SessionActive?TrialNetworkManager.Current.PlayerById(value.player):game.Player;
-                DodgeWake(value.position,dodger?dodger.DodgeDirection:-value.forward,new Color(.4f,.85f,1));
-                if(dodger)Afterimage(dodger);Sound("dodge",value.position);return true;}
+            {
+                Sound("dodge",value.position);
+                var actor=TrialNetworkManager.SessionActive?TrialNetworkManager.Current.PlayerById(value.player):game.Player;
+                if(actor)Afterimage(actor,false);
+                return true;
+            }
             if(cue==TrialCombatCue.Heal)
             {Sound("heal",value.position);if(local)game.Hud.HealFlash();return true;}
             if(cue==TrialCombatCue.ChargeReady)
@@ -123,9 +129,11 @@ namespace TomorinTrial
                     var actor=TrialNetworkManager.SessionActive?TrialNetworkManager.Current.PlayerById(value.player):game.Player;
                     if(actor)actor.ShowPerfectDodge();
                 }
-                Color tint=counter?new Color(1,.73f,.22f):new Color(.24f,.85f,1);
+                Color tint=counter?new Color(1,.73f,.22f):new Color(.48f,.018f,.045f);
                 SlashEffect(value.position,value.forward,tint,counter?2.6f:1.7f,cue==TrialCombatCue.PerfectDodge);
-                Burst(value.position,tint,counter?85:40);Sound(counter?"counter":"blink",value.position);
+                if(cue==TrialCombatCue.PerfectDodge)InkBloom(value.position,-value.forward,1.7f);
+                else Burst(value.position,tint,counter?85:24);
+                Sound(counter?"counter":"blink",value.position);
                 if(counter)SlowMotion(.42f);
                 if(local)
                 {
@@ -143,8 +151,9 @@ namespace TomorinTrial
             {float alpha=Mathf.Clamp01((arc.until-Time.unscaledTime)/arc.lifetime);arc.line.enabled=alpha>0;var c=arc.tint;c.a=alpha;arc.line.startColor=arc.line.endColor=c;}
             foreach(var ghost in ghosts)if(ghost!=null && ghost.root.activeSelf)
             {
-                float alpha=Mathf.Clamp01((ghost.until-Time.unscaledTime)/.28f);ghost.root.SetActive(alpha>0);
-                ghostProperties.SetColor("_BaseColor",new Color(.2f,.75f,1,alpha*.3f));
+                float alpha=Mathf.Clamp01((ghost.until-Time.unscaledTime)/ghost.lifetime);ghost.root.SetActive(alpha>0);
+                ghostProperties.SetColor("_BaseColor",new Color(.009f,.006f,.014f,alpha*ghost.strength));
+                ghostProperties.SetFloat("_Dissolve",(1-alpha)*.85f);
                 foreach(var renderer in ghost.renderers)renderer.SetPropertyBlock(ghostProperties);
             }
             if(rumbleUntil>0 && Time.unscaledTime>=rumbleUntil){Gamepad.current?.ResetHaptics();rumbleUntil=0;}
@@ -180,6 +189,7 @@ namespace TomorinTrial
             if(tideMaterial)Destroy(tideMaterial);
             foreach(var ghost in ghosts)if(ghost!=null)foreach(var mesh in ghost.meshes)Destroy(mesh);
             if(ghostMaterial)Destroy(ghostMaterial);
+            DisposeInkEffects();
         }
         void OnApplicationFocus(bool focus){if(!focus){Gamepad.current?.ResetHaptics();rumbleUntil=0;}}
     }

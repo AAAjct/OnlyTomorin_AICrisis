@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Linq;
 using Mirror;
@@ -53,6 +53,9 @@ namespace TomorinTrial.Editor
                 Check(events.Count(e=>e.player==remoteId && e.cue==TrialCombatCue.CrimsonBlade)==3,"Peer receives exactly three owner-specific crimson projectile events");
                 Check(events.Count(e=>e.player==remoteId && e.cue==TrialCombatCue.SandImpact)==1,"Peer receives one landing impact event");
                 Check(events.Count(e=>e.player==remoteId && e.cue==TrialCombatCue.BlueSand)==12,"Peer receives all twelve radial sand projectile events");
+                Check(events.Count(e=>e.player==remoteId && e.cue==TrialCombatCue.SwordLeap)==1,"Peer receives exactly one launch ribbon event during the aerial combo");
+                Check(events.Count(e=>e.player==remoteId && e.cue==TrialCombatCue.SwordTurn)==1,"Peer receives the third-light turn ribbon at the authoritative action phase");
+                Check(events.Count(e=>e.player==remoteId && e.cue==TrialCombatCue.SwordDescent)==1,"Peer receives exactly one descent ribbon event before landing");
                 Until();while(Waiting(remote.Action==FighterAction.Free))yield return .01f;
                 remote.Restore(new Vector3(0,0,20));events.Clear();
                 for(int i=0;i<3;i++)
@@ -75,6 +78,49 @@ namespace TomorinTrial.Editor
                 Send(new TrialControls{pressed=2});Until();while(Waiting(events.Any(e=>e.player==remoteId && e.cue==TrialCombatCue.SakuraScatter)))yield return .01f;
                 var sakura=events.First(e=>e.player==remoteId && e.cue==TrialCombatCue.SakuraScatter);
                 Check(Vector3.Distance(sakura.position,sakura.end)>5.5f,"TCP sakura event carries both actual endpoints of the six-metre dash");
+                Until();while(Waiting(remote.Action==FighterAction.Free))yield return .01f;
+                remote.Restore(new Vector3(0,0,20));events.Clear();
+                SendMany(new TrialControls{pressed=1},new TrialControls{pressed=1},new TrialControls{pressed=2});
+                Until();while(Waiting(remote.Action==FighterAction.Heavy && remote.Combo==5))yield return .01f;
+                Check(true,"Batched real TCP L,L,H keeps repeated light edges and selects sakura thrust");
+                Until();while(Waiting(events.Any(e=>e.player==remoteId && e.cue==TrialCombatCue.SakuraScatter)))yield return .01f;
+                Send(new TrialControls{pressed=2});Until();while(Waiting(remote.Combo==TrialPlayer.FlowingSweep))yield return .01f;
+                Check(true,"TCP sakura thrust links into flowing sweep");
+                Send(new TrialControls{pressed=2});Until();while(Waiting(remote.Combo==TrialPlayer.RisingBridge))yield return .01f;
+                Until();while(Waiting(world.players.Any(s=>s.id==remoteId && s.combo==TrialPlayer.RisingBridge)))yield return .01f;
+                Check(true,"New bridge move is authoritative and replicated in real TCP snapshots");
+                foreach(byte key in new byte[]{1,2})
+                {
+                    Until();while(Waiting(remote.Action==FighterAction.Free))yield return .01f;
+                    remote.Restore(new Vector3(0,0,20));events.Clear();
+                    Send(new TrialControls{pressed=4});Until();while(Waiting(remote.Action==FighterAction.Dodge && remote.ActionTime>=.10f))yield return .01f;
+                    Send(new TrialControls{pressed=key});int move=key==1?TrialPlayer.RollThrust:TrialPlayer.RollFlash;
+                    Until();while(Waiting(remote.Combo==move && remote.Action!=FighterAction.Dodge))yield return .01f;
+                    Until();while(Waiting(world.players.Any(s=>s.id==remoteId && s.combo==move)))yield return .01f;
+                    Check(true,"TCP roll cancellation replicates move "+move);
+                    if(key==2)
+                    {
+                        Until();while(Waiting(events.Any(e=>e.player==remoteId && e.cue==TrialCombatCue.RollFlash) && events.Any(e=>e.player==remoteId && e.cue==TrialCombatCue.MoonBlade)))yield return .01f;
+                        Check(events.Count(e=>e.player==remoteId && e.cue==TrialCombatCue.RollFlash)==1,"TCP flash slash and its woven moon blade have the correct owner and fire once");
+                        Send(new TrialControls{pressed=2});Until();while(Waiting(remote.Combo==TrialPlayer.AirStep && remote.transform.position.y>.9f))yield return .01f;
+                        Until();while(Waiting(world.players.Any(s=>s.id==remoteId && s.combo==TrialPlayer.AirStep && s.position.y>.9f)))yield return .01f;
+                        Check(true,"TCP low aerial step carries its actual controller height");
+                        foreach(int airMove in new[]{TrialPlayer.AirCross,TrialPlayer.AirWheel,TrialPlayer.AirFan})
+                        {
+                            Until();while(Waiting(remote.Progress>.73f))yield return .01f;
+                            Send(new TrialControls{pressed=1});Until();while(Waiting(remote.Combo==airMove))yield return .01f;
+                        }
+                        Until();while(Waiting(remote.Progress>.72f))yield return .01f;
+                        Check(events.Count(e=>e.player==remoteId && e.cue==TrialCombatCue.CrimsonBlade)==3,"TCP airborne route reserves flying blades for the dedicated fan");
+                    }
+                    else
+                    {
+                        Send(new TrialControls{pressed=1});Until();while(Waiting(remote.Combo==TrialPlayer.CrossDraw))yield return .01f;
+                        Send(new TrialControls{pressed=1});Until();while(Waiting(remote.Combo==TrialPlayer.HiltStrike))yield return .01f;
+                        Until();while(Waiting(events.Any(e=>e.player==remoteId && e.cue==TrialCombatCue.MartialStroke)))yield return .01f;
+                        Check(!events.Any(e=>e.player==remoteId && e.cue==TrialCombatCue.CrimsonBlade),"TCP rolling thrust reconnects into a physical hilt strike without a flying blade");
+                    }
+                }
                 Until();while(Waiting(remote.Action==FighterAction.Free))yield return .01f;
                 remote.Restore(new Vector3(0,0,20));events.Clear();
                 var source=game.Enemies[0];source.Teleport(remote.transform.position+Vector3.forward*3);

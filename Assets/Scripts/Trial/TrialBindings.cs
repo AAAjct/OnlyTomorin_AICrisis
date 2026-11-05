@@ -24,6 +24,7 @@ namespace TomorinTrial
             new Entry("Heavy","重击","SwordCombat/Heavy","<Keyboard>/q",null,"<Gamepad>/rightShoulder"),
             new Entry("Guard","格挡","SwordCombat/Guard","<Mouse>/rightButton","<Keyboard>/k","<Gamepad>/leftShoulder"),
             new Entry("Dodge","闪避","SwordCombat/Dodge","<Keyboard>/space",null,"<Gamepad>/buttonEast"),
+            new Entry("Jump","跳跃","SwordCombat/Jump","<Keyboard>/leftCtrl","<Keyboard>/rightCtrl","<Gamepad>/buttonNorth"),
             new Entry("Heal","喝药","SwordCombat/Heal","<Keyboard>/r",null,"<Gamepad>/dpad/up"),
             new Entry("Lock","锁定","SwordCombat/Lock","<Keyboard>/tab","<Mouse>/middleButton","<Gamepad>/rightStickPress"),
             new Entry("Interact","交互","Player/Interact","<Keyboard>/e",null,"<Gamepad>/buttonSouth"),

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -56,7 +56,7 @@ namespace TomorinTrial.Editor
                 var name=labels.First(t=>t.text=="你的名字");var hint=labels.First(t=>t.text.Contains("A / Enter 编辑"));
                 Check(!Bounds(name.rectTransform).Overlaps(Bounds(hint.rectTransform)),"LAN name label and navigation hint have disjoint layout bounds");
                 Check(TrialPowerBudget.Budget(120,false,true,false)==30 && TrialPowerBudget.Budget(120,true,false,false)==15 && TrialPowerBudget.Budget(60,true,true,false)==60,"Idle and background rendering budgets preserve active combat FPS");
-                Check(TrialPowerBudget.Budget(30,false,false,true)>=60,"Background LAN host retains authoritative simulation rate");
+                Check(TrialPowerBudget.Budget(30,false,false,true)==30,"LAN honors the selected cap without additional background throttling");
                 foreach(ChampionKind kind in Enum.GetValues(typeof(ChampionKind)))for(int i=0;i<TrialChampionCatalog.SkillCount;i++)
                 {var m=TrialChampionCatalog.Move(kind,i);Check(m.shape!=ChampionShape.Leap && m.shape!=ChampionShape.Dive && m.shape!=ChampionShape.TwinPincer,kind+" slot "+i+" has no aerial slam");}
                 SceneManager.LoadScene("CrimsonSwordTerrace");yield return .8f;
@@ -67,7 +67,7 @@ namespace TomorinTrial.Editor
                 int frame=Time.frameCount;yield return .12f;Check(Time.frameCount>frame,"Play Mode player loop advances");
                 var p=game.Player;var boss=game.Enemies[0];var input=game.gameObject.AddComponent<TrialInput>();
                 Action<TrialControls,float> tick=(c,dt)=>{input.ApplyNetwork(c);p.Tick(dt,input);};
-                Action reset=()=>{p.ResetRunBoon();p.Restore(new Vector3(0,0,20));boss.ResetFighter();boss.Teleport(new Vector3(12,0,36));Time.timeScale=1;};
+                Action reset=()=>{p.ResetRunBoon();p.Restore(new Vector3(0,0,20));boss.ResetFighter();typeof(TrialChampion).GetField("introPlayed",Private).SetValue(boss.Champion,true);boss.Teleport(new Vector3(12,0,36));Time.timeScale=1;};
                 reset();tick(new TrialControls{pressed=1},.01f);
                 for(int i=0;i<4;i++)
                 {
@@ -86,9 +86,9 @@ namespace TomorinTrial.Editor
                 reset();lights(4);tick(new TrialControls{pressed=2},p.ActionDuration*.57f);Check(p.Combo==20 && p.IsFinishingCut,"Four lights branch into the cleave finisher");
                 reset();lights(1);tick(new TrialControls{pressed=2},p.ActionDuration*.57f);tick(new TrialControls{pressed=2},p.ActionDuration*.74f);Check(p.Combo==21,"Rising heavy branches into a reverse sweep");
                 reset();lights(2);tick(new TrialControls{pressed=2},p.ActionDuration*.57f);tick(new TrialControls{pressed=1},p.ActionDuration*.74f);Check(p.Combo==22 && p.Action==FighterAction.Light,"Thrust heavy retracts into a close draw cut");
-                reset();lights(3);tick(new TrialControls{pressed=2},p.ActionDuration*.57f);tick(new TrialControls{pressed=1},p.ActionDuration*.74f);Check(p.Combo==23,"Three-light heavy branches into retreating draw");
-                float retreatStart=p.transform.position.z;tick(default,p.ActionDuration*.48f);Check(p.transform.position.z<retreatStart,"Retreating draw creates real backward spacing");
-                reset();lights(2);tick(new TrialControls{pressed=4,move=Vector2.right},p.ActionDuration*.43f);tick(new TrialControls{pressed=2},p.ActionDuration*.70f);Check(p.Combo==24 && p.Action==FighterAction.Heavy,"Dodge derivative branches into planted spinning heavy");
+                reset();lights(3);tick(new TrialControls{pressed=2},p.ActionDuration*.57f);tick(new TrialControls{pressed=1},p.ActionDuration*.74f);Check(p.Combo==TrialPlayer.MoonChase,"Three-light heavy branches into moon pursuit thrust");
+                float retreatStart=p.transform.position.z;tick(default,p.ActionDuration*.48f);Check(p.transform.position.z>retreatStart+4,"Moon pursuit closes the spacing created by the ranged retreat");
+                reset();lights(2);tick(new TrialControls{pressed=4,move=Vector2.right},p.ActionDuration*.43f);tick(new TrialControls{pressed=2},p.ActionDuration*.70f);Check(p.Combo==TrialPlayer.RollFlash && p.Action==FighterAction.Heavy,"Dodge derivative cancels into the new flashing cut");
                 reset();tick(new TrialControls{pressed=4},.01f);tick(new TrialControls{pressed=1},p.ActionDuration*.70f);tick(new TrialControls{pressed=2},p.ActionDuration*.57f);Check(p.Combo==25,"Rolling pursuit light branches into driving thrust");
                 reset();tick(new TrialControls{pressed=2},.01f);tick(new TrialControls{pressed=1},p.ActionDuration*.74f);tick(new TrialControls{pressed=2},p.ActionDuration*.57f);Check(p.Combo==15,"Heavy-light-heavy activates cut-through branch");
                 reset();lights(1);tick(default,.12f);Check(!p.CombatFrozen,"Whiffed attacks never trigger pose hit-stop");

@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace TomorinTrial
@@ -10,8 +10,10 @@ namespace TomorinTrial
         public Vector2 Look { get; private set; }
         public bool Attack { get; private set; }
         public bool Heavy { get; private set; }
+        public bool AttackHeld { get; private set; }
         public bool HeavyHeld { get; private set; }
         public bool Dodge { get; private set; }
+        public bool Jump { get; private set; }
         public bool Guard { get; private set; }
         public bool Sprint { get; private set; }
         public bool Heal { get; private set; }
@@ -22,18 +24,18 @@ namespace TomorinTrial
         public bool Restart { get; private set; }
         public bool UsingGamepad {get;private set;}
         int suppressUntilFrame=-1;
-        public void SuppressCombat(){suppressUntilFrame=Time.frameCount+2;Attack=Heavy=HeavyHeld=Dodge=Guard=Heal=Interact=Lock=false;}
+        public void SuppressCombat(){suppressUntilFrame=Time.frameCount+2;Attack=AttackHeld=Heavy=HeavyHeld=Dodge=Jump=Guard=Heal=Interact=Lock=false;}
         bool sprintToggled;
         bool toggleSprint;
         int bindingVersion=-1;
         public Vector2 TouchMove, TouchLook;
-        public bool TouchGuard,TouchSprint,TouchHeavy;
+        public bool TouchGuard,TouchSprint,TouchHeavy,TouchLight;
         byte touchPressed;
         public void PressTouch(byte action){touchPressed|=action;}
-        public void ClearTouch(){TouchMove=TouchLook=Vector2.zero;TouchGuard=TouchSprint=TouchHeavy=false;touchPressed=0;}
+        public void ClearTouch(){TouchMove=TouchLook=Vector2.zero;TouchGuard=TouchSprint=TouchHeavy=TouchLight=false;touchPressed=0;}
         public void ResetSprint(){sprintToggled=false;Sprint=false;ClearTouch();}
         void OnApplicationFocus(bool focused){if(!focused)ResetSprint();}
-        InputAction move,look,attack,interact,sprint,heavy,dodge,guard,heal,target,pause,confirm;
+        InputAction move,look,attack,interact,sprint,heavy,dodge,jump,guard,heal,target,pause,confirm;
         InputActionAsset actions;
         InputActionMap combat;
         public bool NetworkDirected { get; private set; }
@@ -42,14 +44,15 @@ namespace TomorinTrial
         public TrialControls CaptureNetwork(float yaw) => new TrialControls
         {
             move=Move, yaw=yaw,
-            held=(byte)((Guard?1:0)|(Sprint?2:0)|(HeavyHeld?4:0)),
-            pressed=(byte)((Attack?1:0)|(Heavy?2:0)|(Dodge?4:0)|(Heal?8:0)|(Lock?16:0)|(Interact?32:0))
+            held=(byte)((Guard?1:0)|(Sprint?2:0)|(HeavyHeld?4:0)|(AttackHeld?8:0)),
+            pressed=(byte)((Attack?1:0)|(Heavy?2:0)|(Dodge?4:0)|(Heal?8:0)|(Lock?16:0)|(Interact?32:0)|(Jump?64:0))
         };
         public void ApplyNetwork(TrialControls value)
         {
             NetworkDirected=true;NetworkYaw=value.yaw;Move=value.move;Look=Vector2.zero;
-            HeavyHeld=(value.held&4)!=0;Guard=(value.held&1)!=0;Sprint=(value.held&2)!=0;
+            AttackHeld=(value.held&8)!=0;HeavyHeld=(value.held&4)!=0;Guard=(value.held&1)!=0;Sprint=(value.held&2)!=0;
             Attack=(value.pressed&1)!=0;Heavy=(value.pressed&2)!=0;Dodge=(value.pressed&4)!=0;
+            Jump=(value.pressed&64)!=0;
             Heal=(value.pressed&8)!=0;Lock=(value.pressed&16)!=0;Interact=(value.pressed&32)!=0;
         }
 
@@ -63,6 +66,7 @@ namespace TomorinTrial
             combat=new InputActionMap("SwordCombat");
             heavy=Button("Heavy","<Keyboard>/q","<Gamepad>/rightShoulder");
             dodge=Button("Dodge","<Keyboard>/space","<Gamepad>/buttonEast");
+            jump=Button("Jump","<Keyboard>/leftCtrl","<Keyboard>/rightCtrl","<Gamepad>/buttonNorth");
             guard=Button("Guard","<Mouse>/rightButton","<Keyboard>/k","<Gamepad>/leftShoulder");
             heal=Button("Heal","<Keyboard>/r","<Gamepad>/dpad/up");
             target=Button("Lock","<Keyboard>/tab","<Mouse>/middleButton","<Gamepad>/rightStickPress");
@@ -89,17 +93,18 @@ namespace TomorinTrial
             if(bindingVersion!=TrialBindings.Version)RefreshBindings();
             if(TrialSettingsPanel.InputBlocked || Time.frameCount<=suppressUntilFrame)
             {
-                Move=Look=Vector2.zero;Attack=Heavy=HeavyHeld=Dodge=Guard=Heal=Interact=Lock=Pause=Confirm=Restart=false;ResetSprint();return;
+                Move=Look=Vector2.zero;Attack=AttackHeld=Heavy=HeavyHeld=Dodge=Jump=Guard=Heal=Interact=Lock=Pause=Confirm=Restart=false;ResetSprint();return;
             }
             Move=Vector2.ClampMagnitude(move.ReadValue<Vector2>()+TouchMove,1);
             Look=look.ReadValue<Vector2>()*(look.activeControl?.device is Gamepad?125*Time.unscaledDeltaTime:.105f);
             // Touch look is routed exclusively by the right-side UI pad. Pointer
             // bindings can also read the same finger as a mouse/touch delta.
             if(look.activeControl?.device is Touchscreen || Application.isMobilePlatform && look.activeControl?.device is Mouse)Look=Vector2.zero;
-            Attack=attack.WasPressedThisFrame();HeavyHeld=heavy.IsPressed() || TouchHeavy;Heavy=heavy.WasPressedThisFrame();Dodge=dodge.WasPressedThisFrame();Guard=guard.IsPressed();
+            AttackHeld=attack.IsPressed() || TouchLight;Attack=attack.WasPressedThisFrame();HeavyHeld=heavy.IsPressed() || TouchHeavy;Heavy=heavy.WasPressedThisFrame();Dodge=dodge.WasPressedThisFrame();Guard=guard.IsPressed();
+            Jump=jump.WasPressedThisFrame();
             // Mobile taps belong to UI controls, including taps reported as mouse clicks.
             // Apply the dedicated light-attack button below after filtering raw pointer input.
-            if(attack.activeControl?.device is Touchscreen || Application.isMobilePlatform && attack.activeControl?.device is Mouse)Attack=false;
+            if(attack.activeControl?.device is Touchscreen || Application.isMobilePlatform && attack.activeControl?.device is Mouse){Attack=false;AttackHeld=TouchLight;}
             if(toggleSprint!=TrialPreferences.ToggleSprint){toggleSprint=TrialPreferences.ToggleSprint;ResetSprint();}
             if(toggleSprint && sprint.WasPressedThisFrame())sprintToggled=!sprintToggled;
             Sprint=TouchSprint || (toggleSprint?sprintToggled:sprint.IsPressed());Heal=heal.WasPressedThisFrame();Interact=interact.WasPressedThisFrame();Lock=target.WasPressedThisFrame();Pause=pause.WasPressedThisFrame();Confirm=confirm.WasPressedThisFrame();Restart=Confirm;

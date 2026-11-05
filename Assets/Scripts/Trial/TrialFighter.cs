@@ -39,6 +39,7 @@ namespace TomorinTrial
         Color[] authoredEmission;
         protected virtual float StaminaRecoveryRate => Guarding?0:29;
         protected virtual float StaminaRecoveryDelay => .7f;
+        protected virtual bool CanRecoverStamina => Action==FighterAction.Free;
 
         public virtual TrialActorState CaptureNetwork(int id) => new TrialActorState
         {
@@ -94,8 +95,8 @@ namespace TomorinTrial
         {
             ActionTime += dt;
             recoveryDelay -= dt;
-            if (recoveryDelay <= 0 && Action == FighterAction.Free)
-                Stamina = Mathf.Min(MaxStamina, Stamina + StaminaRecoveryRate * dt);
+            if (recoveryDelay <= 0 && CanRecoverStamina)
+                Stamina = Mathf.Min(MaxStamina, Stamina + StaminaRecoveryRate * Mathf.Min(dt,-recoveryDelay));
             Posture = Mathf.Max(0, Posture - 7 * dt);
             TickGravity(dt);
             if (trail != null) trail.emitting = AttackActive;
@@ -148,6 +149,13 @@ namespace TomorinTrial
             direction.y = 0;
             if (direction.sqrMagnitude > .001f)
                 transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(direction), speed * dt);
+        }
+
+        // Match vertical contact before consuming a hazard's per-target hit slot.
+        public bool OverlapsAttackHeight(float bottom,float top)
+        {
+            float feet=transform.position.y+motor.center.y-motor.height*.5f;
+            return feet<=top+motor.skinWidth && feet+motor.height>=bottom-motor.skinWidth;
         }
 
         public abstract bool ReceiveHit(TrialFighter attacker, float damage, float postureDamage, bool unblockable = false);

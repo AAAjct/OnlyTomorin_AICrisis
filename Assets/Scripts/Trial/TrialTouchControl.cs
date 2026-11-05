@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.EventSystems;
 
 namespace TomorinTrial
@@ -20,7 +20,7 @@ namespace TomorinTrial
             if(pointer!=int.MinValue)return;pointer=e.pointerId;
             if(surface&&!Stick&&!Look)surface.color=new Color(.38f,.30f,.16f,.95f);
             if(Guard)Input.TouchGuard=true;
-            else if(!Stick&&!Look){if(Action==64)Input.TouchSprint=true;if(Action==2)Input.TouchHeavy=true;Input.PressTouch(Action);}
+            else if(!Stick&&!Look){if(Action==64)Input.TouchSprint=true;if(Action==2)Input.TouchHeavy=true;if(Action==1)Input.TouchLight=true;Input.PressTouch(Action);}
             if(Stick)
             {
                 if(StickVisual)
@@ -48,7 +48,7 @@ namespace TomorinTrial
             if(Knob)Knob.anchoredPosition=value*width*.30f;
         }
         public void OnPointerUp(PointerEventData e){if(pointer==e.pointerId)Release();}
-        void Release(){bool held=pointer!=int.MinValue;pointer=int.MinValue;if(surface)surface.color=idleTint;if(!Input)return;if(Guard)Input.TouchGuard=false;if(Action==2)Input.TouchHeavy=false;if(Action==64 || Stick)Input.TouchSprint=false;if(Stick)Input.TouchMove=Vector2.zero;if(Knob)Knob.anchoredPosition=Vector2.zero;if(held&&StickVisual)StickVisual.anchoredPosition=stickHome;}
+        void Release(){bool held=pointer!=int.MinValue;pointer=int.MinValue;if(surface)surface.color=idleTint;if(!Input)return;if(Guard)Input.TouchGuard=false;if(Action==2)Input.TouchHeavy=false;if(Action==1)Input.TouchLight=false;if(Action==64 || Stick)Input.TouchSprint=false;if(Stick)Input.TouchMove=Vector2.zero;if(Knob)Knob.anchoredPosition=Vector2.zero;if(held&&StickVisual)StickVisual.anchoredPosition=stickHome;}
         void OnDisable(){Release();}
         void OnApplicationFocus(bool focused){if(!focused)Release();}
     }

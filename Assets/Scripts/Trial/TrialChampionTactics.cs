@@ -35,8 +35,10 @@ namespace TomorinTrial
 
         void BeginRespite()
         {
-            respite=IsRemnant?1.0f:Kind==ChampionKind.Taffy?2.1f:1.65f;
-            if(sequence%3==0)respite+=IsRemnant?.35f:.65f;
+            // Move.recovery already supplies the punish window. This is a short
+            // reposition, with a finite clock even while independent hazards live.
+            respite=IsRemnant?.7f:Kind==ChampionKind.Taffy?1.15f:.85f;
+            if(sequence%3==0)respite+=.2f;
             cooldown=Mathf.Max(cooldown,respite);pursuitAge=0;orbitSide=-orbitSide;
             queuedMove=-1;guardTime=0;guardCounter=false;fighter.BossGuard(false);
         }
@@ -44,15 +46,12 @@ namespace TomorinTrial
         bool TickRespite(float dt,Vector3 delta)
         {
             if(respite<=0)return false;
-            // Let existing projectiles expire before counting the quiet interval.
-            var partner=Partner();
-            bool partnerFinishing=partner && partner.Alive && partner.Champion.Attacking;
-            if(ActiveHazards==0 && !partnerFinishing)respite=Mathf.Max(0,respite-dt);
+            respite=Mathf.Max(0,respite-dt);
             cooldown=Mathf.Max(cooldown,respite+.08f);
             float distance=delta.magnitude;
             Vector3 radial=delta.normalized,tangent=Vector3.Cross(Vector3.up,radial)*orbitSide;
             Vector3 direction=distance<5.5f?-radial+tangent*.45f:tangent*.55f;
-            if(distance>10)direction=Vector3.zero;
+            if(distance>10)direction=radial+tangent*.2f;
             SafeTacticalStep(direction,IsRemnant?3.6f:2.5f,dt);
             fighter.BossFace(delta,210,dt);return true;
         }

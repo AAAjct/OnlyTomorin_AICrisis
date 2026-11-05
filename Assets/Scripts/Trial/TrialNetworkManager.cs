@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -42,6 +42,7 @@ namespace TomorinTrial
         readonly Dictionary<int, TrialPlayer> actors = new Dictionary<int, TrialPlayer>();
         readonly Dictionary<int, TrialInput> inputs = new Dictionary<int, TrialInput>();
         readonly Dictionary<int, TrialControls> controls = new Dictionary<int, TrialControls>();
+        readonly Dictionary<int, Queue<byte>> controlEdges = new Dictionary<int, Queue<byte>>();
         readonly Dictionary<int, float> lastInput = new Dictionary<int, float>();
         readonly Dictionary<int, float> reviveAt = new Dictionary<int, float>();
         readonly HashSet<int> liveActors = new HashSet<int>();
@@ -161,7 +162,7 @@ namespace TomorinTrial
         void ReturnTogether()
         {
             if(!boundGame || boundGame.Mode!=TrialMode.Victory)return;
-            Time.timeScale=1;controls.Clear();lastInput.Clear();reviveAt.Clear();hasSnapshot=false;
+            Time.timeScale=1;controls.Clear();controlEdges.Clear();lastInput.Clear();reviveAt.Clear();hasSnapshot=false;
             boundGame=null;actors.Clear();inputs.Clear();pending=lastSent=default;
             ServerChangeScene(MenuScene);
         }
@@ -178,7 +179,7 @@ namespace TomorinTrial
         void RestartTogether()
         {
             if(!boundGame || (boundGame.Mode!=TrialMode.Victory && boundGame.Mode!=TrialMode.Dead))return;
-            controls.Clear();lastInput.Clear();reviveAt.Clear();pending=lastSent=default;
+            controls.Clear();controlEdges.Clear();lastInput.Clear();reviveAt.Clear();pending=lastSent=default;
             boundGame.SetDifficulty(SelectedDifficulty);boundGame.ConfigureSession(SelectedLevel);boundGame.SetPartySize(names.Count);
             foreach(var pair in actors)
                 if(pair.Value && pair.Value!=boundGame.Player){pair.Value.ResetRunBoon();pair.Value.RollRunBoons();pair.Value.Restore(boundGame.CoopSpawn(pair.Key));}
@@ -197,7 +198,7 @@ namespace TomorinTrial
         public void SetStatus(string message) { Status = message; Changed?.Invoke(); Debug.Log("[InkNet] " + message); }
         public override void OnStartServer()
         {
-            names.Clear(); controls.Clear(); lastInput.Clear();
+            names.Clear(); controls.Clear(); controlEdges.Clear(); lastInput.Clear();
             NetworkServer.RegisterHandler<TrialHello>(ReceiveHello);
             NetworkServer.RegisterHandler<TrialControls>(ReceiveControls);
             NetworkServer.RegisterHandler<TrialChooseBoon>((connection,message)=>{if(actors.TryGetValue(connection.connectionId,out var actor) && actor)actor.ChooseBoon(message.boon);});
@@ -253,17 +254,22 @@ namespace TomorinTrial
         {
             int id = connection.connectionId;
             if (!names.ContainsKey(id) || !float.IsFinite(value.yaw) || !float.IsFinite(value.move.x) || !float.IsFinite(value.move.y)) return;
-            // TCP may deliver several inputs in the same frame after jitter.
-            // Keep the newest held state and every pending button edge.
+            // Several TCP packets can arrive in one frame. OR-ing their edges
+            // loses repeated light taps and reverses L,L,H; retain packet order.
             lastInput[id] = Time.unscaledTime;
             value.move = Vector2.ClampMagnitude(value.move, 1);
-            if (controls.TryGetValue(id, out var previous)) value.pressed |= previous.pressed;
+            if(value.pressed!=0)
+            {
+                if(!controlEdges.TryGetValue(id,out var edges))controlEdges[id]=edges=new Queue<byte>();
+                if(edges.Count<8)edges.Enqueue(value.pressed);
+            }
+            value.pressed=0;
             controls[id] = value;
         }
         public override void OnServerDisconnect(NetworkConnectionToClient connection)
         {
             int id = connection.connectionId;
-            names.Remove(id); controls.Remove(id); lastInput.Remove(id); reviveAt.Remove(id);
+            names.Remove(id); controls.Remove(id); controlEdges.Remove(id); lastInput.Remove(id); reviveAt.Remove(id);
             if (actors.TryGetValue(id, out var actor))
             {
                 // The scene owns the local player; its HUD/camera still use it
@@ -290,7 +296,7 @@ namespace TomorinTrial
             SetStatus(connectionFailure);
         }
         public override void OnServerError(NetworkConnectionToClient connection, TransportError error, string reason) { SetStatus("网络错误：" + reason); }
-        public override void OnStopServer() { names.Clear(); controls.Clear(); lastInput.Clear(); actors.Clear(); inputs.Clear(); reviveAt.Clear(); boundGame = null; }
+        public override void OnStopServer() { names.Clear(); controls.Clear(); controlEdges.Clear(); lastInput.Clear(); actors.Clear(); inputs.Clear(); reviveAt.Clear(); boundGame = null; }
         public override void OnStopClient() { actors.Clear(); inputs.Clear(); boundGame = null; Members=Array.Empty<string>();Changed?.Invoke(); }
         public override void Update()
         {
@@ -312,7 +318,7 @@ namespace TomorinTrial
         void Bind(TrialGame game)
         {
             if (boundGame == game) return;
-            boundGame = game; actors.Clear(); inputs.Clear(); reviveAt.Clear(); hasSnapshot = false;
+            boundGame = game; actors.Clear(); inputs.Clear(); controlEdges.Clear(); reviveAt.Clear(); hasSnapshot = false;
             pending = lastSent = default; nextSend = nextHeartbeat = 0; liveActors.Clear(); removedActors.Clear(); game.SetDifficulty(SelectedDifficulty);game.ConfigureSession(SelectedLevel);game.SetPartySize(names.Count);
         }
         public void TickGame(TrialGame game)
@@ -343,7 +349,9 @@ namespace TomorinTrial
                 else
                 {
                     var state = controls.TryGetValue(id, out var received) ? received : default;
-                    if (!lastInput.TryGetValue(id, out var at) || Time.unscaledTime - at > .5f) state = default;
+                    if (!lastInput.TryGetValue(id, out var at) || Time.unscaledTime - at > .5f)
+                    {state=default;if(controlEdges.TryGetValue(id,out var stale))stale.Clear();}
+                    else if(controlEdges.TryGetValue(id,out var edges) && edges.Count>0)state.pressed=edges.Dequeue();
                     input = inputs[id]; input.ApplyNetwork(state); state.pressed = 0; controls[id] = state;
                 }
                 if (game.Mode == TrialMode.Victory || game.Mode == TrialMode.Dead) continue;
@@ -437,13 +445,13 @@ namespace TomorinTrial
         }
         public void BroadcastCombat(TrialPlayer player, TrialCombatCue cue,Vector3? point=null,Vector3? direction=null)
         {BroadcastSwordCombat(player,cue,point??player.transform.position,direction??player.transform.forward,Vector3.zero,0);}
-        public void BroadcastSwordCombat(TrialPlayer player,TrialCombatCue cue,Vector3 point,Vector3 direction,Vector3 end,float amount)
+        public void BroadcastSwordCombat(TrialPlayer player,TrialCombatCue cue,Vector3 point,Vector3 direction,Vector3 end,float amount,byte style=0)
         {
             if (!NetworkServer.active || !boundGame) return;
             foreach (var actor in actors)
             {
                 if (actor.Value != player) continue;
-                var value = new TrialCombatEvent { player = actor.Key, cue = cue, position = point, forward = direction,end=end,amount=amount };
+                var value = new TrialCombatEvent { player = actor.Key, cue = cue, position = point, forward = direction,end=end,amount=amount,style=style };
                 boundGame.Effects.PlayCombat(value, actor.Key == LocalId);
                 foreach (var connection in NetworkServer.connections.Values)
                     if (connection.isReady && !(connection is LocalConnectionToClient)) connection.Send(value);

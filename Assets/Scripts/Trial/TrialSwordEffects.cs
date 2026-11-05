@@ -45,7 +45,7 @@ namespace TomorinTrial
                 }
                 visual.edge.widthMultiplier=sand?.07f:.10f;visual.halo.widthMultiplier=sand?.14f:.27f;
                 visual.edge.widthCurve=visual.halo.widthCurve=new AnimationCurve(new Keyframe(0,.08f),new Keyframe(.5f,1),new Keyframe(1,.08f));
-                Color tint=sand?new Color(.12f,.28f,.55f):moon?new Color(1,.68f,.81f):new Color(.68f,.035f,.10f);
+                Color tint=sand?new Color(.12f,.28f,.55f):CrimsonWave;
                 visual.edge.startColor=visual.edge.endColor=tint;tint.a=.25f;visual.halo.startColor=visual.halo.endColor=tint;
                 if(!sand)Sound("swing",value.position,moon?.82f:1.1f);
                 return true;

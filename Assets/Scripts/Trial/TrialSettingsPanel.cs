@@ -14,7 +14,7 @@ namespace TomorinTrial
         Action back;
         UnityEngine.UI.Slider volume;
         readonly UnityEngine.UI.Slider[] soundVolumes=new UnityEngine.UI.Slider[4];
-        UnityEngine.UI.Text sprintLabel,motionLabel,status,frameLabel;
+        UnityEngine.UI.Text sprintLabel,motionLabel,status,frameLabel,syncLabel,frameHint;
         UnityEngine.UI.Button first;
         readonly List<UnityEngine.UI.Selectable> navigation=new List<UnityEngine.UI.Selectable>();
         readonly List<Action> refreshBindings=new List<Action>();
@@ -62,6 +62,8 @@ namespace TomorinTrial
             motionLabel=Button("Motion",card,36,590,300,42,"",()=>{InkMainMenu.SetReducedMotion(!InkMainMenu.ReducedMotion);Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
 
             frameLabel=Button("Frame rate limit",card,36,646,300,42,"",()=>{TrialPreferences.CycleMobileFrameRate();Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
+            syncLabel=Button("VSync",card,36,702,300,42,"",()=>{TrialPreferences.VSyncEnabled=!TrialPreferences.VSyncEnabled;Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
+            frameHint=Label("",card,36,750,310,34,14,Grey);
             Label("按键设置",card,390,108,200,30,23,Ink);
             Label("键鼠主键",card,512,145,130,25,16,Grey);Label("备用键",card,650,145,110,25,16,Grey);Label("手柄",card,772,145,290,25,16,Grey);
             int row=0;
@@ -76,7 +78,7 @@ namespace TomorinTrial
                     var label=button.GetComponentInChildren<UnityEngine.UI.Text>();refreshBindings.Add(()=>label.text=TrialBindings.Display(entry,captured));
                 }
             }
-            status=Label("",card,390,640,684,58,16,Red);
+            status=Label("",card,390,666,684,42,16,Red);
             Button("Restore bindings",card,390,718,300,48,"恢复默认键位",()=>{TrialBindings.ResetDefaults();Refresh();status.text="已恢复默认键位。";});
             Button("Back",card,772,718,300,48,"返回",()=>back());
             // Explicit links keep all controls inside the modal, including across device columns.
@@ -97,7 +99,13 @@ namespace TomorinTrial
         public void Show()
         {gameObject.SetActive(true);transform.SetAsLastSibling();active=this;openedFrame=Time.frameCount;volume.SetValueWithoutNotify(AudioListener.volume);for(int i=0;i<soundVolumes.Length;i++)soundVolumes[i].SetValueWithoutNotify(TrialPreferences.AudioLevel(i));Refresh();status.text="键位自动保存，开始菜单与游戏内共用。";first.Select();}
         public void Hide(){gameObject.SetActive(false);}
-        void Refresh(){sprintLabel.text=TrialPreferences.SprintCaption;motionLabel.text="画面动效："+(InkMainMenu.ReducedMotion?"关闭":"开启");frameLabel.text=TrialPreferences.MobileFrameCaption;foreach(var update in refreshBindings)update();}
+        void Refresh()
+        {
+            sprintLabel.text=TrialPreferences.SprintCaption;motionLabel.text="画面动效："+(InkMainMenu.ReducedMotion?"关闭":"开启");frameLabel.text=TrialPreferences.MobileFrameCaption;
+            syncLabel.text="垂直同步："+(TrialPreferences.VSyncEnabled?"开启":"关闭");
+            frameHint.text=Application.isMobilePlatform?"移动设备按帧率限制运行，同步由系统管理。":TrialPreferences.VSyncEnabled?"同步开启时跟随屏幕刷新率，优先于帧率限制。":"同步关闭时使用所选帧率限制。";
+            foreach(var update in refreshBindings)update();
+        }
         public void BeginRebind(TrialBindings.Entry entry,int slot,UnityEngine.UI.Button button)
         {
             if(rebinding)return;pendingEntry=entry;pendingSlot=slot;captureButton=button;rebinding=true;accepted=false;armFrame=Time.frameCount+1;captureDeadline=Time.unscaledTime+12;

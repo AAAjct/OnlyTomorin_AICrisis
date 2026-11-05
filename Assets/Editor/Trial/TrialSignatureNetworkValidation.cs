@@ -38,7 +38,7 @@ namespace TomorinTrial.Editor
                 Until();while(Waiting(world.champions[0].introAge>.1f && !world.champions[0].introPlayed))yield return .02f;
                 Check(!world.champions[0].introPlayed,"Real TCP peer receives the landing / sword-draw timeline");
                 Until();while(Waiting(world.champions[0].introPlayed))yield return .02f;
-                Check(world.players.All(p=>p.maxStamina>=420),"All real TCP actors use the increased stamina maximum");
+                Check(world.players.All(p=>p.maxStamina>=TrialPlayer.BaseStamina),"All real TCP actors use the increased stamina maximum");
                 boss.HoldCombat(60);brain.CancelAttack(true);game.Player.Restore(new Vector3(-15,0,8));remote.Restore(new Vector3(0,0,22));boss.Teleport(new Vector3(0,0,29));
                 brain.BeginMove(4);brain.Tick(.92f);
                 Until();while(Waiting(world.champions[0].hazards.Count(h=>h.kind==(byte)ChampionHazardKind.SwordRain)==15))yield return .02f;

@@ -15,6 +15,8 @@ namespace TomorinTrial
         Camera view;
         float currentDistance=4.6f, collisionDistance=4.6f;
         float pulse;
+        float clashUntil;
+        public void BladeClash(){if(InkMainMenu.ReducedMotion)return;clashUntil=Time.unscaledTime+.22f;Kick(.65f);Pulse(6);}
         Renderer[] localRenderers;
         TrialFighter framedOpponent;
         float frameUntil,frameStrength;
@@ -102,6 +104,8 @@ namespace TomorinTrial
             if(Physics.SphereCast(focus,.23f,sight.normalized,out var shoulderHit,sight.magnitude,1,QueryTriggerInteraction.Ignore))point=focus+sight.normalized*Mathf.Max(.15f,shoulderHit.distance-.07f);
             shake=Mathf.MoveTowards(shake,0,dt*1.7f);
             transform.position=point+new Vector3(Mathf.Sin(Time.unscaledTime*89),Mathf.Sin(Time.unscaledTime*103),0)*shake*.11f;
+            float clash=Mathf.Clamp01((clashUntil-Time.unscaledTime)/.22f);
+            transform.position+=rotation*new Vector3(Mathf.Sin(Time.unscaledTime*171)*.065f,Mathf.Sin(Time.unscaledTime*137)*.025f,0)*clash*clash;
             transform.rotation=Quaternion.LookRotation(focus-transform.position);
             bool hidden=(point-(player.transform.position+Vector3.up*1.1f)).sqrMagnitude<.81f;
             if(localRenderers!=null)foreach(var renderer in localRenderers)if(renderer)renderer.forceRenderingOff=hidden;

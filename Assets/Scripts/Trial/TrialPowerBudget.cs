@@ -3,7 +3,7 @@ using UnityEngine.SceneManagement;
 
 namespace TomorinTrial
 {
-    // Rendering budget only: never slow the authoritative LAN host's simulation.
+    // Honor the selected combat cap. LAN sessions do not receive idle/background throttling.
     public sealed class TrialPowerBudget : MonoBehaviour
     {
         TrialGame game;
@@ -17,14 +17,21 @@ namespace TomorinTrial
         void OnDisable(){SceneManager.sceneLoaded-=Loaded;}
         void Loaded(Scene scene,LoadSceneMode mode){game=FindFirstObjectByType<TrialGame>();nextCheck=0;}
         public static int Budget(int requested,bool active,bool focused,bool session)
-        {return session?Mathf.Max(60,requested):!focused?15:active?requested:Mathf.Min(30,requested);}
+        {
+            int limit=requested<=0?-1:requested;
+            return session?limit:!focused?15:active?limit:limit<0?30:Mathf.Min(30,limit);
+        }
         void Update()
         {
             if(Time.unscaledTime<nextCheck)return;nextCheck=Time.unscaledTime+.5f;
             int requested=TrialPreferences.MobileFrameRate;
-            if(requested==0)requested=Mathf.Max(60,Mathf.RoundToInt((float)Screen.currentResolution.refreshRateRatio.value));
             bool active=game && game.Mode==TrialMode.Playing && !game.Player.ChoosingBoon;
-            int target=Budget(requested,active,Application.isFocused,TrialNetworkManager.SessionActive);
+            bool session=TrialNetworkManager.SessionActive;
+            // On desktop VSync takes precedence over targetFrameRate. Reapply
+            // the preference here so the power budget never replaces unlimited.
+            bool sync=TrialPreferences.VSyncEnabled;
+            int syncCount=sync?1:0;if(QualitySettings.vSyncCount!=syncCount)QualitySettings.vSyncCount=syncCount;
+            int target=sync && !Application.isMobilePlatform?-1:Budget(requested,active,Application.isFocused,session);
             if(Application.targetFrameRate!=target)Application.targetFrameRate=target;
         }
     }

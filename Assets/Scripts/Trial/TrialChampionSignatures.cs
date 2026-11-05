@@ -304,6 +304,8 @@ namespace TomorinTrial
                 foreach(var target in Targets)
                 {
                     if(!target || !target.Alive || h.hit.Contains(target))continue;
+                    if(h.kind!=ChampionHazardKind.SwordRain && !target.OverlapsAttackHeight(h.position.y-.1f,h.position.y+.3f))continue;
+                    if(h.kind==ChampionHazardKind.SwordRain && !target.OverlapsAttackHeight(h.position.y,h.position.y+4.5f))continue;
                     Vector3 p=Planar(target.transform.position);
                     bool hit=false;
                     if(h.kind==ChampionHazardKind.SwordRain || h.kind==ChampionHazardKind.MoonEcho)hit=Planar(p-h.position).sqrMagnitude<(h.radius+.12f)*(h.radius+.12f) && h.age<h.aux+.22f;
