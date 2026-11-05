@@ -55,11 +55,11 @@ namespace TomorinTrial
                 Button(card,"返回",24,748,220,55,"←").onClick.AddListener(CloseLevelList);
                 arenaRow.onClick.AddListener(()=>SelectListedLevel(TrialLevel.Arena));
                 courtyardRow.onClick.AddListener(()=>SelectListedLevel(TrialLevel.BigFish));
-                for(int i=0;i<5;i++)
+                for(int i=0;i<6;i++)
                 {
                     var level=(TrialLevel)((int)TrialLevel.Twins+i);
-                    var row=Button(card,TrialChampionCatalog.LevelName(level),24,306+i*78,845,70,"");challengeRows.Add(row);
-                    Label(row.transform,level==TrialLevel.Twins?"双人近战 · 交替夹击":level==TrialLevel.Anon?"连续拼刀 · 架势处决":level==TrialLevel.Taffy?"实体弹道 · 掩体与换弹":level==TrialLevel.Penguin?"重锤锻击 · 扩散冰环":"长鞭距离战 · 内外安全区",44,43,770,26,15,Grey);
+                    var row=Button(card,TrialChampionCatalog.LevelName(level),24,290+i*64,845,60,"");challengeRows.Add(row);
+                    Label(row.transform,level==TrialLevel.Remnant?"极限 Boss · 读指令 · 联机击杀成长":level==TrialLevel.Twins?"双人近战 · 交替夹击":level==TrialLevel.Anon?"架剑格挡 · 侧闪反击":level==TrialLevel.Taffy?"实体弹道 · 掩体与换弹":level==TrialLevel.Penguin?"重锤锻击 · 扩散冰环":"长鞭距离战 · 内外安全区",44,36,770,23,15,Grey);
                     row.onClick.AddListener(()=>SelectListedLevel(level));
                 }
                 var allRows=new System.Collections.Generic.List<UnityEngine.UI.Button>(challengeRows){arenaRow,courtyardRow};
@@ -69,7 +69,7 @@ namespace TomorinTrial
             selectionReturn=EventSystem.current?EventSystem.current.currentSelectedGameObject:null;
             listForNetwork=multiplayerList;arenaRow.gameObject.SetActive(multiplayerList);
             courtyardRow.GetComponent<RectTransform>().anchoredPosition=new Vector2(24,multiplayerList?-228:-150);
-            for(int i=0;i<challengeRows.Count;i++)challengeRows[i].GetComponent<RectTransform>().anchoredPosition=new Vector2(24,-(multiplayerList?306:228)-i*78);
+            for(int i=0;i<challengeRows.Count;i++)challengeRows[i].GetComponent<RectTransform>().anchoredPosition=new Vector2(24,-(multiplayerList?306:228)-i*64);
             RefreshDifficultySelection();
             listTitle.text=multiplayerList?"联机关卡":"单人游玩 · 选择关卡";
             levelList.SetActive(true);levelList.transform.SetAsLastSibling();

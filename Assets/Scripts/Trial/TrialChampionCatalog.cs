@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace TomorinTrial
 {
-    public enum ChampionKind : byte { FeiBi, NuoNuo, Anon, Taffy, Penguin, YaYa }
+    public enum ChampionKind : byte { FeiBi, NuoNuo, Anon, Taffy, Penguin, YaYa, Remnant }
     public enum ChampionShape : byte { Cut, Thrust, Leap, Ring, Bullets, Snipe, Annulus, Lash, Mark, Cross, Flight, Grab, Stomp, Counter, DashCut, Dive, Spiral, CrossLine, TwinPincer, BladeWave, Boomerang, Ricochet, Rocket, Mine, SweepRay, SlideVolley, Turret, Pellets, Fissure, Pillars, Vacuum, Avalanche, Tether, SilkLine, Snare, OrbitWhip }
     public enum ChampionDefense : byte { Deflect, Dodge, Approach, Retreat, Sidestep }
 
@@ -20,16 +20,16 @@ namespace TomorinTrial
         {name=n;counter=c;shape=s;defense=d;windup=w;interval=gap;recovery=recover;range=r;inner=min;angle=arc;damage=hit;beats=count;}
     }
 
-    public static class TrialChampionCatalog
+    public static partial class TrialChampionCatalog
     {
         public const int SkillCount=16;
-        public static bool IsChampion(TrialLevel level)=>level>=TrialLevel.Twins && level<=TrialLevel.YaYa;
-        public static string Scene(TrialLevel l)=>"Assets/Scenes/"+(l==TrialLevel.Twins?"TwinLotusCourt":l==TrialLevel.Anon?"CrimsonSwordTerrace":l==TrialLevel.Taffy?"NeonBallisticsHarbor":l==TrialLevel.Penguin?"GlacialForge":l==TrialLevel.YaYa?"MoonSilkObservatory":"AshenCourt")+".unity";
-        public static string LevelName(TrialLevel l)=>l==TrialLevel.Twins?"双生莲庭 · 菲比与糯糯":l==TrialLevel.Anon?"绯刃天台 · 爱音":l==TrialLevel.Taffy?"霓虹枪港 · 塔菲":l==TrialLevel.Penguin?"冰海熔炉 · 香企鹅":l==TrialLevel.YaYa?"月丝星台 · 娅娅":l==TrialLevel.Arena?"竞技场":"庭院 (Boss · 大肥鱼)";
-        public static string Name(ChampionKind k)=>k==ChampionKind.FeiBi?"菲比 · 逐日拳":k==ChampionKind.NuoNuo?"糯糯 · 逐月掌":k==ChampionKind.Anon?"爱音 · 绯刃剑圣":k==ChampionKind.Taffy?"塔菲 · 枪火指挥":k==ChampionKind.Penguin?"香企鹅 · 冰炉重锤":"娅娅 · 月丝执鞭者";
-        public static string Lesson(TrialLevel l)=>l==TrialLevel.Twins?"拉开双人站位 · 金色连击可弹反 · 一人进攻时另一人会留出间隔":l==TrialLevel.Anon?"点按格挡连续拼刀 · 蓝色突刺侧闪 · 破架势后重击处决":l==TrialLevel.Taffy?"子弹可格挡 · 红色狙击侧闪 · 换弹时贴身压制":l==TrialLevel.Penguin?"绕背惩罚重砸 · 横移躲裂地 · 翻滚穿过扩散冰环":"外圈鞭扫向内闪 · 内圈震击向外退 · 直线鞭刺横移";
-        public static float Health(ChampionKind k)=>k==ChampionKind.FeiBi||k==ChampionKind.NuoNuo?1800:k==ChampionKind.Anon?3200:k==ChampionKind.Taffy?3000:k==ChampionKind.Penguin?3600:3300;
-        public static Color Color(ChampionKind k)=>k==ChampionKind.FeiBi?new Color(1,.64f,.19f):k==ChampionKind.NuoNuo?new Color(.25f,.9f,1):k==ChampionKind.Anon?new Color(1,.32f,.52f):k==ChampionKind.Taffy?new Color(.3f,1,.72f):k==ChampionKind.Penguin?new Color(.4f,.7f,1):new Color(.78f,.44f,1);
+        public static bool IsChampion(TrialLevel level)=>level>=TrialLevel.Twins && level<=TrialLevel.Remnant;
+        public static string Scene(TrialLevel l)=>"Assets/Scenes/"+(l==TrialLevel.Remnant?"PenguinRemnantSanctum":l==TrialLevel.Twins?"TwinLotusCourt":l==TrialLevel.Anon?"CrimsonSwordTerrace":l==TrialLevel.Taffy?"NeonBallisticsHarbor":l==TrialLevel.Penguin?"GlacialForge":l==TrialLevel.YaYa?"MoonSilkObservatory":"AshenCourt")+".unity";
+        public static string LevelName(TrialLevel l)=>l==TrialLevel.Remnant?"断羽终庭 · 凑企鹅残躯":l==TrialLevel.Twins?"双生莲庭 · 菲比与糯糯":l==TrialLevel.Anon?"绯刃天台 · 爱音":l==TrialLevel.Taffy?"霓虹枪港 · 塔菲":l==TrialLevel.Penguin?"冰海熔炉 · 香企鹅":l==TrialLevel.YaYa?"月丝星台 · 娅娅":l==TrialLevel.Arena?"竞技场":"庭院 (Boss · 大肥鱼)";
+        public static string Name(ChampionKind k)=>k==ChampionKind.Remnant?"凑企鹅残躯 · 断羽无赦":k==ChampionKind.FeiBi?"菲比 · 逐日拳":k==ChampionKind.NuoNuo?"糯糯 · 逐月掌":k==ChampionKind.Anon?"爱音 · 绯刃剑圣":k==ChampionKind.Taffy?"塔菲 · 枪火指挥":k==ChampionKind.Penguin?"香企鹅 · 冰炉重锤":"娅娅 · 月丝执鞭者";
+        public static string Lesson(TrialLevel l)=>l==TrialLevel.Remnant?"极限挑战 · 读指令反制 · 无濒死保护 · 联机每次击杀永久强化至本轮结束":l==TrialLevel.Twins?"拉开双人站位 · 金色连击可弹反 · 一人进攻时另一人会留出间隔":l==TrialLevel.Anon?"轻击会被架剑，重击与绕背破守 · 观察瞬移背斩；剑雨期间仍有近战，重击破守":l==TrialLevel.Taffy?"子弹可格挡 · 红色狙击侧闪 · 换弹时贴身压制":l==TrialLevel.Penguin?"绕背惩罚重砸 · 横移躲裂地 · 翻滚穿过扩散冰环":"外圈鞭扫向内闪 · 内圈震击向外退 · 直线鞭刺横移";
+        public static float Health(ChampionKind k)=>k==ChampionKind.Remnant?7200:k==ChampionKind.FeiBi||k==ChampionKind.NuoNuo?1800:k==ChampionKind.Anon?3200:k==ChampionKind.Taffy?3000:k==ChampionKind.Penguin?3600:3300;
+        public static Color Color(ChampionKind k)=>k==ChampionKind.Remnant?new Color(.78f,.16f,1):k==ChampionKind.FeiBi?new Color(1,.64f,.19f):k==ChampionKind.NuoNuo?new Color(.25f,.9f,1):k==ChampionKind.Anon?new Color(1,.32f,.52f):k==ChampionKind.Taffy?new Color(.3f,1,.72f):k==ChampionKind.Penguin?new Color(.4f,.7f,1):new Color(.78f,.44f,1);
         static ChampionMove M(string n,string c,ChampionShape s,ChampionDefense d,float w,float gap,float rec,float r,float min,float arc,float hit,int beats=1)=>new ChampionMove(n,c,s,d,w,gap,rec,r,min,arc,hit,beats);
         static readonly ChampionMove[][] moves={
             new[]{
@@ -145,7 +145,11 @@ namespace TomorinTrial
         };
         public static ChampionMove Move(ChampionKind k,int index)
         {
+            if(k==ChampionKind.Anon)return anonSignatureMoves[Mathf.Clamp(index,0,SkillCount-1)];
+            if(k==ChampionKind.FeiBi || k==ChampionKind.NuoNuo)return TwinSignatureMove(k,Mathf.Clamp(index,0,SkillCount-1));
+            if(k==ChampionKind.Remnant)return remnantMoves[Mathf.Clamp(index,0,SkillCount-1)];
             index=Mathf.Clamp(index,0,SkillCount-1);var m=index<8?moves[(int)k][index]:extensions[(int)k][index-8];
+            if(TrySignatureMove(k,index,out var signature))return signature;
             // Preserve slot IDs for saves and replication, but retire repeated aerial slams.
             if(m.shape==ChampionShape.Leap || m.shape==ChampionShape.Dive || m.shape==ChampionShape.TwinPincer)
             {

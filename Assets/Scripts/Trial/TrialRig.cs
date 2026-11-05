@@ -47,7 +47,13 @@ namespace TomorinTrial
             phase+=Time.deltaTime*Mathf.Lerp(8.8f,12.8f,Mathf.InverseLerp(.5f,1.6f,fighter.MoveBlend))*Mathf.Clamp01(fighter.MoveBlend*2);
             deathPoseTime=fighter.Action==FighterAction.Dead?deathPoseTime+Time.unscaledDeltaTime:0;
             for(int i=0;i<bones.Length;i++)previousRotations[i]=bones[i].localRotation;
-            Pose(fighter.Action,fighter.Action==FighterAction.Dead?Mathf.Clamp01(deathPoseTime/1.3f):fighter.Progress,fighter.Combo,fighter.MoveBlend,fighter.Guarding,phase);
+            if(fighter is TrialEnemy enemy && enemy.Champion && enemy.Champion.IsRemnant && enemy.Alive && !enemy.Vulnerable)
+            {
+                var brain=enemy.Champion;var shape=brain.Move.shape;
+                int cut=shape==ChampionShape.Thrust?11:shape==ChampionShape.BladeWave?12:shape==ChampionShape.Stomp?4:shape==ChampionShape.Spiral?2:brain.MoveIndex%2;
+                Pose(enemy.Flinching?FighterAction.Stagger:brain.Attacking && !brain.CounterReady?FighterAction.Light:FighterAction.Free,brain.AnimationBeat,cut,fighter.MoveBlend,fighter.Guarding || brain.CounterReady,phase);
+            }
+            else Pose(fighter.Action,fighter.Action==FighterAction.Dead?Mathf.Clamp01(deathPoseTime/1.3f):fighter.Progress,fighter.Combo,fighter.MoveBlend,fighter.Guarding,phase);
             float blend=1-Mathf.Exp(-((fighter.Action==FighterAction.Light || fighter.Action==FighterAction.Heavy) && fighter.Progress<.55f?48:28)*Time.deltaTime);
             if(fighter.Action!=FighterAction.Dodge && fighter.Action!=FighterAction.Dead)
                 for(int i=0;i<bones.Length;i++)bones[i].localRotation=Quaternion.Slerp(previousRotations[i],bones[i].localRotation,blend);

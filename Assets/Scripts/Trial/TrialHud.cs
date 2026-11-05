@@ -46,25 +46,25 @@ namespace TomorinTrial
             root=obj.GetComponent<RectTransform>();
             if(!FindFirstObjectByType<EventSystem>())new GameObject("EventSystem",typeof(EventSystem),typeof(InputSystemUIInputModule)).transform.SetParent(transform,false);
 
-            stats=Panel("Vitals",root,new Vector2(0,1),new Vector2(42,-32),new Vector2(350,111),new Color(0,0,0,.13f)).gameObject;
+            stats=Panel("Vitals",root,new Vector2(0,0),new Vector2(42,224),new Vector2(480,120),new Color(0,0,0,.13f)).gameObject;
             var s=stats.GetComponent<RectTransform>();
-            playerName=Label("Name",s,"凑企鹅",new Vector2(0,1),new Vector2(18,-12),new Vector2(310,26),16,ivory);
-            health=Bar("Vitality",s,new Vector2(18,-48),new Vector2(300,10),new Color(.68f,.16f,.12f));
+            playerName=Label("Name",s,"凑企鹅",new Vector2(0,1),new Vector2(96,-12),new Vector2(350,26),16,ivory);
+            health=Bar("Vitality",s,new Vector2(96,-48),new Vector2(350,10),new Color(.68f,.16f,.12f));
             healthBar=(RectTransform)health.transform.parent;healthBarHome=healthBar.anchoredPosition;
             previousPlayerHealth=owner.Player.Health;
-            stamina=Bar("Resolve",s,new Vector2(18,-69),new Vector2(260,6),new Color(.55f,.68f,.43f));
-            hpText=Label("Vitality count",s,"",new Vector2(0,1),new Vector2(18,-83),new Vector2(300,19),12,muted);
+            stamina=Bar("Resolve",s,new Vector2(96,-69),new Vector2(310,6),new Color(.55f,.68f,.43f));
+            hpText=Label("Vitality count",s,"",new Vector2(0,1),new Vector2(96,-83),new Vector2(350,19),12,muted);
             objectiveText=Label("Objective",root,"",new Vector2(1,1),new Vector2(-400,-37),new Vector2(350,45),16,ivory,TextAnchor.UpperRight);
 
             flaskText=Label("Spirit dew",root,"",new Vector2(0,0),new Vector2(50,99),new Vector2(310,34),23,gold);
             promptText=Label("Interact",root,"",new Vector2(.5f,0),new Vector2(-320,119),new Vector2(640,40),20,ivory,TextAnchor.MiddleCenter);
             noticeText=Label("Announcement",root,"",new Vector2(.5f,.67f),new Vector2(-260,0),new Vector2(520,32),19,gold,TextAnchor.MiddleCenter);
 
-            bossPanel=Panel("Boss",root,new Vector2(.5f,0),new Vector2(-440,65),new Vector2(880,55),Color.clear);
-            bossName=Label("Boss name",bossPanel,"大肥鱼 · DeepSeek",new Vector2(.5f,1),new Vector2(-330,0),new Vector2(660,28),20,ivory,TextAnchor.MiddleCenter);
-            bossSkill=Label("Boss move",bossPanel,"",new Vector2(.5f,1),new Vector2(-330,38),new Vector2(660,28),18,gold,TextAnchor.MiddleCenter);
-            bossHealth=Bar("Boss vitality",bossPanel,new Vector2(0,-36),new Vector2(880,8),new Color(.61f,.12f,.085f));
-            posture=Bar("Boss posture",bossPanel,new Vector2(140,-51),new Vector2(600,3),gold);
+            bossPanel=Panel("Boss",root,new Vector2(.5f,1),new Vector2(-440,-38),new Vector2(880,96),Color.clear);
+            bossName=Label("Boss name",bossPanel,"大肥鱼 · DeepSeek",new Vector2(.5f,1),new Vector2(-330,-30),new Vector2(660,28),20,ivory,TextAnchor.MiddleCenter);
+            bossSkill=Label("Boss move",bossPanel,"",new Vector2(.5f,1),new Vector2(-330,-62),new Vector2(660,28),18,gold,TextAnchor.MiddleCenter);
+            bossHealth=Bar("Boss vitality",bossPanel,Vector2.zero,new Vector2(880,8),new Color(.61f,.12f,.085f));
+            posture=Bar("Boss posture",bossPanel,new Vector2(140,-16),new Vector2(600,5),gold);
             lockMarker=Panel("Lock diamond",root,new Vector2(.5f,.5f),Vector2.zero,new Vector2(12,12),gold);lockMarker.localRotation=Quaternion.Euler(0,0,45);
             markerImage=lockMarker.GetComponent<UnityEngine.UI.Image>();
             dangerText=Label("Peril warning",root,"危",new Vector2(.5f,.5f),Vector2.zero,new Vector2(110,90),52,new Color(1,.12f,.055f),TextAnchor.MiddleCenter);

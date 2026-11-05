@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace TomorinTrial
 {
-    public enum ChampionHazardKind : byte { Bullet, Ring, Blade, Boomerang, Ricochet, Rocket, Mine, Ray, Turret, Silk, Pillar, Boulder, WhipOrbit }
+    public enum ChampionHazardKind : byte { Bullet, Ring, Blade, Boomerang, Ricochet, Rocket, Mine, Ray, Turret, Silk, Pillar, Boulder, WhipOrbit, SwordRain, StarEdge, SolarFist, MoonEcho, FrostRail, SilkKnot, FeatherCut }
     public sealed partial class TrialChampion
     {
         static bool IsAerialStrike(ChampionShape shape)=>shape==ChampionShape.Leap || shape==ChampionShape.Dive || shape==ChampionShape.TwinPincer;
@@ -116,6 +116,7 @@ namespace TomorinTrial
         void TickSpecialHazard(Hazard h,float dt)
         {
             if(h.age>=h.lifetime){Deactivate(h);return;}
+            if(TickSignatureHazard(h,dt))return;
             if(h.kind==ChampionHazardKind.Mine)
             {
                 if(h.age>.7f && h.aux==0)foreach(var target in Targets)
@@ -198,7 +199,7 @@ namespace TomorinTrial
             }
             Deactivate(h);
         }
-        static void Deactivate(Hazard h){h.active=false;h.line.enabled=false;if(h.prop)h.prop.gameObject.SetActive(false);}
+        static void Deactivate(Hazard h){h.active=false;h.line.enabled=false;if(h.art)h.art.Hide();if(h.prop)h.prop.gameObject.SetActive(false);}
         public void CutHazards(Vector3 point,Vector3 forward,float reach,bool heavy)
         {
             foreach(var h in hazards)
@@ -227,6 +228,7 @@ namespace TomorinTrial
         }
         void DrawSpecialHazard(Hazard h)
         {
+            if(DrawSignatureHazard(h))return;
             var color=TrialChampionCatalog.Color(Kind);h.line.startColor=h.line.endColor=color;h.line.widthMultiplier=.1f;
             if(h.kind==ChampionHazardKind.Mine)
             {

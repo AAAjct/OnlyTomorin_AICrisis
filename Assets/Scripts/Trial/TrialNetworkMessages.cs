@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace TomorinTrial
 {
-    public enum TrialLevel : byte { BigFish, Arena, Twins, Anon, Taffy, Penguin, YaYa }
+    public enum TrialLevel : byte { BigFish, Arena, Twins, Anon, Taffy, Penguin, YaYa, Remnant }
     public enum TrialDifficulty : byte { Normal, Easy, Hard }
     public static class TrialDifficultySettings
     {
@@ -44,7 +44,7 @@ namespace TomorinTrial
         public int kills, deaths;
         public TrialBoon boon,offerA,offerB,offerC;
         public float maxStamina;
-        public float bossResolve;
+        public float bossResolve,bossFlinch;
         public float swordCharge,parryReady,dodgeFollowup;
         public byte action, combo, flasks;
         public bool guard, awake,dragonLanded;

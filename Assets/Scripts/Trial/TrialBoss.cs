@@ -40,6 +40,9 @@ namespace TomorinTrial
         float age,duration,cooldown=1.2f;
         int sequence,waves,variant,comboDepth,markCount;
         float reactiveCooldown;
+        float regroupTime,pursuitTime;
+        int orbitSide=1;
+        public bool Regrouping=>regroupTime>0;
         Vector3[] marks=new Vector3[4];
         LineRenderer[] markWarnings=new LineRenderer[4];
         bool landed;
@@ -148,6 +151,7 @@ namespace TomorinTrial
             }
         }
 
+        internal void TickDuringFlinch(float dt)=>TickHazards(dt);
         public void Tick(float dt)
         {
             if(!fighter.Alive){CancelAttack();return;}
@@ -168,6 +172,20 @@ namespace TomorinTrial
             var delta=game.CombatTarget.transform.position-transform.position;delta.y=0;
             float distance=delta.magnitude;
             fighter.BossFace(delta,190,dt);
+            if(regroupTime>0)
+            {
+                if(ActiveHazards==0)regroupTime=Mathf.Max(0,regroupTime-dt);
+                cooldown=Mathf.Max(cooldown,regroupTime+.1f);
+                Vector3 radial=delta.normalized,tangent=Vector3.Cross(Vector3.up,radial)*orbitSide;
+                Vector3 step=(distance<6?-radial+tangent*.4f:distance<11?tangent:Vector3.zero).normalized;
+                Vector3 next=transform.position+step*1.8f*dt;
+                if(next.x>-10 && next.x<10 && next.z>18 && next.z<33 && !Physics.SphereCast(transform.position+Vector3.up,.7f,step,out _,1,1,QueryTriggerInteraction.Ignore))
+                    fighter.BossMove(step*1.8f,dt);
+                else{orbitSide=-orbitSide;step=Vector3.zero;}
+                fighter.BossMotion(step.sqrMagnitude>.01f?1:0);return;
+            }
+            pursuitTime+=dt;
+            if(pursuitTime>3 && distance>5){regroupTime=1.7f;pursuitTime=0;orbitSide=-orbitSide;return;}
             // Set the gait target once: easing toward zero and then one each frame
             // previously cancelled out, leaving the walking animation at zero.
             fighter.BossMotion(distance>3.8f?1:0);
@@ -282,9 +300,9 @@ namespace TomorinTrial
             if(Skill!=DeepFishSkill.None && age>=duration)
             {
                 var previous=Skill;Skill=DeepFishSkill.None;fighter.BossBegin(FighterAction.Free,0);HideWarnings();
-                if(Enraged && comboDepth<(Frenzied?2:1) && previous!=DeepFishSkill.Enrage && previous!=DeepFishSkill.AbyssRain)
+                if(Enraged && comboDepth<1 && previous!=DeepFishSkill.Enrage && previous!=DeepFishSkill.AbyssRain)
                 {comboDepth++;StartSkill(previous==DeepFishSkill.BubbleBarrage?DeepFishSkill.RiptideRush:previous==DeepFishSkill.BellySlam || previous==DeepFishSkill.DelayedSlam?DeepFishSkill.ReverseTail:DeepFishSkill.AbyssRain);return;}
-                comboDepth=0;cooldown=(Frenzied?.40f:Enraged?.60f:.85f)/ (1+.09f*(game.PartySize-1));
+                comboDepth=0;regroupTime=Frenzied?1.5f:Enraged?1.8f:2.1f;cooldown=regroupTime;pursuitTime=0;orbitSide=-orbitSide;
             }
         }
 
@@ -450,7 +468,7 @@ namespace TomorinTrial
         void HideWarnings(){if(warning)warning.enabled=false;if(fill)fill.enabled=false;if(sweep)sweep.enabled=false;foreach(var line in markWarnings)if(line)line.enabled=false;}
         public void CancelAttack()
         {Skill=DeepFishSkill.None;age=duration=0;markCount=comboDepth=0;cooldown=.9f;HideWarnings();foreach(var h in hazards)if(h!=null)Release(h);}
-        public void ResetBoss(){CancelAttack();Enraged=Frenzied=false;reactiveCooldown=0;sequence=waves=AttacksStarted=0;}
+        public void ResetBoss(){CancelAttack();Enraged=Frenzied=false;reactiveCooldown=regroupTime=pursuitTime=0;sequence=waves=AttacksStarted=0;orbitSide=1;}
         void OnDestroy(){if(water)Destroy(water);if(bubble)Destroy(bubble);}
     }
 }

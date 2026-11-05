@@ -20,7 +20,8 @@ namespace TomorinTrial
         public void SetSkirt(TrialSkirtRig value){skirt=value;}
         TrialEnemy fighter;
         TrialChampion brain;
-        Transform actor,weapon;
+        TrialRig remnantRig;
+        Transform actor,weapon,offhand;
         TrailRenderer trail;
         LineRenderer whip;
         readonly Vector3[] whipPoints=new Vector3[25];
@@ -31,7 +32,10 @@ namespace TomorinTrial
         public Transform[] DrivenBones=>joints;
         public Transform Model=>model;
         public ChampionKind Kind=>kind;
+        public Transform WeaponRoot=>weapon;
+        public Transform LeftWeapon=>offhand;
         public Transform RightHand=>joints!=null && joints.Length>9?joints[9]:null;
+        public void ConfigureRemnant(Transform visual){kind=ChampionKind.Remnant;model=visual;}
         public void Configure(ChampionKind style,Transform visual,Transform[] bones)
         {
             kind=style;model=visual;joints=bones;bind=new Quaternion[joints.Length];
@@ -46,12 +50,14 @@ namespace TomorinTrial
             fighter=owner;brain=controller;actor=owner.transform;lastPosition=actor.position;
             foreach(var a in GetComponentsInChildren<Animator>())a.enabled=false;
             foreach(var c in GetComponentsInChildren<Collider>())Destroy(c);
+            if(kind==ChampionKind.Remnant)
+            {remnantRig=gameObject.AddComponent<TrialRig>();remnantRig.Initialize(owner,model);return;}
             sole=SupportHeight();ResetPose();
         }
-        public void ResetPose(){clock=gait=locomotion=0;localMotion=Vector2.zero;if(actor)lastPosition=actor.position;Pose(-1,0,0,false,0);if(trail){trail.Clear();trail.emitting=false;}}
+        public void ResetPose(){clock=gait=locomotion=0;localMotion=Vector2.zero;if(actor)lastPosition=actor.position;if(remnantRig)remnantRig.Pose(FighterAction.Free,0,0,0,false,0);else Pose(-1,0,0,false,0);if(trail){trail.Clear();trail.emitting=false;}}
         public void CreateWeapon(TrialWorld world,GameObject gun,Material lashMaterial)
         {
-            if(kind==ChampionKind.Anon)weapon=TrialWorld.Sword(transform,world.Steel,world.Crimson,world.Glow,true);
+            if(kind==ChampionKind.Anon || kind==ChampionKind.Remnant)weapon=TrialWorld.Sword(transform,world.Steel,world.Crimson,world.Glow,true);
             else if(kind==ChampionKind.Taffy)
             {
                 weapon=Instantiate(gun,transform).transform;weapon.name="塔菲 · M4 imported weapon";
@@ -83,7 +89,18 @@ namespace TomorinTrial
                 whip.startColor=new Color(1,.75f,.4f);whip.endColor=new Color(.75f,.5f,1);whip.textureMode=LineTextureMode.Tile;
                 whip.useWorldSpace=true;whip.startWidth=.035f;whip.endWidth=.009f;whip.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;whip.receiveShadows=false;
             }
+            if(kind==ChampionKind.Anon)
+            {offhand=TrialWorld.Sword(transform,world.Steel,world.Crimson,world.Glow,true);offhand.name="爱音 · 左手绯刃";offhand.localScale*=.85f;}
+            if(kind==ChampionKind.Anon){PolishSword(weapon,world);PolishSword(offhand,world);}
             if(weapon)trail=weapon.GetComponentInChildren<TrailRenderer>();
+            if(remnantRig)remnantRig.SetWeapon(weapon);
+        }
+        static void PolishSword(Transform root,TrialWorld world)
+        {
+            var prefab=Resources.Load<GameObject>("Trial/VFX/SignatureSword");if(!root || !prefab)return;
+            foreach(var renderer in root.GetComponentsInChildren<MeshRenderer>())renderer.enabled=false;
+            var model=Instantiate(prefab,root).transform;model.name="Blender forged petal sword";model.localScale=Vector3.one*.70f;
+            foreach(var renderer in model.GetComponentsInChildren<Renderer>())renderer.sharedMaterial=renderer.name.Contains("fuller") || renderer.name.Contains("jewel")?world.Crimson:world.Steel;
         }
         public Transform CloneProjectileWeapon(Transform parent)
         {
@@ -93,6 +110,7 @@ namespace TomorinTrial
         }
         void LateUpdate()
         {
+            if(kind==ChampionKind.Remnant){if(weapon)weapon.gameObject.SetActive(!brain.WeaponAway);if(trail)trail.emitting=brain.Attacking && !brain.WindingUp && !brain.Recovering;return;}
             if(!fighter || fighter.CombatFrozen || Time.deltaTime<=0)return;
             float dt=Time.deltaTime;clock+=dt;
             Vector3 displacement=TrialChampion.Planar(actor.position-lastPosition);float distance=displacement.magnitude;lastPosition=actor.position;
@@ -100,8 +118,8 @@ namespace TomorinTrial
             gait+=distance*Mathf.PI*2/strideCycle;locomotion=Mathf.MoveTowards(locomotion,Mathf.Clamp01(distance/Mathf.Max(.001f,dt)/5),dt*12);
             Vector3 local=actor.InverseTransformDirection(displacement/Mathf.Max(.001f,dt));
             localMotion=Vector2.Lerp(localMotion,new Vector2(local.x,local.z).normalized,1-Mathf.Exp(-16*dt));
-            int move=!fighter.Alive?-7:fighter.Vulnerable?-6:brain.Attacking?brain.MoveIndex:-1;
-            Pose(move,!fighter.Alive?fighter.Progress:brain.Attacking?brain.AnimationBeat:0,locomotion,fighter.Vulnerable,clock);
+            int move=!fighter.Alive?-7:fighter.Vulnerable || fighter.Flinching?-6:brain.Attacking?brain.MoveIndex:fighter.Guarding?-5:-1;
+            Pose(move,!fighter.Alive?fighter.Progress:brain.Attacking?brain.AnimationBeat:0,locomotion,fighter.Vulnerable || fighter.Flinching,clock);
             if(trail)trail.emitting=brain.Attacking && !brain.WindingUp && !brain.Recovering;
         }
         public void Pose(int move,float p,float movement,bool stagger,float time)
@@ -203,6 +221,7 @@ namespace TomorinTrial
             }
             if(!dead)model.localPosition+=Vector3.up*(sole-SupportHeight()+lift);
             else{float fall=Mathf.SmoothStep(0,1,p);model.localRotation=Quaternion.AngleAxis(-83*fall,Vector3.right)*modelRotation;model.localPosition+=Vector3.down*.12f*fall;}
+            if(kind==ChampionKind.Anon && active)left=new Vector3(-right.x,right.y-.08f,.3f+(1-p)*.5f);
             Vector3 center=actor.position;Quaternion basis=actor.rotation;
             right+=Vector3.up*lift;left+=Vector3.up*lift;
             TrialRig.SolveArm(J(7),J(8),J(9),center+basis*right,center+basis*new Vector3(.8f,1.0f,-.22f));
@@ -210,10 +229,21 @@ namespace TomorinTrial
             if(skirt)skirt.Pose();
             if(weapon)
             {
-                weapon.gameObject.SetActive(!brain || !brain.WeaponAway);
+                weapon.gameObject.SetActive(!brain || !brain.WeaponAway && !brain.Introducing);
                 weapon.position=J(9)?J(9).position:center+basis*right;weapon.rotation=basis*Quaternion.Euler(angles);
                 // The imported M4's muzzle is -Z; combat projectiles travel along +Z.
                 if(kind==ChampionKind.Taffy){weapon.rotation*=Quaternion.Euler(0,180,0);weapon.position+=basis*new Vector3(0,-.015f,.12f);}
+            }
+            if(offhand)
+            {
+                offhand.gameObject.SetActive(!brain || !brain.Introducing);
+                offhand.position=J(6)?J(6).position:center+basis*left;
+                offhand.rotation=basis*Quaternion.Euler(angles.x,-angles.y,-angles.z-25);
+            }
+            if(brain && brain.Introducing)
+            {
+                float draw=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.5f,.78f,brain.IntroProgress));
+                TrialRig.SolveArm(J(7),J(8),J(9),center+basis*new Vector3(.1f,.5f+draw*.8f,.9f),center+basis*new Vector3(.7f,.6f,.4f));
             }
             if(whip)
             {

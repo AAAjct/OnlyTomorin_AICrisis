@@ -6,12 +6,12 @@ namespace TomorinTrial
     public sealed partial class TrialPlayer : TrialFighter
     {
         public const float BaseHealth=200;
-        public const float BaseStamina=280;
+        public const float BaseStamina=420;
         public const float PerfectDodgeStamina=40;
         public const float ParryStamina=30;
         public const float HitStamina=6;
         public const float KillStamina=45;
-        protected override float StaminaRecoveryRate => Guarding?20:PlanarVelocity.sqrMagnitude<.25f?84:62;
+        protected override float StaminaRecoveryRate => Guarding?30:PlanarVelocity.sqrMagnitude<.25f?126:93;
         protected override float StaminaRecoveryDelay => .32f;
         public int Flasks { get; private set; } = 3;
         public TrialEnemy Target { get; private set; }
@@ -30,6 +30,11 @@ namespace TomorinTrial
         public Vector3 PlanarVelocity { get; private set; }
         public Vector2 LocalMotion { get; private set; }
         public bool Sprinting { get; private set; }
+        float commandLightAt=-10,commandHeavyAt=-10,commandDodgeAt=-10,commandHealAt=-10;
+        public bool CommandLight=>Time.time-commandLightAt<.18f;
+        public bool CommandHeavy=>Time.time-commandHeavyAt<.18f;
+        public bool CommandDodge=>Time.time-commandDodgeAt<.18f;
+        public bool CommandHeal=>Time.time-commandHealAt<.18f;
         public float TurnLean { get; private set; }
         readonly HashSet<TrialFighter> struck = new HashSet<TrialFighter>();
         float bufferedLight = -10, bufferedDodge = -10, bufferedHeavy = -10, bufferedHeal=-10;
@@ -101,6 +106,10 @@ namespace TomorinTrial
         public void Tick(float dt, TrialInput input)
         {
             if (!Alive || ChoosingBoon) return;
+            if(input.Attack)commandLightAt=Time.time;
+            if(input.Heavy || input.HeavyHeld)commandHeavyAt=Time.time;
+            if(input.Dodge)commandDodgeAt=Time.time;
+            if(input.Heal)commandHealAt=Time.time;
             TickSwordProjectiles(dt);TickParryFlights(dt);
             // Contact pauses the pose, not input collection. Preserve taps made
             // during hit-stop so heavier impact never makes a chain unresponsive.
@@ -134,7 +143,7 @@ namespace TomorinTrial
                 if (Action == FighterAction.Dodge)
                 {
                     Move(dodgeDirection * Mathf.Lerp(11.8f,3.2f,Progress)*(Combo==ParryDodge?2:1),dt);
-                    if(perfectDodgeAwarded && Progress<.8f && Time.unscaledTime>=nextGhostAt){game.Effects.Afterimage(this);nextGhostAt=Time.unscaledTime+.10f;}
+                    if(Progress<.72f && Time.unscaledTime>=nextGhostAt){game.Effects.Afterimage(this);nextGhostAt=Time.unscaledTime+.10f;}
                 }
                 if (Action == FighterAction.Light || Action == FighterAction.Heavy)
                 {
@@ -350,7 +359,7 @@ namespace TomorinTrial
             if(ChoosingBoon)return false;
             if(attacker is TrialPlayer player && (!game.IsArena || player==this))return false;
             if(game.IsArena && SpawnProtected && attacker!=null)return false;
-            if(attacker is TrialEnemy enemySource)damage*=game.EnemyDamageScale*(enemySource.Boss && enemySource.Boss.Boon==TrialBossBoon.RagingTide?1.08f:1);
+            if(attacker is TrialEnemy enemySource)damage*=game.EnemyDamageScale*(enemySource.Champion?enemySource.Champion.KillDamageScale:enemySource.Boss && enemySource.Boss.Boon==TrialBossBoon.RagingTide?1.08f:1);
             if(Invulnerable)
             {
                 SuccessfulDodges++;
@@ -389,7 +398,7 @@ namespace TomorinTrial
                 }
                 Stamina=0;CombatFeedback(TrialCombatCue.GuardBreak);
             }
-            if(!game.IsArena && attacker is TrialEnemy)
+            if(!game.IsArena && attacker is TrialEnemy mercySource && !(mercySource.Champion && mercySource.Champion.IsRemnant))
             {
                 float healthRatio=Health/MaxHealth;
                 damage*=Mathf.Lerp(.68f,1,Mathf.Clamp01(healthRatio/.30f));
@@ -406,6 +415,7 @@ namespace TomorinTrial
             else
             {
                 Deaths++;if(game.IsArena && attacker is TrialPlayer killer && killer!=this)killer.Kills++;
+                if(attacker is TrialEnemy killerBoss && killerBoss.Champion)killerBoss.Champion.AwardPlayerKill();
                 CombatFeedback(TrialCombatCue.Death);
             }
             return true;
@@ -439,6 +449,7 @@ namespace TomorinTrial
 
         public void Restore(Vector3 checkpoint)
         {
+            commandLightAt=commandHeavyAt=commandDodgeAt=commandHealAt=-10;
             ClearCombatHold();ResetSwordArts();ResetParryArts();
             motor.enabled=true;Teleport(checkpoint);Health=MaxHealth;Stamina=MaxStamina;Flasks=3;
             hitFlash=0;foreach(var r in renderers)if(r)r.SetPropertyBlock(null);if(trail){trail.Clear();trail.emitting=false;}
@@ -460,7 +471,7 @@ namespace TomorinTrial
             dragonPower=state.swordCharge;dodgeDragonLanded=state.dragonLanded;parryReadyUntil=Time.time+state.parryReady;parryDodgeUntil=Time.time+state.dodgeFollowup;
             bool wasChoosing=ChoosingBoon;Boon=state.boon;OfferA=state.offerA;OfferB=state.offerB;OfferC=state.offerC;
             if(wasChoosing && !ChoosingBoon && this==game.Player)game.FinishBoonChoice();
-            if((Action==FighterAction.Dodge && Time.unscaledTime<perfectGhostUntil && Progress<.8f || (Combo==9 || Combo==10) && (Action==FighterAction.Light || Action==FighterAction.Heavy) && Progress<.6f) && Time.unscaledTime>=nextGhostAt){game.Effects.Afterimage(this);nextGhostAt=Time.unscaledTime+(Application.isMobilePlatform?.14f:.10f);}
+            if((Action==FighterAction.Dodge && Progress<.72f || (Combo==9 || Combo==10) && (Action==FighterAction.Light || Action==FighterAction.Heavy) && Progress<.6f) && Time.unscaledTime>=nextGhostAt){game.Effects.Afterimage(this);nextGhostAt=Time.unscaledTime+(Application.isMobilePlatform?.14f:.10f);}
             if(this==game.Player && game.Input.Lock)ToggleLock();
         }
     }

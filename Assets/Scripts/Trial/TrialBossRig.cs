@@ -62,7 +62,7 @@ namespace TomorinTrial
             float distance=displacement.magnitude<2?displacement.magnitude:0;
             locomotion=Mathf.MoveTowards(locomotion,Mathf.Clamp01(distance/Time.deltaTime/2.6f),Time.deltaTime*12);
             gaitDistance+=distance;
-            Pose(brain.Skill,brain.SkillProgress,locomotion,clock,brain.Enraged,!fighter.Alive,fighter.Progress,fighter.Vulnerable,gaitDistance*Mathf.PI*2/1.25f);
+            Pose(brain.Skill,brain.SkillProgress,locomotion,clock,brain.Enraged,!fighter.Alive,fighter.Progress,fighter.Vulnerable || fighter.Flinching,gaitDistance*Mathf.PI*2/1.25f);
         }
 
         public void Pose(DeepFishSkill skill,float p,float movement,float time,bool enraged,bool dead=false,float death=0,bool stagger=false,float gaitPhase=-1)

@@ -5,6 +5,7 @@ namespace TomorinTrial
     public sealed partial class TrialHud
     {
         GameObject skillStrip,gameEmblem;
+        RectTransform potionSlot;
         int artworkBindingVersion=-1;
         bool artworkPad;
         string interactPrompt;
@@ -16,12 +17,16 @@ namespace TomorinTrial
         {
             gameEmblem=Icon("Game emblem",menu,"GameIcon",new Vector2(0,1),new Vector2(526,-195),new Vector2(88,88)).gameObject;
             menuTitle.rectTransform.sizeDelta=new Vector2(455,110);
-            skillStrip=Panel("Skills",root,new Vector2(0,0),new Vector2(42,158),new Vector2(408,88),Color.clear).gameObject;
+            skillStrip=Panel("Skills",root,new Vector2(1,0),new Vector2(-382,120),new Vector2(340,88),Color.clear).gameObject;
+            skillStrip.SetActive(false);
             string[] assets={"LightSlash","HeavySlash","Parry","Dodge","SpiritDew","TargetLock"};
             string[] keys={"Attack","Heavy","Guard","Dodge","Heal","Lock"};
             for(int i=0;i<assets.Length;i++)
             {
-                var slot=Panel(assets[i]+" slot",skillStrip.GetComponent<RectTransform>(),new Vector2(0,1),new Vector2(i*68,0),new Vector2(56,84),Color.clear);
+                bool potion=i==4;
+                int column=i>4?i-1:i;
+                var slot=Panel(assets[i]+" slot",potion?stats.GetComponent<RectTransform>():skillStrip.GetComponent<RectTransform>(),new Vector2(0,1),potion?new Vector2(18,-28):new Vector2(column*68,0),new Vector2(56,84),Color.clear);
+                if(potion)potionSlot=slot;
                 skillImages[i]=Icon(assets[i],slot,assets[i],new Vector2(0,1),Vector2.zero,new Vector2(56,56));
                 skillMarks[i]=Panel("Active",slot,new Vector2(0,1),new Vector2(14,-57),new Vector2(28,2),Color.clear).GetComponent<UnityEngine.UI.Image>();
                 skillKeys[i]=Label("Key",slot,TrialBindings.Display(keys[i]),new Vector2(0,1),new Vector2(0,-64),new Vector2(56,20),11,muted,TextAnchor.MiddleCenter);
@@ -43,6 +48,8 @@ namespace TomorinTrial
 
         void UpdateArtwork()
         {
+            // Also hide strips created before a Play Mode script reload.
+            if(skillStrip.activeSelf)skillStrip.SetActive(false);
             if(artworkBindingVersion!=TrialBindings.Version || artworkPad!=game.Input.UsingGamepad)
             {
                 artworkBindingVersion=TrialBindings.Version;
@@ -53,8 +60,6 @@ namespace TomorinTrial
             }
             gameEmblem.SetActive(game.Mode==TrialMode.Title);
             bool playing=game.Mode==TrialMode.Playing;
-            bool showSkills=playing&&!touchRoot&&!Application.isMobilePlatform;
-            if(skillStrip.activeSelf!=showSkills)skillStrip.SetActive(showSkills);
             if(!playing)return;
             var player=game.Player;
             SkillState(0,player.Alive&&player.Stamina>=15,player.Action==FighterAction.Light);

@@ -33,7 +33,7 @@ namespace TomorinTrial
         public string LevelName => TrialChampionCatalog.LevelName(SelectedLevel);
         public void SelectLevel(TrialLevel level)
         {
-            if(level>TrialLevel.YaYa)return;
+            if(level>TrialLevel.Remnant)return;
             if(Busy && (!IsHost || SceneManager.GetActiveScene().path!=MenuScene))return;
             SelectedLevel=level;if(IsHost)BroadcastLobby();Changed?.Invoke();
         }

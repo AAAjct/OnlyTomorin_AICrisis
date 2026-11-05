@@ -7,7 +7,7 @@ namespace TomorinTrial
     public struct TrialChampionHazard
     {public Vector3 position,velocity,endpoint;public float age,radius,limit,lifetime,aux;public byte kind;public bool ring,active,unblockable;}
     public struct TrialChampionState
-    {public int move,beat,phase;public byte mobility;public float age,cooldown,mobilityAge,mobilityDuration;public Vector3 aim,heading,origin,mobilityDirection;public TrialChampionHazard[] hazards;}
+    {public int move,beat,phase,kills;public byte mobility;public float age,cooldown,mobilityAge,mobilityDuration,respite,guardTime,introAge;public bool introPlayed;public Vector3 aim,heading,origin,mobilityDirection;public TrialChampionHazard[] hazards;}
     public enum ChampionMobility : byte { Grounded, BurstStep, SideSlip, BackLeap, Vault }
 
     // Host-owned attack clocks; telegraphs and contacts use the very same geometry.
@@ -25,11 +25,11 @@ namespace TomorinTrial
         public bool Unblockable=>Attacking && Move.Unblockable;
         public bool CanDeflect=>Attacking && !Move.Unblockable;
         public bool Recovering=>Attacking && beat>=Move.beats;
-        public string SkillName=>Attacking?Move.name:cooldown>1 && Kind==ChampionKind.Taffy?"换弹 · 贴身压制":"";
+        public string SkillName=>Attacking?Move.name:fighter.Guarding?"架剑 · 识破轻击":Regrouping?"迂回 · 重新观察":cooldown>1 && Kind==ChampionKind.Taffy?"换弹 · 贴身压制":"";
         public string Counter=>Attacking?Move.counter:"";
         public int AttacksStarted {get;private set;}
         public int ActiveHazards {get {int count=0;foreach(var h in hazards)if(h.active)count++;return count;}}
-        public bool WeaponAway {get {if(Kind!=ChampionKind.Anon && Kind!=ChampionKind.Penguin)return false;foreach(var h in hazards)if(h.active && h.kind==ChampionHazardKind.Boomerang)return true;return false;}}
+        public bool WeaponAway {get {if(Kind!=ChampionKind.Anon && Kind!=ChampionKind.Penguin && !IsRemnant)return false;foreach(var h in hazards)if(h.active && h.kind==ChampionHazardKind.Boomerang)return true;return false;}}
         public Transform Visual {get;private set;}
         public TrialChampionRig Rig {get;private set;}
         public Vector3 Aim=>aim;
@@ -65,7 +65,7 @@ namespace TomorinTrial
         List<TrialPlayer> Targets=>targets;
         sealed class Hazard
         {
-            public LineRenderer line;public Transform prop;public Vector3 position,velocity,endpoint;public float age,radius,damage,limit=23,lifetime=3,aux;public bool active,ring,unblockable,bounced;public ChampionHazardKind kind;
+            public LineRenderer line;public Transform prop;public TrialSignatureProp art;public Vector3 position,velocity,endpoint;public float age,radius,damage,limit=23,lifetime=3,aux;public bool active,ring,unblockable,bounced;public ChampionHazardKind kind;
             public readonly HashSet<TrialPlayer> hit=new HashSet<TrialPlayer>();
         }
 
@@ -74,7 +74,7 @@ namespace TomorinTrial
             fighter=owner;game=trial;Kind=kind;targets.Add(trial.Player);
             Visual=Instantiate(prefab,transform).transform;Visual.name=TrialChampionCatalog.Name(kind);
             Rig=Visual.GetComponent<TrialChampionRig>();Rig.Initialize(owner,this);
-            lineMaterial=new Material(Resources.Load<Material>("Trial/VFX/TideRibbon")){name=Kind+" pooled skill ink"};
+            lineMaterial=new Material(Resources.Load<Shader>("Trial/VFX/SignatureEnergy")){name=Kind+" pooled skill ink"};
             lineMaterial.SetColor("_BaseColor",Color.white);lineMaterial.SetFloat("_Surface",1);lineMaterial.SetInt("_ZWrite",0);
             lineMaterial.SetInt("_SrcBlend",(int)BlendMode.SrcAlpha);lineMaterial.SetInt("_DstBlend",(int)BlendMode.OneMinusSrcAlpha);lineMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");lineMaterial.renderQueue=3000;
             lineMaterial.SetFloat("_Cull",(float)CullMode.Off);
@@ -89,7 +89,8 @@ namespace TomorinTrial
             warning=Line("Attack boundary",.10f,65);innerWarning=Line("Safe inner boundary",.08f,65);charge=Line("Windup progress",.065f,65);trace=Line("Weapon contact",.16f,2);
             for(int i=0;i<hazards.Length;i++){var line=Line("Pooled projectile "+i,.075f,2);line.sharedMaterial=projectileMaterial;line.textureMode=LineTextureMode.Tile;hazards[i]=new Hazard{line=line};}
             Rig.CreateWeapon(trial.World,trial.ChampionGun,projectileMaterial);
-            if(Kind==ChampionKind.Anon || Kind==ChampionKind.Penguin)for(int i=0;i<2;i++)hazards[i].prop=Rig.CloneProjectileWeapon(transform);
+            InitializeSignature();
+            if(Kind==ChampionKind.Anon || Kind==ChampionKind.Penguin || IsRemnant)for(int i=0;i<2;i++)hazards[i].prop=Rig.CloneProjectileWeapon(transform);
             warning.gameObject.AddComponent<TrialSkillSurface>().Initialize(warning);
             ResetEncounter();
         }
@@ -100,11 +101,12 @@ namespace TomorinTrial
             line.shadowCastingMode=ShadowCastingMode.Off;line.receiveShadows=false;line.enabled=false;line.numCornerVertices=0;line.numCapVertices=0;return line;
         }
         public void ResetEncounter()
-        {CancelAttack(true);Phase=phaseAnnounced=1;sequence=0;previous=-1;usedMoves=0;phaseAge=0;cooldown=Kind==ChampionKind.NuoNuo?1.1f:.65f;mobilityCooldown=.2f;evasionCooldown=1;pressureAge=decisionClock=0;Mobility=ChampionMobility.Grounded;mobilityAge=mobilityDuration=0;queuedMove=-1;orbitSide=Kind==ChampionKind.NuoNuo?-1:1;AttacksStarted=0;Rig.ResetPose();}
+        {CancelAttack(true);ResetTactics();ResetSignature();Phase=phaseAnnounced=1;sequence=0;previous=-1;usedMoves=0;phaseAge=0;cooldown=Kind==ChampionKind.NuoNuo?1.1f:.65f;mobilityCooldown=.2f;evasionCooldown=1;pressureAge=decisionClock=0;Mobility=ChampionMobility.Grounded;mobilityAge=mobilityDuration=0;queuedMove=-1;orbitSide=Kind==ChampionKind.NuoNuo?-1:1;AttacksStarted=0;Rig.ResetPose();}
         public void CancelAttack(bool clearHazards=false)
         {
+            guardTime=0;guardCounter=false;fighter.BossGuard(false);
             MoveIndex=-1;Age=0;beat=0;cooldown=Mathf.Max(cooldown,.75f);HideWarnings();
-            if(clearHazards){Mobility=ChampionMobility.Grounded;queuedMove=-1;foreach(var h in hazards){h.active=false;h.hit.Clear();h.line.enabled=false;if(h.prop)h.prop.gameObject.SetActive(false);}}
+            if(clearHazards){Mobility=ChampionMobility.Grounded;queuedMove=-1;foreach(var h in hazards){h.active=false;h.hit.Clear();h.line.enabled=false;if(h.art)h.art.Hide();if(h.prop)h.prop.gameObject.SetActive(false);}}
         }
         internal void BreakPressure()
         {
@@ -121,9 +123,11 @@ namespace TomorinTrial
         public void Tick(float dt)
         {
             targets.Clear();if(Mirror.NetworkServer.active){foreach(var actor in TrialNetworkManager.Current.Players)if(actor)targets.Add(actor);}else targets.Add(game.Player);
+            if(IsRemnant && !Attacking && !Regrouping)SelectRemnantTarget();
             if(!fighter.Alive){CancelAttack(true);return;}
             if(!game.CombatTarget || !game.CombatTarget.Alive){CancelAttack(true);return;}
             if(!fighter.Awakened){HideWarnings();return;}
+            if(TickSignatureIntro(dt))return;
             TickHazards(dt);
             mobilityCooldown-=dt;evasionCooldown-=dt;decisionClock-=dt;pressureAge+=dt;
             if(fighter.Vulnerable){Mobility=ChampionMobility.Grounded;queuedMove=-1;CancelAttack();fighter.BossMotion(0);if(fighter.ActionTime>=fighter.ActionDuration)fighter.BossBegin(FighterAction.Free,0);return;}
@@ -143,13 +147,17 @@ namespace TomorinTrial
             bool gun=Kind==ChampionKind.Taffy;float desired=gun?10:Kind==ChampionKind.YaYa?5.4f:Kind==ChampionKind.Penguin?3.9f:2.8f;
             bool partnerActive=partner && partner.Alive && partner.Champion.Attacking && !partner.Champion.Recovering;
             var target=game.CombatTarget;
-            // React to visible committed actions, never raw input or an RNG roll every frame.
+            if(TickRespite(dt,delta))return;
+            if(TickSwordDefense(dt,target,distance))return;
+            pursuitAge+=dt;
+            if(pursuitAge>2.6f && distance>desired+2){BeginRespite();TickRespite(dt,delta);return;}
+            // Commands come from the same authoritative player simulation for local and remote peers.
             if(mobilityCooldown<=0 && decisionClock<=0)
             {
-                if(target.Action==FighterAction.Heal && distance>4 && distance<17 && !partnerActive)
+                if((target.Action==FighterAction.Heal || IsRemnant && target.CommandHeal) && distance>4 && distance<17 && !partnerActive)
                 {if(gun){BeginMove(1);return;}StartMobility(ChampionMobility.BurstStep,delta.normalized,.26f,Kind==ChampionKind.Penguin?11:17,1);return;}
-                if(distance<4.4f && target.Action==FighterAction.Heavy && target.Progress<.24f && evasionCooldown<=0 && pressureAge>.6f && Kind!=ChampionKind.Penguin)
-                {orbitSide=-orbitSide;evasionCooldown=3.5f;StartMobility(gun||Kind==ChampionKind.NuoNuo?ChampionMobility.BackLeap:Kind==ChampionKind.YaYa?ChampionMobility.Vault:ChampionMobility.SideSlip,gun?-delta.normalized:Vector3.Cross(Vector3.up,delta).normalized*orbitSide,.26f,12,-1);return;}
+                if(distance<5.3f && (target.CommandHeavy || target.Action==FighterAction.Heavy && target.Progress<.28f || target.Action==FighterAction.Charge) && evasionCooldown<=0 && pressureAge>.35f && Kind!=ChampionKind.Penguin)
+                {orbitSide=-orbitSide;evasionCooldown=IsRemnant?1.65f:3.5f;StartMobility(gun||Kind==ChampionKind.NuoNuo?ChampionMobility.BackLeap:Kind==ChampionKind.YaYa?ChampionMobility.Vault:ChampionMobility.SideSlip,gun?-delta.normalized:Vector3.Cross(Vector3.up,delta).normalized*orbitSide,.28f,12,-1);return;}
                 if((distance>desired+4 || gun && distance<5.5f) && !partnerActive)
                 {StartMobility(gun && distance<5.5f?ChampionMobility.BackLeap:ChampionMobility.BurstStep,delta.normalized*(gun && distance<5.5f?-1:1),.30f,Kind==ChampionKind.Penguin?12:16,-1);return;}
             }
@@ -176,7 +184,7 @@ namespace TomorinTrial
         }
         int ChooseMove(float distance)
         {
-            int max=Phase==1?12:TrialChampionCatalog.SkillCount;
+            int max=TrialChampionCatalog.SkillCount;
             uint all=(1u<<max)-1;if((usedMoves&all)==all)usedMoves=previous>=0?1u<<previous:0;
             var player=game.CombatTarget;float total=0;
             for(int i=0;i<max;i++)
@@ -191,10 +199,27 @@ namespace TomorinTrial
                 if(i>=8)score*=1.4f;
                 moveWeights[i]=score;total+=score;
             }
+            if(IsRemnant || Kind==ChampionKind.Anon)
+            {
+                int best=0;float highest=-1;
+                for(int i=0;i<max;i++)
+                {
+                    var m=TrialChampionCatalog.Move(Kind,i);float score=moveWeights[i];
+                    if(Kind==ChampionKind.Anon){if(distance>5 && i==4)score*=5;if(player.CommandHeavy && i==10)score*=4;if(ActiveHazards>4 && i==4)score=0;}
+                    if(player.CommandDodge || player.Action==FighterAction.Dodge)score*=m.windup>.65f?3.5f:.3f;
+                    if(player.CommandHeavy || player.Action==FighterAction.Charge)score*=m.shape==ChampionShape.Thrust || m.shape==ChampionShape.BladeWave?3:1;
+                    if(player.CommandLight)score*=m.shape==ChampionShape.Counter?4:1;
+                    if(score>highest){highest=score;best=i;}
+                }
+                return best;
+            }
             float roll=Random.value*total;for(int i=0;i<max;i++){roll-=moveWeights[i];if(roll<=0)return i;}return max-1;
         }
         void StartMobility(ChampionMobility move,Vector3 direction,float duration,float speed,int followup)
         {
+            evasionOrigin=transform.position;
+            if(Kind==ChampionKind.Anon && move==ChampionMobility.SideSlip)anonBlinkQueued=true;
+            game.Effects.DodgeWake(transform.position,direction,TrialChampionCatalog.Color(Kind));
             Mobility=move;mobilityDirection=direction.normalized;mobilityAge=0;mobilityDuration=duration;mobilitySpeed=speed;queuedMove=followup;mobilityCooldown=Kind==ChampionKind.Penguin?1.5f:.85f;steering=Vector3.zero;
             mobilityGroundY=transform.position.y;
             fighter.BossBegin(FighterAction.Free,0);game.Effects.Sound("dodge",transform.position,.85f);
@@ -213,21 +238,25 @@ namespace TomorinTrial
             if(mobilityAge<mobilityDuration)return;
             fighter.BossMove(Vector3.up*((mobilityGroundY-transform.position.y)/Mathf.Max(.001f,dt)),dt);
             Mobility=ChampionMobility.Grounded;cooldown=Mathf.Min(cooldown,.12f);decisionClock=0;
-            int nextMove=queuedMove;queuedMove=-1;if(nextMove>=0)BeginMove(nextMove);
+            int nextMove=queuedMove;queuedMove=-1;
+            if(anonBlinkQueued){anonBlinkQueued=false;if(TryBlinkBehind())nextMove=2;}
+            if(nextMove>=0)BeginMove(nextMove);
         }
         public void BeginMove(int index)
         {
             if(!fighter.Alive)return;
+            guardTime=0;fighter.BossGuard(false);
             MoveIndex=Mathf.Clamp(index,0,TrialChampionCatalog.SkillCount-1);previous=MoveIndex;usedMoves|=1u<<MoveIndex;sequence++;beat=0;Age=0;AttacksStarted++;contacted.Clear();counterTriggered=false;
             Mobility=ChampionMobility.Grounded;pressureAge=0;steering=Vector3.zero;
             origin=transform.position;origin.y=0;LockAim();firstHeading=heading;aimLockedAt=-1;
             fighter.BossBegin(FighterAction.Heavy,Move.Duration);fighter.BossMotion(0);
             game.Effects.Sound("warning",transform.position,Move.Unblockable?.7f:1.15f);
-            DrawWarnings();
+            OnSignatureBegin();DrawWarnings();
         }
         void LockAim()
         {
             aim=game.CombatTarget.transform.position;aim.y=.045f;
+            if(IsRemnant && Move.shape!=ChampionShape.Counter)aim+=Vector3.ClampMagnitude(Planar(game.CombatTarget.PlanarVelocity)*.14f,1.8f);
             if(Move.shape==ChampionShape.Annulus || Move.shape==ChampionShape.Ring || Move.shape==ChampionShape.Stomp || Move.shape==ChampionShape.Vacuum || Move.shape==ChampionShape.OrbitWhip || Move.shape==ChampionShape.Mark && Move.defense==ChampionDefense.Retreat)aim=Planar(transform.position)+Vector3.up*.045f;
             if(IsAerialStrike(Move.shape))aim=ClampArena(aim,3);
             heading=Planar(aim-transform.position).normalized;if(heading.sqrMagnitude<.1f)heading=transform.forward;
@@ -235,6 +264,7 @@ namespace TomorinTrial
         void TickAttack(float dt)
         {
             Age+=dt;
+            TickSignatureAttack(dt);
             if(Recovering && Move.shape==ChampionShape.Flight)TickSpecialMotion(dt,0);
             if(beat<Move.beats)
             {
@@ -244,7 +274,7 @@ namespace TomorinTrial
                 {
                     LockAim();fighter.BossFace(heading,620,dt);
                     if((Move.shape==ChampionShape.Cut || Move.shape==ChampionShape.Cross) && Planar(game.CombatTarget.transform.position-transform.position).magnitude>Move.range*.68f)
-                        fighter.BossMove(heading*(Kind==ChampionKind.Penguin?7:9),dt);
+                        fighter.BossMove(heading*(IsRemnant?5.5f:Kind==ChampionKind.Penguin?3.5f:4.5f),dt);
                 }
                 else if(aimLockedAt<0){aimLockedAt=Age;}
                 TickSpecialMotion(dt,until);
@@ -257,14 +287,18 @@ namespace TomorinTrial
             }
             if(Age>=Move.Duration)
             {
-                float rest=Kind==ChampionKind.Taffy?.65f:Kind==ChampionKind.Penguin?(Phase==3?.08f:.14f):Phase==3?.12f:.24f;
-                CancelAttack();cooldown=rest;fighter.BossBegin(FighterAction.Free,0);
+                bool keepPressure=Kind==ChampionKind.Anon && MoveIndex==4 && ActiveHazards>0;
+                CancelAttack();fighter.BossBegin(FighterAction.Free,0);
+                if(keepPressure){BeginMove(10);return;}
+                BeginRespite();
             }
             DrawWarnings();
         }
         void Contact()
         {
             var shape=Move.shape;
+            SignatureContactArt();
+            if(ContactSignature())return;
             if(ContactSpecial())return;
             if(shape==ChampionShape.Bullets || shape==ChampionShape.Snipe || shape==ChampionShape.Flight)
             {
@@ -342,6 +376,7 @@ namespace TomorinTrial
         {Vector3 ab=b-a;return Vector3.Distance(p,a+ab*Mathf.Clamp01(Vector3.Dot(p-a,ab)/Mathf.Max(.0001f,ab.sqrMagnitude)));}
         void DrawHazard(Hazard h)
         {
+            DrawSignatureProp(h);
             if(h.prop)h.prop.gameObject.SetActive(h.active && h.kind==ChampionHazardKind.Boomerang);
             if(h.kind>ChampionHazardKind.Ring){DrawSpecialHazard(h);return;}
             Color color=TrialChampionCatalog.Color(Kind);h.line.startColor=h.line.endColor=color;
@@ -359,6 +394,7 @@ namespace TomorinTrial
             charge.startColor=charge.endColor=Color.Lerp(color,Color.white,.35f);
             float remaining=NextImpact-Age;float amount=Mathf.Clamp01(1-remaining/Mathf.Min(Move.windup,beat==0?Move.windup:Move.interval));
             Vector3 center=Planar(transform.position)+Vector3.up*.055f;
+            if(DrawSignatureWarnings(center,amount))return;
             if(DrawSpecialWarnings(center,amount))return;
             switch(Move.shape)
             {
@@ -395,21 +431,27 @@ namespace TomorinTrial
         }
         public TrialChampionState CaptureNetwork()
         {
-            int count=ActiveHazards;var snapshot=new TrialChampionState{move=MoveIndex,phase=Phase,beat=beat,age=Age,cooldown=cooldown,aim=aim,heading=heading,origin=origin,mobility=(byte)Mobility,mobilityAge=mobilityAge,mobilityDuration=mobilityDuration,mobilityDirection=mobilityDirection,hazards=count==0?System.Array.Empty<TrialChampionHazard>():new TrialChampionHazard[count]};int i=0;
+            int count=ActiveHazards;var snapshot=new TrialChampionState{move=MoveIndex,phase=Phase,beat=beat,kills=KillStacks,introAge=introAge,introPlayed=introPlayed,respite=respite,guardTime=guardTime,age=Age,cooldown=cooldown,aim=aim,heading=heading,origin=origin,mobility=(byte)Mobility,mobilityAge=mobilityAge,mobilityDuration=mobilityDuration,mobilityDirection=mobilityDirection,hazards=count==0?System.Array.Empty<TrialChampionHazard>():new TrialChampionHazard[count]};int i=0;
             foreach(var h in hazards)if(h.active)snapshot.hazards[i++]=new TrialChampionHazard{position=h.position,velocity=h.velocity,endpoint=h.endpoint,age=h.age,radius=h.radius,limit=h.limit,lifetime=h.lifetime,aux=h.aux,kind=(byte)h.kind,ring=h.ring,unblockable=h.unblockable,active=true};return snapshot;
         }
         public void ApplyNetwork(TrialChampionState state,float advance)
         {
+            bool contactBeat=state.move>=0 && state.beat>0 && (state.move!=MoveIndex || state.beat!=beat || state.age+.1f<Age);
+            bool newEvade=state.mobility!=0 && ((byte)Mobility!=state.mobility || state.mobilityAge+.05f<mobilityAge);
             bool newMove=state.move>=0 && (state.move!=MoveIndex || state.age+.1f<Age || state.beat!=beat);
             MoveIndex=state.move;Phase=state.phase;beat=state.beat;Age=state.age+advance;cooldown=state.cooldown;aim=state.aim;heading=state.heading;origin=state.origin;
+            introAge=state.introAge;introPlayed=state.introPlayed;DrawSignatureIntro();
+            KillStacks=state.kills;respite=state.respite;guardTime=state.guardTime;
+            if(contactBeat && Attacking)SignatureContactArt();
+            if(newEvade)game.Effects.DodgeWake(transform.position,state.mobilityDirection,TrialChampionCatalog.Color(Kind));
             if(newMove && Attacking)game.Effects.Sound("warning",transform.position,Move.Unblockable?.7f:1.15f);
             Mobility=(ChampionMobility)state.mobility;mobilityAge=state.mobilityAge+advance;mobilityDuration=state.mobilityDuration;mobilityDirection=state.mobilityDirection;
             for(int i=0;i<hazards.Length;i++)
-            {var h=hazards[i];bool active=state.hazards!=null && i<state.hazards.Length;h.active=active;h.line.enabled=active;if(!active){if(h.prop)h.prop.gameObject.SetActive(false);continue;}var r=state.hazards[i];h.position=r.position;h.velocity=r.velocity;h.endpoint=r.endpoint;h.age=r.age;h.radius=r.radius;h.ring=r.ring;h.limit=r.limit;h.lifetime=r.lifetime;h.aux=r.aux;h.kind=(ChampionHazardKind)r.kind;h.line.positionCount=h.ring?65:2;DrawHazard(h);}
+            {var h=hazards[i];bool active=state.hazards!=null && i<state.hazards.Length;h.active=active;h.line.enabled=active;if(!active){if(h.art)h.art.Hide();if(h.prop)h.prop.gameObject.SetActive(false);continue;}var r=state.hazards[i];h.position=r.position;h.velocity=r.velocity;h.endpoint=r.endpoint;h.age=r.age;h.radius=r.radius;h.ring=r.ring;h.limit=r.limit;h.lifetime=r.lifetime;h.aux=r.aux;h.kind=(ChampionHazardKind)r.kind;h.line.positionCount=h.ring?65:2;DrawHazard(h);}
             DrawWarnings();
         }
         public static Vector3 Planar(Vector3 value){value.y=0;return value;}
         static Vector3 ClampArena(Vector3 value,float inset){value.x=Mathf.Clamp(value.x,-23+inset,23-inset);value.z=Mathf.Clamp(value.z,2+inset,48-inset);return value;}
-        void OnDestroy(){if(lineMaterial)Destroy(lineMaterial);if(projectileMaterial)Destroy(projectileMaterial);if(projectileTexture)Destroy(projectileTexture);}
+        void OnDestroy(){if(signatureCore)Destroy(signatureCore);if(lineMaterial)Destroy(lineMaterial);if(projectileMaterial)Destroy(projectileMaterial);if(projectileTexture)Destroy(projectileTexture);}
     }
 }

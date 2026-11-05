@@ -115,7 +115,7 @@ namespace TomorinTrial.Editor
             try
             {
                 player.Restore(point);
-                Check(player.MaxHealth==200 && player.MaxStamina==280,"Player starts with 200 health and 280 stamina");
+                Check(player.MaxHealth==200 && player.MaxStamina==420,"Player starts with 200 health and 420 stamina");
                 Set(player,"Stamina",100f);Tick(player,1);
                 Check(player.Stamina==85,"Light attack costs 15 stamina");
                 player.Restore(point);Set(player,"Stamina",100f);Tick(player,2);
@@ -123,9 +123,9 @@ namespace TomorinTrial.Editor
                 player.Restore(point);Set(player,"Stamina",100f);Tick(player,4);
                 Check(player.Stamina==80,"Dodge costs 20 stamina");
                 player.Restore(point);Set(player,"Stamina",0f);Tick(player,dt:.5f);
-                Check(player.Stamina==42,"Standing still recovers 84 stamina per second, including from empty");
+                Check(player.Stamina==63,"Standing still recovers 126 stamina per second, including from empty");
                 player.Restore(point);Set(player,"Stamina",50f);Tick(player,held:1);Tick(player,held:1,dt:.5f);
-                Check(player.Stamina==60,"Holding guard recovers 20 stamina per second");
+                Check(player.Stamina==65,"Holding guard recovers 30 stamina per second");
                 player.Restore(point);Set(player,"Stamina",100f);Tick(player,1);Set(player,"Action",FighterAction.Free);
                 Tick(player,dt:.2f);Check(player.Stamina==85,"Spending stamina waits briefly before natural recovery");
                 Tick(player,dt:.15f);Check(player.Stamina>85,"Natural recovery resumes after the shortened delay");

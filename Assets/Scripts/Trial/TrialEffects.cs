@@ -99,6 +99,7 @@ namespace TomorinTrial
         public void HitStop(float duration){stopUntil=Mathf.Max(stopUntil,Time.unscaledTime+duration);}
         public void PlayCombat(TrialCombatEvent value,bool localPlayer)
         {
+            PolishPlayerArt(value);
             if(PlaySwordCue(value,localPlayer))return;
             if(TrialNetworkManager.SessionActive)
             {
@@ -124,7 +125,7 @@ namespace TomorinTrial
             else if(localPlayer && value.cue==TrialCombatCue.Death)game.OnPlayerDied();
         }
         public void TickTime()
-        {TickImpactEffects();TickTides();TickCombatAudio();TickSwordEffects();Time.timeScale=game.Mode==TrialMode.Victory || game.Mode==TrialMode.Dead?0:TrialNetworkManager.SessionActive?(Time.unscaledTime<slowUntil?.35f:1):game.Mode==TrialMode.Playing?(Time.unscaledTime<stopUntil?.08f:Time.unscaledTime<slowUntil?.30f:1):0;}
-        void OnDestroy(){DisposeImpactEffects();DisposeSwordArtEffects();Time.timeScale=1;foreach(var clip in generatedSounds)if(clip)Destroy(clip);if(particles)Destroy(particles);if(petalMesh)Destroy(petalMesh);}
+        {TickSignatureEffects();TickImpactEffects();TickTides();TickCombatAudio();TickSwordEffects();Time.timeScale=game.Mode==TrialMode.Victory || game.Mode==TrialMode.Dead?0:TrialNetworkManager.SessionActive?(Time.unscaledTime<slowUntil?.35f:1):game.Mode==TrialMode.Playing?(Time.unscaledTime<stopUntil?.08f:Time.unscaledTime<slowUntil?.30f:1):0;}
+        void OnDestroy(){if(signatureMaterial)Destroy(signatureMaterial);DisposeImpactEffects();DisposeSwordArtEffects();Time.timeScale=1;foreach(var clip in generatedSounds)if(clip)Destroy(clip);if(particles)Destroy(particles);if(petalMesh)Destroy(petalMesh);}
     }
 }

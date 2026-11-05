@@ -32,12 +32,26 @@ namespace TomorinTrial
             else if(level==TrialLevel.Anon)SwordTerrace();
             else if(level==TrialLevel.Taffy)BallisticsHarbor();
             else if(level==TrialLevel.Penguin)GlacialForge();
+            else if(level==TrialLevel.Remnant)RemnantSanctum();
             else MoonObservatory();
             RenderSettings.skybox.SetColor("_HorizonColor",RenderSettings.fogColor*1.6f);
             RenderSettings.skybox.SetColor("_ZenithColor",level==TrialLevel.Twins?new Color(.18f,.28f,.36f):level==TrialLevel.Anon?new Color(.28f,.12f,.19f):level==TrialLevel.Penguin?new Color(.19f,.35f,.47f):level==TrialLevel.YaYa?new Color(.055f,.035f,.13f):new Color(.02f,.08f,.12f));
             RenderSettings.ambientEquatorColor=RenderSettings.ambientSkyColor*.68f;RenderSettings.ambientGroundColor=RenderSettings.ambientSkyColor*.35f;
             Shrine();
             BatchStaticGeometry();
+        }
+        void RemnantSanctum()
+        {
+            Stone.SetColor("_BaseColor",new Color(.12f,.095f,.17f));
+            RenderSettings.fogColor=new Color(.065f,.035f,.10f);RenderSettings.ambientSkyColor=new Color(.35f,.25f,.43f);
+            Ring(new Vector3(0,.065f,25),10,.08f,RedGlow);
+            for(int i=0;i<12;i++)
+            {
+                float a=i*Mathf.PI/6;var position=new Vector3(Mathf.Sin(a)*29,3,25+Mathf.Cos(a)*29);
+                var pillar=Box("Shattered memorial",position,new Vector3(1.2f,6+i%3,.9f),DarkStone,false);pillar.localEulerAngles=new Vector3(i%3*7,i*30,i%2==0?12:-9);
+                Box("Violet scar",position+Vector3.up*1.2f,new Vector3(.10f,3,.99f),Glow,false).localRotation=pillar.localRotation;
+            }
+            Part("Eclipsed remnant moon",PrimitiveType.Sphere,Root,new Vector3(0,32,95),Vector3.one*16,Armor);
         }
         void LotusCourt()
         {

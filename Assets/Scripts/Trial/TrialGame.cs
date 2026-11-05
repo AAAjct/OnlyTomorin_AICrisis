@@ -73,7 +73,7 @@ namespace TomorinTrial
             if(IsChampionStage)
             {
                 if(Level==TrialLevel.Twins){SpawnChampion(ChampionKind.FeiBi,new Vector3(-4,0,30));SpawnChampion(ChampionKind.NuoNuo,new Vector3(4,0,30));}
-                else SpawnChampion(Level==TrialLevel.Anon?ChampionKind.Anon:Level==TrialLevel.Taffy?ChampionKind.Taffy:Level==TrialLevel.Penguin?ChampionKind.Penguin:ChampionKind.YaYa,new Vector3(0,0,32));
+                else SpawnChampion(Level==TrialLevel.Remnant?ChampionKind.Remnant:Level==TrialLevel.Anon?ChampionKind.Anon:Level==TrialLevel.Taffy?ChampionKind.Taffy:Level==TrialLevel.Penguin?ChampionKind.Penguin:ChampionKind.YaYa,new Vector3(0,0,32));
                 GateOpen=true;
             }
             else {Spawn(new Vector3(-3.7f,0,-5),false);Spawn(new Vector3(4.4f,0,3.0f),false);Spawn(new Vector3(-2.5f,0,11),false);Spawn(new Vector3(0,0,27),true);}
@@ -95,7 +95,7 @@ namespace TomorinTrial
         void Spawn(Vector3 point,bool boss)
         {var enemy=new GameObject().AddComponent<TrialEnemy>();enemy.transform.SetParent(transform,false);enemy.Initialize(this,point,boss,deepSeekModel);enemies.Add(enemy);}
         void SpawnChampion(ChampionKind kind,Vector3 point)
-        {var enemy=new GameObject().AddComponent<TrialEnemy>();enemy.transform.SetParent(transform,false);enemy.InitializeChampion(this,point,kind,championModels[(int)kind]);enemies.Add(enemy);}
+        {var enemy=new GameObject().AddComponent<TrialEnemy>();enemy.transform.SetParent(transform,false);enemy.InitializeChampion(this,point,kind,kind==ChampionKind.Remnant?Resources.Load<GameObject>("Trial/Models/Remnant_Champion"):championModels[(int)kind]);enemies.Add(enemy);}
 
         public TrialPlayer CreateCompanion(int id)
         {

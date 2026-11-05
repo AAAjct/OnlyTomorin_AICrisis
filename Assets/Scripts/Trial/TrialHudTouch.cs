@@ -24,7 +24,7 @@ namespace TomorinTrial
             var movePad=Panel("Move touch area",holder,Vector2.zero,Vector2.zero,Vector2.zero,Color.clear);
             movePad.anchorMax=new Vector2(.5f,1);movePad.offsetMin=movePad.offsetMax=Vector2.zero;
             var stick=Panel("Move joystick",movePad,Vector2.zero,new Vector2(90,160),new Vector2(230,230),new Color(.05f,.09f,.10f,.48f));
-            stick.pivot=new Vector2(.5f,.5f);stick.anchoredPosition=new Vector2(205,235);
+            stick.pivot=new Vector2(.5f,.5f);stick.anchoredPosition=new Vector2(205,285);
             var move=BindTouch(movePad);move.Stick=true;move.StickVisual=stick;
             var knob=Panel("Thumb",stick,new Vector2(.5f,.5f),Vector2.zero,new Vector2(65,65),new Color(.8f,.68f,.44f,.85f));knob.pivot=new Vector2(.5f,.5f);move.Knob=knob;
             Label("Move caption",stick,"移动 · 拖满奔跑",new Vector2(.5f,.5f),new Vector2(-110,-55),new Vector2(220,35),22,ivory,TextAnchor.MiddleCenter);
@@ -34,11 +34,11 @@ namespace TomorinTrial
             TouchButton(holder,"闪避",new Vector2(-130,337),4,new Vector2(156,156),"Dodge");
             var guard=TouchButton(holder,"格挡",new Vector2(-326,315),0,new Vector2(148,148),"Parry");guard.Guard=true;
             TouchButton(holder,"锁定",new Vector2(-130,510),16,new Vector2(136,112),"TargetLock");
-            var potion=TouchButton(holder,"药瓶",new Vector2(120,450),8,new Vector2(136,112),"SpiritDew");
+            var potion=TouchButton(holder,"药瓶",new Vector2(80,164),8,new Vector2(80,112),"SpiritDew");
             ((RectTransform)potion.transform).anchorMin=((RectTransform)potion.transform).anchorMax=Vector2.zero;
             flaskText.rectTransform.SetParent(potion.transform,false);
             flaskText.rectTransform.anchorMin=flaskText.rectTransform.anchorMax=new Vector2(0,1);
-            flaskText.rectTransform.anchoredPosition=new Vector2(102,-10);flaskText.rectTransform.sizeDelta=new Vector2(28,30);
+            flaskText.rectTransform.anchoredPosition=new Vector2(50,-10);flaskText.rectTransform.sizeDelta=new Vector2(28,30);
             flaskText.fontSize=24;flaskText.color=gold;
             var interact=TouchButton(holder,"休息",new Vector2(0,180),32,new Vector2(188,88));
             ((RectTransform)interact.transform).anchorMin=((RectTransform)interact.transform).anchorMax=new Vector2(.5f,0);
@@ -46,9 +46,11 @@ namespace TomorinTrial
             var pause=TouchButton(touchRoot,"暂停",new Vector2(-100,-80),128,new Vector2(136,88));var r=(RectTransform)pause.transform;r.anchorMin=r.anchorMax=Vector2.one;
             touchMenu=pause.gameObject;
             skillStrip.SetActive(false);
+            potionSlot.gameObject.SetActive(false);
+            stats.transform.SetParent(touchRoot,false);
             bossPanel.SetParent(touchRoot,false);
-            bossPanel.anchorMin=bossPanel.anchorMax=new Vector2(.5f,0);
-            bossPanel.anchoredPosition=new Vector2(-440,65);
+            bossPanel.anchorMin=bossPanel.anchorMax=new Vector2(.5f,1);
+            bossPanel.anchoredPosition=new Vector2(-440,-38);
             objectiveText.rectTransform.anchoredPosition=new Vector2(-540,-37);
         }
         TrialTouchControl BindTouch(RectTransform rect)

@@ -42,13 +42,13 @@ namespace TomorinTrial.Editor
                 ClickMenu("solo");courtyard.onClick.Invoke();
                 deadline=EditorApplication.timeSinceStartup+40;while(Waiting(UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready==true))yield return .03f;
                 var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();var player=game.Player;
-                Check(player.MaxStamina==TrialPlayer.BaseStamina && player.Stamina==TrialPlayer.BaseStamina,"Initial stamina uses the increased 280-point base");
+                Check(player.MaxStamina==TrialPlayer.BaseStamina && player.Stamina==TrialPlayer.BaseStamina,"Initial stamina uses the increased 420-point base");
                 Check(player.ChoosingBoon && !game.GateOpen && game.DefeatedGuards==0 && game.Enemies.All(e=>e.Alive),"Solo Courtyard starts with guards, a sealed boss gate, and a three-choice boon prompt");
                 yield return .06f;
                 var buttons=(UnityEngine.UI.Button[])typeof(TrialHud).GetField("boonButtons",Private).GetValue(game.Hud);
                 buttons[0].onClick.Invoke();
                 Check(!player.ChoosingBoon && player.Boon!=TrialBoon.None,"Choosing a visible boon card applies the boon and releases combat input");
-                Check(player.MaxStamina==(player.Boon==TrialBoon.Resolve?295:280),"Choosing a run boon preserves the new stamina base and adds Resolve's 15 points");
+                Check(player.MaxStamina==(player.Boon==TrialBoon.Resolve?435:420),"Choosing a run boon preserves the new stamina base and adds Resolve's 15 points");
                 Check(game.Enemies.Last().Boss.Boon!=TrialBossBoon.None,"Boss receives one modest random boon for the run");
                 InputSystem.settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;
                 InputSystem.settings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
@@ -62,7 +62,7 @@ namespace TomorinTrial.Editor
                 InputSystem.QueueStateEvent(keys,new KeyboardState());yield return .1f;
 
                 player.Restore(new Vector3(0,0,-21));game.CameraRig.Snap();
-                Check(player.Stamina==player.MaxStamina && player.MaxStamina>=280,"Restoring a player refills the increased stamina pool");
+                Check(player.Stamina==player.MaxStamina && player.MaxStamina>=420,"Restoring a player refills the increased stamina pool");
                 cameraWall=GameObject.CreatePrimitive(PrimitiveType.Cube);cameraWall.name="Temporary camera collision test";
                 cameraWall.transform.position=player.transform.position+new Vector3(0,1.1f,-.8f);cameraWall.transform.localScale=new Vector3(4,4,.2f);Physics.SyncTransforms();
                 game.CameraRig.Snap();yield return .06f;

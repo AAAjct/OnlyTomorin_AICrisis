@@ -84,7 +84,9 @@ namespace TomorinTrial
             if(cue==TrialCombatCue.HeavyLand)
             {SlashEffect(value.position+Vector3.up*.06f,value.forward,new Color(1,.68f,.26f),1.65f,true);Burst(value.position,new Color(1,.8f,.45f),30);Sound("landing",value.position);if(local){game.CameraRig.Kick(.22f);Rumble(.35f,.45f,.1f);}return true;}
             if(cue==TrialCombatCue.Dodge)
-            {Sound("dodge",value.position);return true;}
+            {var dodger=TrialNetworkManager.SessionActive?TrialNetworkManager.Current.PlayerById(value.player):game.Player;
+                DodgeWake(value.position,dodger?dodger.DodgeDirection:-value.forward,new Color(.4f,.85f,1));
+                if(dodger)Afterimage(dodger);Sound("dodge",value.position);return true;}
             if(cue==TrialCombatCue.Heal)
             {Sound("heal",value.position);if(local)game.Hud.HealFlash();return true;}
             if(cue==TrialCombatCue.ChargeReady)
