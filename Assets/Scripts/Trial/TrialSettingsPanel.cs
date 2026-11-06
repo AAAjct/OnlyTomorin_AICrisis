@@ -14,7 +14,7 @@ namespace TomorinTrial
         Action back;
         UnityEngine.UI.Slider volume;
         readonly UnityEngine.UI.Slider[] soundVolumes=new UnityEngine.UI.Slider[4];
-        UnityEngine.UI.Text sprintLabel,motionLabel,status,frameLabel,syncLabel,frameHint;
+        UnityEngine.UI.Text sprintLabel,motionLabel,status,frameLabel,syncLabel,frameHint,graphicsLabel;
         UnityEngine.UI.Button first;
         readonly List<UnityEngine.UI.Selectable> navigation=new List<UnityEngine.UI.Selectable>();
         readonly List<Action> refreshBindings=new List<Action>();
@@ -48,7 +48,7 @@ namespace TomorinTrial
             card=Box("Settings card",transform,0,0,1120,800,Paper);card.anchorMin=card.anchorMax=card.pivot=new Vector2(.5f,.5f);card.anchoredPosition=Vector2.zero;
             Box("Cinnabar rule",card,0,0,3,800,Red);
             Label("设置  /  SETTINGS",card,36,26,1040,52,34,Ink);
-            Label("声音与操作",card,36,108,300,30,23,Ink);
+            graphicsLabel=Button("Graphics preset",card,36,103,300,42,"",()=>{TrialGraphicsBudget.Cycle();Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
             Label("主音量",card,36,170,300,32,20,Ink);
             var track=Box("Master volume",card,36,222,300,28,new Color(.15f,.14f,.12f,.12f));
             volume=track.gameObject.AddComponent<UnityEngine.UI.Slider>();volume.minValue=0;volume.maxValue=1;
@@ -69,7 +69,7 @@ namespace TomorinTrial
             int row=0;
             foreach(var entry in TrialBindings.Entries)
             {
-                float y=182+row++*34;Label(entry.Label,card,390,y+3,115,30,18,Ink);
+                float y=182+row++*32;Label(entry.Label,card,390,y+3,115,30,18,Ink);
                 for(int slot=0;slot<3;slot++)
                 {
                     int captured=slot;float x=slot==0?512:slot==1?650:772;float width=slot==0?130:slot==1?110:290;
@@ -101,7 +101,7 @@ namespace TomorinTrial
         public void Hide(){gameObject.SetActive(false);}
         void Refresh()
         {
-            sprintLabel.text=TrialPreferences.SprintCaption;motionLabel.text="画面动效："+(InkMainMenu.ReducedMotion?"关闭":"开启");frameLabel.text=TrialPreferences.MobileFrameCaption;
+            graphicsLabel.text=TrialGraphicsBudget.Caption;sprintLabel.text=TrialPreferences.SprintCaption;motionLabel.text="画面动效："+(InkMainMenu.ReducedMotion?"关闭":"开启");frameLabel.text=TrialPreferences.MobileFrameCaption;
             syncLabel.text="垂直同步："+(TrialPreferences.VSyncEnabled?"开启":"关闭");
             frameHint.text=Application.isMobilePlatform?"移动设备按帧率限制运行，同步由系统管理。":TrialPreferences.VSyncEnabled?"同步开启时跟随屏幕刷新率，优先于帧率限制。":"同步关闭时使用所选帧率限制。";
             foreach(var update in refreshBindings)update();

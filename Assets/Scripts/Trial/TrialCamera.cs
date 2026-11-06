@@ -30,6 +30,7 @@ namespace TomorinTrial
             localRenderers=target.GetComponentsInChildren<Renderer>();
             view.clearFlags=CameraClearFlags.Skybox;view.backgroundColor=new Color(.06f,.10f,.13f);
             var data=view.GetUniversalAdditionalCameraData();data.renderPostProcessing=true;data.antialiasing=AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+            TrialGraphicsBudget.ApplyCamera(view);
             var lightObject=new GameObject("Character rim light");lightObject.transform.SetParent(transform,false);lightObject.transform.localPosition=new Vector3(-1,1,1);
             var light=lightObject.AddComponent<Light>();light.type=LightType.Point;light.color=new Color(.73f,.84f,1);light.intensity=2.8f;light.range=8;
             focus=player.transform.position+Vector3.up*1.0f;Snap();

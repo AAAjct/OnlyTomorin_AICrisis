@@ -27,11 +27,12 @@ namespace TomorinTrial
             int requested=TrialPreferences.MobileFrameRate;
             bool active=game && game.Mode==TrialMode.Playing && !game.Player.ChoosingBoon;
             bool session=TrialNetworkManager.SessionActive;
-            // On desktop VSync takes precedence over targetFrameRate. Reapply
-            // the preference here so the power budget never replaces unlimited.
+            // Desktop VSync overrides targetFrameRate; suspend it while solo is
+            // idle so menu/background caps can actually reduce GPU work.
             bool sync=TrialPreferences.VSyncEnabled;
-            int syncCount=sync?1:0;if(QualitySettings.vSyncCount!=syncCount)QualitySettings.vSyncCount=syncCount;
-            int target=sync && !Application.isMobilePlatform?-1:Budget(requested,active,Application.isFocused,session);
+            bool idle=!session && (!Application.isFocused || !active);
+            int syncCount=sync && !idle?1:0;if(QualitySettings.vSyncCount!=syncCount)QualitySettings.vSyncCount=syncCount;
+            int target=sync && !idle && !Application.isMobilePlatform?-1:Budget(requested,active,Application.isFocused,session);
             if(Application.targetFrameRate!=target)Application.targetFrameRate=target;
         }
     }

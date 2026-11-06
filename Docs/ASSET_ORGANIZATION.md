@@ -4,7 +4,7 @@
 
 | 目录 | 内容 |
 | --- | --- |
-| `Assets/Audio/Resources/Trial/Audio/` | 63 个战斗音效；后续普通音乐可放在 `Assets/Audio/Music/` |
+| `Assets/Audio/Resources/Trial/Audio/` | 139 个战斗音效，含 76 条连招与技能专属变体；后续普通音乐可放在 `Assets/Audio/Music/` |
 | `Assets/Art/UI/` | 界面图片、图标、书法图片和字体 |
 | `Assets/Art/Startup/` | 启动标识与作者头像 |
 | `Assets/Art/Models/` | 角色、武器、特效模型和网格 |

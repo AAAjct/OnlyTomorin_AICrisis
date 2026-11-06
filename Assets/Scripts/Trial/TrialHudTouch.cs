@@ -27,13 +27,13 @@ namespace TomorinTrial
             stick.pivot=new Vector2(.5f,.5f);stick.anchoredPosition=new Vector2(205,285);
             var move=BindTouch(movePad);move.Stick=true;move.StickVisual=stick;
             var knob=Panel("Thumb",stick,new Vector2(.5f,.5f),Vector2.zero,new Vector2(65,65),new Color(.8f,.68f,.44f,.85f));knob.pivot=new Vector2(.5f,.5f);move.Knob=knob;
-            Label("Move caption",stick,"移动 · 拖满奔跑",new Vector2(.5f,.5f),new Vector2(-110,-55),new Vector2(220,35),22,ivory,TextAnchor.MiddleCenter);
             // Four distinct thumb targets; secondary actions stay outside this cluster.
             TouchButton(holder,"轻击",new Vector2(-130,135),1,new Vector2(176,176),"LightSlash");
             TouchButton(holder,"重击",new Vector2(-326,125),2,new Vector2(148,148),"HeavySlash");
             TouchButton(holder,"闪避",new Vector2(-130,337),4,new Vector2(156,156),"Dodge");
             var guard=TouchButton(holder,"格挡",new Vector2(-326,315),0,new Vector2(148,148),"Parry");guard.Guard=true;
             TouchButton(holder,"锁定",new Vector2(-130,510),16,new Vector2(136,112),"TargetLock");
+            TouchButton(holder,"跳跃",new Vector2(-326,500),64,new Vector2(136,112),"Jump");
             var potion=TouchButton(holder,"药瓶",new Vector2(80,164),8,new Vector2(80,112),"SpiritDew");
             ((RectTransform)potion.transform).anchorMin=((RectTransform)potion.transform).anchorMax=Vector2.zero;
             flaskText.rectTransform.SetParent(potion.transform,false);
@@ -77,7 +77,7 @@ namespace TomorinTrial
             bool playing=game.Mode==TrialMode.Playing && game.Player.Alive && !game.Player.ChoosingBoon;
             if(touchControls.activeSelf!=playing){touchControls.SetActive(playing);game.Input.ClearTouch();}
             touchMenu.SetActive(playing);
-            bool canInteract=playing && !game.IsArena && Vector3.Distance(game.Player.transform.position,game.World.ShrinePosition)<2.6f;
+            bool canInteract=playing && !game.IsRunStage && !game.IsArena && Vector3.Distance(game.Player.transform.position,game.World.ShrinePosition)<2.6f;
             if(touchInteract.activeSelf!=canInteract)touchInteract.SetActive(canInteract);
         }
     }

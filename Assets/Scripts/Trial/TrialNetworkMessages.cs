@@ -1,9 +1,9 @@
-﻿using Mirror;
+using Mirror;
 using UnityEngine;
 
 namespace TomorinTrial
 {
-    public enum TrialLevel : byte { BigFish, Arena, Twins, Anon, Taffy, Penguin, YaYa, Remnant }
+    public enum TrialLevel : byte { BigFish, Arena, Twins, Anon, Taffy, Penguin, YaYa, Remnant, Endless, BossRush }
     public enum TrialDifficulty : byte { Normal, Easy, Hard }
     public static class TrialDifficultySettings
     {
@@ -23,7 +23,7 @@ namespace TomorinTrial
         public float yaw;
         public byte held, pressed;
     }
-    public enum TrialCombatCue : byte { Parry, Block, GuardBreak, Death, Hit, HeavyHit, Kill, PerfectDodge, BlinkSlash, Reversal, Hurt, SkillImpact, Dodge, Heal, ChargeReady, CutThrough, HeavyLand, FinisherHit, CrimsonBlade, MoonBlade, BlueSand, SakuraScatter, SandImpact, FireDragon, SpiralSword, ThrustTrace, RisingCut, CrescentCut, EmpoweredStep, SwordLeap, SwordTurn, SwordDescent, SwordLanding, RollFlash, WeaveSigil, MartialStroke, SwordRecall }
+    public enum TrialCombatCue : byte { Parry, Block, GuardBreak, Death, Hit, HeavyHit, Kill, PerfectDodge, BlinkSlash, Reversal, Hurt, SkillImpact, Dodge, Heal, ChargeReady, CutThrough, HeavyLand, FinisherHit, CrimsonBlade, MoonBlade, BlueSand, SakuraScatter, SandImpact, FireDragon, SpiralSword, ThrustTrace, RisingCut, CrescentCut, EmpoweredStep, SwordLeap, SwordTurn, SwordDescent, SwordLanding, RollFlash, WeaveSigil, MartialStroke, SwordRecall, SwordGuardReturn, SwordFlowHit }
     // Transient feedback is separate from snapshots: several contacts may occur
     // between snapshots, and each belongs to the player who received the hit.
     public struct TrialCombatEvent : NetworkMessage
@@ -47,8 +47,10 @@ namespace TomorinTrial
         public float maxStamina;
         public float bossResolve,bossFlinch;
         public float swordCharge,parryReady,dodgeFollowup;
+        public float swordLanding;
+        public bool landingSakuraFlow,airVolleyDescending;
         public float comboGrace,weaveGrace,guardComboDelay,orbitSwordTime;
-        public Vector3 orbitSwordPosition;
+        public Vector3 orbitSwordPosition,swordReturnOrigin;
         public bool comboHeavy,weaveHeavy;
         public byte weaveFrom;
         public byte action, combo, flasks;

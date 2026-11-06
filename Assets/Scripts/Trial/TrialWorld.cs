@@ -36,7 +36,7 @@ namespace TomorinTrial
             Water=Material("Still jade",new Color(.035f,.13f,.14f),.55f,.92f);
             cragMesh=CragMesh();foliageMesh=FoliageMesh();owned.Add(cragMesh);owned.Add(foliageMesh);
             Lighting();
-            if(TrialChampionCatalog.IsChampion(level)){championArena=true;BuildChampionArena(level);return;}
+            if(TrialChampionCatalog.IsChampion(level) || level==TrialLevel.Endless || level==TrialLevel.BossRush){championArena=true;BuildChampionArena(level);return;}
             Box("Foundation",new Vector3(0,-.50f,6),new Vector3(29,.8f,66),DarkStone);
             for(int x=-6;x<=6;x++) for(int z=-12;z<=18;z++)
             {
@@ -154,7 +154,7 @@ namespace TomorinTrial
             var fill=new GameObject("Amber rim").AddComponent<Light>();fill.transform.SetParent(Root);fill.type=LightType.Directional;fill.color=new Color(1,.58f,.32f);fill.intensity=.65f;fill.transform.rotation=Quaternion.Euler(18,155,0);
             var volume=new GameObject("Night atmosphere").AddComponent<Volume>();volume.transform.SetParent(Root);volume.isGlobal=true;volume.priority=1;
             var profile=ScriptableObject.CreateInstance<VolumeProfile>();volume.sharedProfile=profile;owned.Add(profile);
-            var bloom=profile.Add<Bloom>();bloom.active=!Application.isMobilePlatform;bloom.intensity.Override(.45f);bloom.threshold.Override(1.2f);bloom.scatter.Override(.65f);owned.Add(bloom);
+            var bloom=profile.Add<Bloom>();bloom.active=!Application.isMobilePlatform && !TrialGraphicsBudget.Performance;bloom.intensity.Override(.45f);bloom.threshold.Override(1.2f);bloom.scatter.Override(.65f);owned.Add(bloom);
             var vignette=profile.Add<Vignette>();vignette.intensity.Override(.28f);vignette.smoothness.Override(.5f);owned.Add(vignette);
             var tonemap=profile.Add<Tonemapping>();tonemap.mode.Override(TonemappingMode.ACES);owned.Add(tonemap);
             var color=profile.Add<ColorAdjustments>();color.postExposure.Override(.2f);color.contrast.Override(12);color.saturation.Override(-8);owned.Add(color);
@@ -265,22 +265,25 @@ namespace TomorinTrial
         {
             // Keep mobile batches local so off-camera courtyard sections can be
             // culled instead of submitting the entire level for each material.
-            var groups=new Dictionary<(Material material,Vector2Int cell),List<CombineInstance>>();
+            var groups=new Dictionary<(Material material,Vector2Int cell,ShadowCastingMode shadows),List<CombineInstance>>();
             var originals=new List<MeshRenderer>();
             foreach(var renderer in Root.GetComponentsInChildren<MeshRenderer>())
             {
                 if(renderer.transform.IsChildOf(Gate.transform) || renderer.transform.IsChildOf(ArenaEntrance.transform) || !renderer.enabled)continue;
                 var filter=renderer.GetComponent<MeshFilter>();if(!filter || !filter.sharedMesh)continue;
                 var center=Root.InverseTransformPoint(renderer.bounds.center);
-                var cell=Application.isMobilePlatform?new Vector2Int(Mathf.FloorToInt(center.x/12),Mathf.FloorToInt(center.z/12)):new Vector2Int(0,Mathf.FloorToInt(center.z/24));
-                var key=(renderer.sharedMaterial,cell);
+                var cell=new Vector2Int(Mathf.FloorToInt(center.x/12),Mathf.FloorToInt(center.z/12));
+                // Ground slabs receive shadows but cannot cast a useful silhouette;
+                // distant mountains also do not need to enter every shadow cascade.
+                var shadows=renderer.bounds.max.y<.2f || renderer.name=="Distant ink peaks"?ShadowCastingMode.Off:renderer.shadowCastingMode;
+                var key=(renderer.sharedMaterial,cell,shadows);
                 if(!groups.TryGetValue(key,out var list)){list=new List<CombineInstance>();groups.Add(key,list);}
                 list.Add(new CombineInstance{mesh=filter.sharedMesh,transform=Root.worldToLocalMatrix*renderer.transform.localToWorldMatrix});originals.Add(renderer);
             }
             foreach(var entry in groups)
             {
                 var mesh=new Mesh{name="Temple batch · "+entry.Key.material.name+" · "+entry.Key.cell,indexFormat=IndexFormat.UInt32};mesh.CombineMeshes(entry.Value.ToArray());mesh.UploadMeshData(true);owned.Add(mesh);
-                var go=new GameObject(mesh.name);go.transform.SetParent(Root,false);go.AddComponent<MeshFilter>().sharedMesh=mesh;go.AddComponent<MeshRenderer>().sharedMaterial=entry.Key.material;
+                var go=new GameObject(mesh.name);go.transform.SetParent(Root,false);go.AddComponent<MeshFilter>().sharedMesh=mesh;var renderer=go.AddComponent<MeshRenderer>();renderer.sharedMaterial=entry.Key.material;renderer.shadowCastingMode=entry.Key.shadows;
             }
             foreach(var renderer in originals)
             {renderer.enabled=false;Object.Destroy(renderer.GetComponent<MeshFilter>());Object.Destroy(renderer);}

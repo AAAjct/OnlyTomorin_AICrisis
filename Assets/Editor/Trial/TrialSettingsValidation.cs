@@ -74,7 +74,7 @@ namespace TomorinTrial.Editor
                 Check(TrialBindings.Path(TrialBindings.Entries.First(e=>e.Id=="Heavy"),2)=="<Gamepad>/rightShoulder","Restore defaults resets gamepad binding");
                 string error;Check(TrialBindings.TrySet(attack,0,"<Keyboard>/f",out error),"Replacement reapplies after reset");
                 Check(TrialBindings.TrySet(attack,1,"<Keyboard>/h",out error),"Alternate keyboard binding is configurable");
-                Check(TrialBindings.TrySet(TrialBindings.Entries[0],0,"<Keyboard>/t",out error),"Movement composite part is configurable");
+                Check(TrialBindings.TrySet(TrialBindings.Entries[0],0,"<Keyboard>/v",out error),"Movement composite part is configurable");
                 SettingsButton(panel,"Back").onClick.Invoke();yield return .12f;Check(!panel.IsOpen,"Back closes main settings");
                 InkMainMenu.AutoStartTrial=true;UnityEngine.SceneManagement.SceneManager.LoadScene(TrialNetworkManager.GameScene);yield return .8f;
                 game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();Check(game && game.Ready,"Gameplay loads after rebinding");game.Input.SetDeviceFilter(new InputDevice[]{keyboard,pad});
@@ -86,7 +86,7 @@ namespace TomorinTrial.Editor
                 game.Player.Restore(game.Checkpoint);Keys(Key.J);yield return .06f;Keys();Check(game.Player.Action==FighterAction.Free,"Old alternate key no longer attacks");yield return .12f;
                 Keys(Key.H);yield return .06f;Keys();Check(game.Player.Action==FighterAction.Light,"Rebound alternate key triggers gameplay attack");yield return .5f;
                 game.Player.Restore(game.Checkpoint);Vector3 origin=game.Player.transform.position;Keys(Key.W);yield return .2f;Keys();Check(Vector3.Distance(origin,game.Player.transform.position)<.05f,"Old movement key no longer moves");
-                Keys(Key.T);yield return .25f;Keys();Check(Vector3.Distance(origin,game.Player.transform.position)>.4f,"Rebound movement composite moves the player");
+                Keys(Key.V);yield return .25f;Keys();Check(Vector3.Distance(origin,game.Player.transform.position)>.4f,"Rebound movement composite moves the player");
                 game.Player.Restore(game.Checkpoint);yield return .12f;game.Pause();yield return .12f;game.Hud.OpenSettings();yield return .12f;
                 panel=game.Hud.GetComponentInChildren<TrialSettingsPanel>();Check(panel && game.Hud.SettingsOpen,"Pause opens shared settings component");
                 // Reset labels before comparing the identical layout in both scenes.

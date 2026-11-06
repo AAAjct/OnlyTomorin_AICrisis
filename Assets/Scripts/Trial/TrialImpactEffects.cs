@@ -42,7 +42,7 @@ namespace TomorinTrial
             if(!game.Input.UsingGamepad || Gamepad.current==null)return;
             Gamepad.current.SetMotorSpeeds(low,high);rumbleUntil=Time.unscaledTime+seconds;
         }
-        public void SlashEffect(Vector3 position,Vector3 forward,Color tint,float radius,bool ring=false)
+        public void SlashEffect(Vector3 position,Vector3 forward,Color tint,float radius,bool ring=false,float width=0,float duration=0)
         {
             var arc=arcs[nextArc++%arcs.Length];float yaw=Mathf.Atan2(forward.x,forward.z);
             for(int i=0;i<slashPoints.Length;i++)
@@ -50,7 +50,7 @@ namespace TomorinTrial
                 float angle=yaw+Mathf.Lerp(ring?0:-2.1f,ring?Mathf.PI*2:2.1f,(float)i/(slashPoints.Length-1));
                 slashPoints[i]=position+new Vector3(Mathf.Sin(angle)*radius,ring?0:Mathf.Sin(angle-yaw)*radius*.23f,Mathf.Cos(angle)*radius);
             }
-            arc.line.SetPositions(slashPoints);arc.line.widthMultiplier=ring?.045f:.13f;arc.tint=tint;arc.until=Time.unscaledTime+(ring?.32f:.19f);arc.lifetime=ring?.32f:.19f;arc.line.enabled=true;
+            arc.line.SetPositions(slashPoints);arc.line.widthMultiplier=width>0?width:ring?.045f:.13f;arc.tint=tint;arc.lifetime=duration>0?duration:ring?.32f:.19f;arc.until=Time.unscaledTime+arc.lifetime;arc.line.enabled=true;
             arc.line.startColor=arc.line.endColor=tint;
         }
         float nextGhostBake;
@@ -58,9 +58,9 @@ namespace TomorinTrial
         {
             // Shared budget bounds BakeMesh cost even in a large cooperative room.
             if(Time.unscaledTime<nextGhostBake)return;
-            nextGhostBake=Time.unscaledTime+(Application.isMobilePlatform?.13f:.065f);
+            nextGhostBake=Time.unscaledTime+(Application.isMobilePlatform || TrialGraphicsBudget.Performance?.15f:.09f);
             var skins=player.GhostSkins;if(skins==null)return;
-            int index=nextGhost++%ghosts.Length;var ghost=ghosts[index];
+            int index=nextGhost++%(TrialGraphicsBudget.Performance?3:ghosts.Length);var ghost=ghosts[index];
             if(ghost==null)
             {
                 ghost=new GhostFrame{root=new GameObject("Blink afterimage "+index)};ghost.root.transform.SetParent(transform,false);ghosts[index]=ghost;
@@ -112,13 +112,13 @@ namespace TomorinTrial
                 }
                 return true;
             }
-            if(cue==TrialCombatCue.Hit || cue==TrialCombatCue.HeavyHit || cue==TrialCombatCue.FinisherHit || cue==TrialCombatCue.Kill)
+            if(cue==TrialCombatCue.Hit || cue==TrialCombatCue.HeavyHit || cue==TrialCombatCue.FinisherHit || cue==TrialCombatCue.Kill || cue==TrialCombatCue.SwordFlowHit)
             {
                 bool heavy=cue!=TrialCombatCue.Hit,kill=cue==TrialCombatCue.Kill,finish=cue==TrialCombatCue.FinisherHit;
                 Burst(value.position,kill?new Color(1,.4f,.12f):new Color(1,.85f,.6f),kill?85:heavy?50:24);
                 SlashEffect(value.position,value.forward,kill?new Color(1,.35f,.1f):Color.white,heavy?1.8f:1.1f);
-                Sound(kill || finish?"finish":heavy?"impactHeavy":"hit",value.position,Random.Range(finish?.82f:.94f,finish?.92f:1.05f));
-                if(local){game.CameraRig.Kick(kill || finish?.52f:heavy?.34f:.18f);game.CameraRig.Pulse(kill || finish?4:heavy?2:1);HitStop(kill || finish?.115f:heavy?.085f:.055f);Rumble(finish?.65f:heavy?.5f:.18f,kill || finish?.9f:.55f,finish?.14f:heavy?.10f:.06f);}
+                Sound(ContactSoundKey(value,kill || finish?"finish":heavy?"impactHeavy":"hit"),value.position,Random.Range(finish?.82f:.94f,finish?.92f:1.05f));
+                if(local){game.CameraRig.Kick(kill || finish?.52f:heavy?.34f:.18f);game.CameraRig.Pulse(kill || finish?4:heavy?2:1);if(cue!=TrialCombatCue.SwordFlowHit)HitStop(kill || finish?.115f:heavy?.085f:.055f);Rumble(finish?.65f:heavy?.5f:.18f,kill || finish?.9f:.55f,finish?.14f:heavy?.10f:.06f);}
                 return true;
             }
             if(cue==TrialCombatCue.PerfectDodge || cue==TrialCombatCue.BlinkSlash || cue==TrialCombatCue.Reversal)
@@ -131,14 +131,20 @@ namespace TomorinTrial
                 }
                 Color tint=counter?new Color(1,.73f,.22f):new Color(.48f,.018f,.045f);
                 SlashEffect(value.position,value.forward,tint,counter?2.6f:1.7f,cue==TrialCombatCue.PerfectDodge);
-                if(cue==TrialCombatCue.PerfectDodge)InkBloom(value.position,-value.forward,1.7f);
+                if(cue==TrialCombatCue.PerfectDodge)
+                {
+                    InkBloom(value.position,-value.forward,1.7f);
+                    var blue=new Color(.12f,.65f,1);
+                    SlashEffect(value.position,value.forward,blue,1.95f,true,.16f,.5f);
+                    Burst(value.position,blue,42);
+                }
                 else Burst(value.position,tint,counter?85:24);
                 Sound(counter?"counter":"blink",value.position);
                 if(counter)SlowMotion(.42f);
                 if(local)
                 {
                     game.CameraRig.Pulse(counter?8:4);Rumble(.3f,counter?.9f:.4f,.12f);
-                    game.Hud.Flash(new Color(tint.r,tint.g,tint.b,counter?.16f:.08f));
+                    game.Hud.Flash(cue==TrialCombatCue.PerfectDodge?new Color(.12f,.65f,1,.14f):new Color(tint.r,tint.g,tint.b,counter?.16f:.08f));
                     if(counter)game.Hud.Notify("反斩",.8f);else if(cue==TrialCombatCue.PerfectDodge)game.Hud.Notify("完美闪避 · 轻：闪身横斩 / 重：后跃落劈火龙",1.8f);
                 }
                 return true;

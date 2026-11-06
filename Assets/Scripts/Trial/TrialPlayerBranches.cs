@@ -15,15 +15,20 @@ namespace TomorinTrial
         public const int HiltStrike=58,HeelTurn=59,LowVault=60,VaultSweep=61,OrbitCut=62,FallingDraw=63,ElbowBreak=64,ScissorKick=65,SheathTurn=66,CloudRake=67;
         public const int LoftingDraw=68,AerialCascade=69;
         public const int ParryMirror=70,ParryAscend=71,SwordRecallCut=72,SwordRecallRise=73;
+        public const int SwordGuardReturn=74;
         public static bool IsMartialMove(int move)=>move>=HiltStrike && move<=LoftingDraw || move==ParryMirror || move==ParryAscend || move==SwordRecallCut || move==SwordRecallRise;
         public static bool IsBodyStrike(int move)=>move==HiltStrike || move==HeelTurn || move==ElbowBreak || move==ScissorKick;
         public static bool IsMartialAir(int move)=>move==SwordRecallRise || move==ParryAscend || move==LoftingDraw || move==LowVault || move==VaultSweep || move==ScissorKick || move==CloudRake;
         public static bool IsLowAirMove(int move)=>move==AerialCascade || IsMartialAir(move) || move==AirPierce || move>=AirStep && move<=WallRebound;
         public static bool IsExtendedMove(int move)=>move>=RollThrust && move<=ThreadPierce || move>=GatheredPierce && move<=GuardBloom;
         const float ChainGrace=.55f;
+        const float LandingSakuraGrace=.75f;
+        bool LandingSakuraReady=>swordLanded && IsSwordLandingSource(Combo) && (Action==FighterAction.Light || Action==FighterAction.Heavy)
+            || Action==FighterAction.Free && Time.time<chainUntil && IsSwordLandingSource(chainCount) && (IsDive(chainCount) || swordLanded);
         // Two future presses are enough for L,L,H. Consume only the oldest press;
         // contact holds never age the queue, and a committed move renews the next lease.
-        struct AttackPress {public bool heavy;}
+        struct AttackPress {public bool heavy;public long order;}
+        long combatInputOrder,bufferedDodgeOrder;
         readonly Queue<AttackPress> attackInputs=new Queue<AttackPress>(2);
         float attackInputAge;
         bool repeatLight,repeatHeavy,blockHeldLight,blockHeldHeavy,preferHeldHeavy;
@@ -47,7 +52,10 @@ namespace TomorinTrial
             {
                 attackInputAge+=dt;
                 bool attacking=Action==FighterAction.Light || Action==FighterAction.Heavy;
-                float link=IsComboEnd(Action==FighterAction.Heavy,Combo)?1:Action==FighterAction.Light?LightLinkProgress(Combo):HeavyLinkProgress(Combo);
+                bool heavy=Action==FighterAction.Heavy,nextHeavy=attackInputs.Peek().heavy;
+                int followup=heavy?(nextHeavy?HeavyHeavyBranch(Combo):HeavyLightBranch(Combo)):(nextHeavy?LightHeavyBranch(Combo):NextLight(Combo));
+                // A heavy-only extension must not expire a queued light that waits for recovery.
+                float link=followup<0?1:heavy?HeavyLinkProgress(Combo):LightLinkProgress(Combo);
                 float lease=attacking?Mathf.Max(InputBuffer,ActionDuration*link+.15f):InputBuffer;
                 if(attackInputAge>lease)ClearAttackInputs();
             }
@@ -56,9 +64,22 @@ namespace TomorinTrial
         }
         void QueueAttack(bool heavy)
         {
+            long order=++combatInputOrder;
+            // A pending dodge supersedes older queued cuts. Make room for a
+            // genuinely new press after that dodge, even if the old queue is full.
+            while(attackInputs.Count>=2 && Time.time-bufferedDodge<InputBuffer && attackInputs.Peek().order<bufferedDodgeOrder)attackInputs.Dequeue();
             if(attackInputs.Count>=2)return;
             if(attackInputs.Count==0)attackInputAge=0;
-            attackInputs.Enqueue(new AttackPress{heavy=heavy});
+            attackInputs.Enqueue(new AttackPress{heavy=heavy,order=order});
+        }
+        void PreserveDodgeFollowupInputs()
+        {
+            AttackPress? first=null,second=null;
+            foreach(var press in attackInputs)if(press.order>bufferedDodgeOrder)
+            {if(!first.HasValue)first=press;else second=press;}
+            ClearAttackInputs();
+            if(first.HasValue){attackInputs.Enqueue(first.Value);if(first.Value.heavy)blockHeldHeavy=false;else blockHeldLight=false;}
+            if(second.HasValue){attackInputs.Enqueue(second.Value);if(second.Value.heavy)blockHeldHeavy=false;else blockHeldLight=false;}
         }
         bool AttackQueued(bool heavy)=>attackInputs.Count>0?attackInputs.Peek().heavy==heavy:HeldAttack(heavy);
         void ConsumeAttackInput()
@@ -84,7 +105,7 @@ namespace TomorinTrial
             GuardBloom=>ThreadPierce,StormWheel=>LowVault,
             ParryTriple or BehindThrust or MoonChase=>ParryMirror,
             FireDragon or SpiralSword or DodgeDragon=>MoonChase,
-            SwordRecallCut=>CrossDraw,SwordRecallRise=>VaultSweep,ParryMirror=>ParryAscend,ParryAscend=>VaultSweep,
+            SwordRecallCut or SwordGuardReturn=>CrossDraw,SwordRecallRise=>VaultSweep,ParryMirror=>ParryAscend,ParryAscend=>VaultSweep,
             FlowingSweep=>RisingBridge,RisingBridge=>WheelFinish,
             RetreatDraw=>ThreadPierce,ThreadPierce=>WheelFinish,
             LowReap=>DoubleFang,DoubleFang=>WheelFinish,
@@ -98,11 +119,15 @@ namespace TomorinTrial
         static int LightHeavyBranch(int move)=>move switch
         {
             0=>4,1=>5,2=>6,
+            // Grounded finishers can commit to sakura pursuit with one more heavy.
+            // Keep their light/recovery exits and the original L,L,H entry intact.
+            4=>5,
+            RollFlash or WheelFinish or 19=>SakuraFollowup,
             RollThrust=>RollFlash,
             CrossDraw or HeelTurn or GatheredPierce or ThreadPierce=>LoftingDraw,
             HiltStrike=>ElbowBreak,ElbowBreak=>SheathTurn,OrbitCut=>FallingDraw,
             GuardNeedle=>GuardBloom,GuardBloom=>LoftingDraw,
-            SwordRecallCut=>LoftingDraw,SwordRecallRise=>AerialCascade,StormWheel=>RetreatDraw,17=>SakuraFollowup,SakuraFollowup=>LoftingDraw,
+            SwordRecallCut or SwordGuardReturn=>LoftingDraw,SwordRecallRise=>AerialCascade,StormWheel=>RetreatDraw,17=>SakuraFollowup,SakuraFollowup=>LoftingDraw,
             ParryTriple=>SpiralSword,BehindThrust or SpiralSword or MoonChase=>ParryAscend,
             FireDragon or DodgeDragon=>SpiralSword,ParryMirror=>SakuraFollowup,
             FlowingSweep=>RisingBridge,RisingBridge=>6,
@@ -120,7 +145,7 @@ namespace TomorinTrial
         static float HeavyLinkProgress(int move)=>move==ParryMirror?.76f:move==AerialCascade?.80f:move==FallingDraw?.72f:move==AirFan?.78f:move==DoubleFang?.74f:move==ParryTriple?.70f:move==6?.70f:move==DodgeDragon?.84f:move==FireDragon?.62f:move==SpiralSword?.55f:.66f;
         public static bool IsAirBlade(int move)=>move>=AirBladeFirst && move<=AirBladeThird;
         public static bool IsDive(int move)=>move==20 || move==AirSandDive;
-        public static bool HasSwordContact(int move)=>move!=AerialCascade && !IsBodyStrike(move) && move!=LowVault && move!=AirStep && move!=AirFan && move!=WallRebound && move!=DoubleFang && move!=3 && move!=6 && !IsAirBlade(move) && !IsDive(move) && move!=ParryTriple && move!=FireDragon && move!=SpiralSword && move!=DodgeDragon;
+        public static bool HasSwordContact(int move)=>move!=SwordGuardReturn && move!=AerialCascade && !IsBodyStrike(move) && move!=LowVault && move!=AirStep && move!=AirFan && move!=WallRebound && move!=DoubleFang && move!=3 && move!=6 && !IsAirBlade(move) && !IsDive(move) && move!=ParryTriple && move!=FireDragon && move!=SpiralSword && move!=DodgeDragon;
         public bool IsFinishingCut=>Combo==WheelFinish || Combo==RollFlash || Combo==6 || Combo==14 || Combo==17 || Combo==19 || IsDive(Combo) || Combo==24;
     }
 }

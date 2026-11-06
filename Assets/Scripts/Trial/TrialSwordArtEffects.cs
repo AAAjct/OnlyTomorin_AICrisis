@@ -97,6 +97,15 @@ namespace TomorinTrial
         }
         bool PlaySwordArtCue(TrialCombatEvent cue,bool local)
         {
+            if(cue.cue==TrialCombatCue.SwordGuardReturn)
+            {
+                Sound("parry",cue.position,.95f);Sound("swing",cue.position,1.15f);
+                Burst(cue.position,new Color(.35f,.8f,1),32);
+                SlashEffect(cue.position,cue.forward,new Color(.4f,.85f,1),1.8f);
+                cue.cue=TrialCombatCue.ThrustTrace;Art(cue,.24f);
+                if(local){game.CameraRig.Kick(.15f);Rumble(.3f,.55f,.08f);}
+                return true;
+            }
             if(cue.cue==TrialCombatCue.SwordRecall || cue.cue==TrialCombatCue.SpiralSword)
             {
                 var owner=TrialNetworkManager.SessionActive?TrialNetworkManager.Current.PlayerById(cue.player):game.Player;
@@ -105,7 +114,7 @@ namespace TomorinTrial
                 if(owner && owner.Weapon)owner.Weapon.gameObject.SetActive(true);
                 if(cue.cue==TrialCombatCue.SwordRecall)
                 {
-                    cue.cue=TrialCombatCue.EmpoweredStep;Art(cue,.22f);Sound("swing",cue.end,.9f);
+                    cue.cue=TrialCombatCue.EmpoweredStep;Art(cue,.22f);Sound("skillRecall",cue.end);
                     return true;
                 }
             }
@@ -114,15 +123,15 @@ namespace TomorinTrial
             if(cue.cue==TrialCombatCue.WeaveSigil){Art(cue,.42f);Burst(cue.position,StyleColor(cue.style),18);return true;}
             if(cue.cue==TrialCombatCue.RollFlash)
             {
-                Art(cue,.24f);InkBloom(cue.position,-cue.forward,1.2f);Sound("swing",cue.position,.72f);
+                Art(cue,.24f);InkBloom(cue.position,-cue.forward,1.2f);Sound("cutDraw",cue.position);
                 if(local){game.CameraRig.Kick(.16f);Rumble(.24f,.45f,.07f);}return true;
             }
             if(cue.cue==TrialCombatCue.CrimsonBlade || cue.cue==TrialCombatCue.MoonBlade)
-            {Art(cue,TrialSwordFlight.Lifetime(cue.cue)+CrescentTrailSeconds);Sound("swing",cue.position,.95f);return true;}
+            {Art(cue,TrialSwordFlight.Lifetime(cue.cue)+CrescentTrailSeconds);Sound(cue.cue==TrialCombatCue.MoonBlade?"skillMoon":"skillCrimson",cue.position);return true;}
             if(cue.cue==TrialCombatCue.FireDragon || cue.cue==TrialCombatCue.SpiralSword)
             {
                 Art(cue,TrialParryFlight.Duration(cue.cue,cue.amount),true);
-                Sound(cue.cue==TrialCombatCue.FireDragon?"finish":"swing",cue.position,cue.cue==TrialCombatCue.FireDragon?.72f:.85f);
+                Sound(cue.cue==TrialCombatCue.FireDragon?"skillFire":"skillSpiral",cue.position);
                 if(local){game.CameraRig.Kick(cue.cue==TrialCombatCue.FireDragon?.28f:.10f);Rumble(.25f,.45f,.1f);}return true;
             }
             if(cue.cue==TrialCombatCue.RisingCut || cue.cue==TrialCombatCue.CrescentCut || cue.cue==TrialCombatCue.ThrustTrace || cue.cue==TrialCombatCue.EmpoweredStep)
@@ -403,7 +412,7 @@ namespace TomorinTrial
             art.detail.widthMultiplier=.065f;art.detail.startColor=art.detail.endColor=new Color(.88f,.96f,1);
             if(art.owner && art.owner.Weapon)
             {
-                bool reclaim=art.owner.Guarding || art.owner.Action==FighterAction.Dodge || (art.owner.Action==FighterAction.Light || art.owner.Action==FighterAction.Heavy) && art.owner.Combo!=TrialPlayer.SpiralSword;
+                bool reclaim=art.owner.Guarding && art.owner.Combo!=TrialPlayer.SpiralSword || art.owner.Action==FighterAction.Dodge || (art.owner.Action==FighterAction.Light || art.owner.Action==FighterAction.Heavy) && art.owner.Combo!=TrialPlayer.SpiralSword;
                 art.owner.Weapon.gameObject.SetActive(reclaim || t>.97f);
             }
         }
@@ -416,6 +425,7 @@ namespace TomorinTrial
                 if(art.age>=art.duration || art.owner && !art.owner.Alive)
                 {art.root.gameObject.SetActive(false);if(art.owner && art.owner.Weapon)art.owner.Weapon.gameObject.SetActive(true);continue;}
                 UpdateArt(art);
+                if(TrialGraphicsBudget.Performance)art.glow.enabled=false;
             }
         }
         public void ClearSwordArts(TrialPlayer owner)

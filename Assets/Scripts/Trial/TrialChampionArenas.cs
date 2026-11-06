@@ -28,7 +28,7 @@ namespace TomorinTrial
             Gate=new GameObject("Boss challenge unlocked");Gate.transform.SetParent(Root,false);Gate.SetActive(false);
             ArenaEntrance=new GameObject("Challenge active");ArenaEntrance.transform.SetParent(Root,false);ArenaEntrance.SetActive(false);
             Ring(new Vector3(0,.035f,25),16,.055f,accent);Ring(new Vector3(0,.04f,25),15.7f,.025f,Gold);
-            if(level==TrialLevel.Twins)LotusCourt();
+            if(level==TrialLevel.Twins || level==TrialLevel.Endless || level==TrialLevel.BossRush)LotusCourt();
             else if(level==TrialLevel.Anon)SwordTerrace();
             else if(level==TrialLevel.Taffy)BallisticsHarbor();
             else if(level==TrialLevel.Penguin)GlacialForge();

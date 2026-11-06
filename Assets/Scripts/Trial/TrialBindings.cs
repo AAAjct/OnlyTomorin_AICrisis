@@ -28,7 +28,8 @@ namespace TomorinTrial
             new Entry("Heal","喝药","SwordCombat/Heal","<Keyboard>/r",null,"<Gamepad>/dpad/up"),
             new Entry("Lock","锁定","SwordCombat/Lock","<Keyboard>/tab","<Mouse>/middleButton","<Gamepad>/rightStickPress"),
             new Entry("Interact","交互","Player/Interact","<Keyboard>/e",null,"<Gamepad>/buttonSouth"),
-            new Entry("Pause","暂停","SwordCombat/Pause","<Keyboard>/escape",null,"<Gamepad>/start")
+            new Entry("Pause","暂停","SwordCombat/Pause","<Keyboard>/escape",null,"<Gamepad>/start"),
+            new Entry("Upgrade","升级","SwordCombat/Upgrade","<Keyboard>/t",null,"<Gamepad>/dpad/down")
         };
         public static int Version {get;private set;}
         static string Key(Entry entry,int slot)=>"Ink.Binding."+entry.Id+"."+slot;

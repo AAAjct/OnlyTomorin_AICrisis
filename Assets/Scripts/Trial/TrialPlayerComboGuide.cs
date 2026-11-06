@@ -11,7 +11,7 @@ namespace TomorinTrial
             11=>"架势直刺",12=>"奔跑横斩",14=>"破势处决",17=>"蓄力下劈",
             18=>"反向上挑",19=>"重劈终结",20=>"插剑落地",22=>"收刀斩",
             AirBladeFirst=>"空中剑气一",AirBladeSecond=>"空中剑气二",AirBladeThird=>"空中剑气三",
-            AirSandDive=>"俯冲落地",SakuraFollowup=>"落地樱花突刺",
+            AirSandDive=>"俯冲落地",SakuraFollowup=>"追击樱花突刺",
             ParryTriple=>"格挡三连刺",FireDragon=>"火龙",BehindThrust=>"背闪突刺",SpiralSword=>"投刀回旋",DodgeDragon=>"后跃火龙",
             FlowingSweep=>"回身横扫",RisingBridge=>"进步上挑",MoonChase=>"月刃追刺",
             RollThrust=>"翻滚前刺",RollFlash=>"翻滚一闪",CrossDraw=>"交错斩",LowReap=>"低扫",
@@ -21,7 +21,7 @@ namespace TomorinTrial
             HiltStrike=>"剑柄击",HeelTurn=>"扫腿收势",LowVault=>"低跃",VaultSweep=>"腾身横扫",
             OrbitCut=>"绕身回刀",FallingDraw=>"落地抽刀",ElbowBreak=>"贴身肘击",ScissorKick=>"空中剪脚",
             SheathTurn=>"纳刀收势",CloudRake=>"云回挑斩",LoftingDraw=>"挑空抽刀",AerialCascade=>"空中三飞刃",
-            SwordRecallCut=>"追剑收斩",SwordRecallRise=>"追剑升龙",ParryMirror=>"影返交错",ParryAscend=>"踏空回斩",
+            SwordRecallCut=>"追剑收斩",SwordRecallRise=>"追剑升龙",SwordGuardReturn=>"接刀返斩",ParryMirror=>"影返交错",ParryAscend=>"踏空回斩",
             _=>"剑招"
         };
 
@@ -29,11 +29,13 @@ namespace TomorinTrial
         {
             get
             {
+                if(SwordGuardReturning)return "投刀完美格挡 · 接刀返斩";
                 if(ParryDodgeFollowup)return "完美格挡 · 远闪追击";
                 if(ParryEmpowered)return "完美格挡 · 选择反击";
                 if(weavePending)return "格挡变招 · "+SwordMoveName(GuardComboHeavy(GuardFollowupMove),GuardFollowupMove);
                 if(Action==FighterAction.Charge)return Combo==FireDragon?"强化 · 火龙蓄力":"蓄力 · 松开重击出招";
-                if(Action==FighterAction.Dodge)return "闪避 · 选择追击";
+                if(CanLinkDodgeAttack)return "闪避 · 选择追击";
+                if(LandingSakuraReady)return "落地 · 樱花追击";
                 bool attacking=Action==FighterAction.Light || Action==FighterAction.Heavy;
                 if(!attacking && Time.time>=chainUntil)return "剑术 · 选择起手";
                 bool heavy=attacking?Action==FighterAction.Heavy:chainHeavy;
@@ -44,11 +46,14 @@ namespace TomorinTrial
 
         public string ComboGuideHint(string light,string heavy,string jump,string guard="格挡")
         {
+            if(SwordGuardReturning)return "瞬移接刀 → 快速返斩至投刀起点";
+            if(AutoSwordThrowGuard)return "投刀自动格挡 · 完美格挡后瞬移接刀返斩\n"+light+" 追剑收斩 / "+heavy+" 追剑升龙";
             if(ParryDodgeFollowup)return light+" 背闪突刺 / "+heavy+" 回旋刀";
             if(ParryEmpowered)return light+" 三连刺 / "+heavy+" 火龙 / 闪避远闪";
             if(Time.time<blinkReadyUntil)return light+" 闪身横斩 / "+heavy+" 后跃火龙";
             if(Action==FighterAction.Charge)return $"蓄力 {ChargeAmount*100:0}% · 松开释放 · 格挡 / 闪避取消";
-            if(Action==FighterAction.Dodge)return light+" 前刺 / "+heavy+" 一闪";
+            if(CanLinkDodgeAttack)return light+" 前刺 / "+heavy+" 一闪 / "+guard+" 投刀";
+            if(LandingSakuraReady)return light+" → 追击樱花突刺 / "+heavy+" 重新起手\n触地轻击直接续接 · 松开停止";
             if(Action==FighterAction.Stagger || Action==FighterAction.Heal)return "动作结束后重新起手";
             if(SwordRecallReady && !weavePending)return light+" → 追剑收斩 / "+heavy+" → 追剑升龙\n瞬移至飞剑实际位置 · 收剑后继续连招";
             if(weavePending)return "架势完成后自动出招 · 无需补按攻击\n长按轻 / 重可接后续 · 闪避取消";

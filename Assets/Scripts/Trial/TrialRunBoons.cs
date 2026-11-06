@@ -24,11 +24,11 @@ namespace TomorinTrial
         public TrialBoon OfferA {get;private set;}
         public TrialBoon OfferB {get;private set;}
         public TrialBoon OfferC {get;private set;}
-        public bool ChoosingBoon=>Boon==TrialBoon.None && OfferA!=TrialBoon.None && !game.IsArena;
+        public bool ChoosingBoon=>ChoosingRunAffix || Boon==TrialBoon.None && OfferA!=TrialBoon.None && !game.IsArena;
         public float DodgeCost=>Boon==TrialBoon.LightStep?12:16;
         public void RollRunBoons()
         {
-            if(game.IsArena || Boon!=TrialBoon.None || OfferA!=TrialBoon.None)return;
+            if(game.IsArena || game.IsEndless || Boon!=TrialBoon.None || OfferA!=TrialBoon.None)return;
             OfferA=(TrialBoon)Random.Range(1,7);
             do{OfferB=(TrialBoon)Random.Range(1,7);}while(OfferB==OfferA);
             do{OfferC=(TrialBoon)Random.Range(1,7);}while(OfferC==OfferA || OfferC==OfferB);

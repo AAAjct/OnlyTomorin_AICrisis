@@ -114,7 +114,7 @@ namespace TomorinTrial
             if(shownGuards!=game.DefeatedGuards || shownGate!=game.GateOpen)
             {shownGuards=game.DefeatedGuards;shownGate=game.GateOpen;objectiveText.text=game.IsChampionStage?TrialChampionCatalog.LevelName(game.Level):game.GateOpen?"庭门已开":"奶蛙  "+shownGuards+" / 3";}
             if(game.IsArena)objectiveText.text=TrialNetworkManager.Current.ArenaScoreboard();
-            promptText.text=game.IsArena?(!game.Player.Alive?"阵亡 · 3 秒后重生":game.Player.SpawnProtected?"重生保护 · 主动攻击后解除":""):game.Mode==TrialMode.Playing && Vector3.Distance(game.Player.transform.position,game.World.ShrinePosition)<2.6f?interactPrompt:"";
+            promptText.text=game.IsRunStage?"":game.IsArena?(!game.Player.Alive?"阵亡 · 3 秒后重生":game.Player.SpawnProtected?"重生保护 · 主动攻击后解除":""):game.Mode==TrialMode.Playing && Vector3.Distance(game.Player.transform.position,game.World.ShrinePosition)<2.6f?interactPrompt:"";
             noticeText.text=game.Mode==TrialMode.Playing && Time.unscaledTime<noticeUntil?notice:"";
             if(game.Mode==TrialMode.Playing)
             {
@@ -124,8 +124,8 @@ namespace TomorinTrial
             }
             // An empty enemy list must not interrupt the rest of the HUD update.
             TrialEnemy boss=game.Enemies.Count>0?game.Enemies[game.Enemies.Count-1]:null;
-            if(game.IsChampionStage)foreach(var e in game.Enemies)if(e && e.Alive && (!boss || !boss.Alive || (e.Champion && e.Champion.WindingUp)))boss=e;
-            bool showBoss=!game.IsArena && boss && boss.Alive && boss.Awakened && game.Mode==TrialMode.Playing;
+            if(game.IsChampionStage || game.IsRunStage)foreach(var e in game.Enemies)if(e && e.IsBoss && e.Alive && (!boss || !boss.IsBoss || !boss.Alive || (e.Champion && e.Champion.WindingUp)))boss=e;
+            bool showBoss=!game.IsArena && boss && boss.IsBoss && boss.Alive && boss.Awakened && game.Mode==TrialMode.Playing;
             bossPanel.gameObject.SetActive(showBoss);
             objectiveText.gameObject.SetActive(game.Mode==TrialMode.Playing&&!showBoss);
             if(showBoss)
@@ -153,6 +153,7 @@ namespace TomorinTrial
                 markerImage.color=enemy && enemy.WindingUp?(enemy.Unblockable?new Color(1,.12f,.06f):new Color(1,.83f,.37f)):gold;
             }
             if(game.Mode!=lastMode){lastMode=game.Mode;RefreshMenu();}
+            UpdateRoguelikeHud();
         }
 
         void UpdateHealthShake()
@@ -200,7 +201,7 @@ namespace TomorinTrial
             if(show && EventSystem.current){EventSystem.current.SetSelectedGameObject(null);EventSystem.current.SetSelectedGameObject(mainButton.interactable?mainButton.gameObject:secondaryButton.gameObject);}
             menuSubtitle.text="";
             if(game.Mode==TrialMode.Title)
-            {menuTitle.text=game.IsChampionStage?TrialChampionCatalog.LevelName(game.Level):"雾庭";menuCaption.text=game.IsChampionStage?TrialChampionCatalog.Lesson(game.Level):"击败三名奶蛙，进入庭心。";mainButtonLabel.text="进入";}
+            {menuTitle.text=game.IsRunStage?TrialChampionCatalog.LevelName(game.Level):game.IsChampionStage?TrialChampionCatalog.LevelName(game.Level):"雾庭";menuCaption.text=game.IsEndless?"持续击杀获取经验，升级词条三选一。每 5 波精英来袭，挑战你的生存极限。":game.IsBossRush?"8 位 Boss 逐个挑战。开局 3 瓶药，全程不补充；每场胜利回满血量与耐力。":game.IsChampionStage?TrialChampionCatalog.Lesson(game.Level):"击败三名奶蛙，进入庭心。";mainButtonLabel.text="进入";}
             if(game.Mode==TrialMode.Paused)
             {menuTitle.text="暂停";menuCaption.text="";mainButtonLabel.text="继续";}
             if(game.Mode==TrialMode.Dead)

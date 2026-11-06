@@ -6,7 +6,10 @@ namespace TomorinTrial
 {
     public enum TrialMode { Title, Playing, Paused, Dead, Victory }
 
-    public sealed class TrialGame : MonoBehaviour
+    // Read touch buttons after EventSystem.Update has dispatched this frame's UI input.
+    // Keyboard/gamepad state is already available; touch should reach the same combat tick.
+    [DefaultExecutionOrder(100)]
+    public sealed partial class TrialGame : MonoBehaviour
     {
         [SerializeField] GameObject tomorinModel;
         [SerializeField] GameObject deepSeekModel;
@@ -62,7 +65,7 @@ namespace TomorinTrial
             previousBackground=Application.runInBackground;Application.runInBackground=true;
             Level=initialLevel;
             Difficulty=TrialNetworkManager.SessionActive && TrialNetworkManager.Current?TrialNetworkManager.Current.SelectedDifficulty:TrialDifficultySettings.Solo;
-            if(IsChampionStage)Checkpoint=new Vector3(0,0,8);
+            if(IsChampionStage || IsRunStage)Checkpoint=new Vector3(0,0,8);
             World=new TrialWorld();World.Build(transform,surfaceShader,skyShader,Level);
             Input=gameObject.AddComponent<TrialInput>();Input.Initialize(inputActions);
             Player=new GameObject("Tomorin").AddComponent<TrialPlayer>();Player.transform.SetParent(transform,false);Player.transform.position=Checkpoint;Player.Initialize(this,tomorinModel);
@@ -70,7 +73,8 @@ namespace TomorinTrial
             if(!camera.GetComponent<AudioListener>())camera.gameObject.AddComponent<AudioListener>();
             CameraRig=camera.gameObject.AddComponent<TrialCamera>();CameraRig.Initialize(Player);
             Effects=gameObject.AddComponent<TrialEffects>();Effects.Initialize(this);
-            if(IsChampionStage)
+            if(IsRunStage){Run=new TrialEndlessRun(this);GateOpen=true;World.Gate.SetActive(false);World.ArenaEntrance.SetActive(true);Player.Restore(Checkpoint);}
+            else if(IsChampionStage)
             {
                 if(Level==TrialLevel.Twins){SpawnChampion(ChampionKind.FeiBi,new Vector3(-4,0,30));SpawnChampion(ChampionKind.NuoNuo,new Vector3(4,0,30));}
                 else SpawnChampion(Level==TrialLevel.Remnant?ChampionKind.Remnant:Level==TrialLevel.Anon?ChampionKind.Anon:Level==TrialLevel.Taffy?ChampionKind.Taffy:Level==TrialLevel.Penguin?ChampionKind.Penguin:ChampionKind.YaYa,new Vector3(0,0,32));
@@ -86,6 +90,8 @@ namespace TomorinTrial
 
         System.Collections.IEnumerator ReleaseUnusedLevelAssets()
         {
+            // Run encounters spawn later waves from these authored references.
+            if(IsRunStage)yield break;
             // Runtime actors retain their own meshes/materials. Companions still need Tomorin.
             if(championModels!=null)System.Array.Clear(championModels,0,championModels.Length);
             deepSeekModel=null;naiWaModel=null;championGun=null;
@@ -160,7 +166,7 @@ namespace TomorinTrial
         public void SealArena()
         {
             if(World.ArenaEntrance.activeSelf)return;
-            if(IsChampionStage){World.ArenaEntrance.SetActive(true);return;}
+            if(IsChampionStage || IsRunStage){World.ArenaEntrance.SetActive(true);return;}
             if(TrialNetworkManager.SessionActive)
             {
                 int index=0;
@@ -199,13 +205,15 @@ namespace TomorinTrial
                 return;
             }
             if(Input.Pause){Pause();return;}
+            if(Input.Upgrade && Player.OpenRunUpgrade())return;
             if(Player.ChoosingBoon){SetCursor(false);return;}
             float dt=Time.deltaTime;PlaySeconds+=dt;restCooldown-=dt;
             Player.Tick(dt,Input);
-            if(!Player.Alive)return;
-            foreach(var enemy in enemies)enemy.Tick(dt);
+            if(!Player.Alive || Player.ChoosingBoon)return;
+            foreach(var enemy in enemies){enemy.Tick(dt);if(Player.ChoosingBoon || Mode!=TrialMode.Playing)break;}
+            if(Run!=null && !Player.ChoosingBoon && Mode==TrialMode.Playing)Run.Tick(dt);
             CameraRig.Look(Input.Look);
-            if(Input.Interact && Vector3.Distance(Player.transform.position,World.ShrinePosition)<2.6f && restCooldown<=0)
+            if(!IsRunStage && Input.Interact && Vector3.Distance(Player.transform.position,World.ShrinePosition)<2.6f && restCooldown<=0)
             {
                 bool danger=false;foreach(var enemy in enemies)if(enemy.Alive && enemy.Awakened && Vector3.Distance(enemy.transform.position,Player.transform.position)<9)danger=true;
                 if(danger){Hud.Notify("战斗中无法休息",1.4f);return;}
@@ -221,7 +229,7 @@ namespace TomorinTrial
             Mode=TrialMode.Playing;CameraRig.Frozen=false;Input.ResetSprint();Time.timeScale=1;
             Hud.ResetDamageFeedback();
             if(!IsArena && (!TrialNetworkManager.SessionActive || Mirror.NetworkServer.active))
-            {Player.RollRunBoons();var fish=enemies[enemies.Count-1].Boss;if(fish && fish.Boon==TrialBossBoon.None)fish.RollBoon();}
+            {Player.RollRunBoons();var fish=enemies.Count>0?enemies[enemies.Count-1].Boss:null;if(fish && fish.Boon==TrialBossBoon.None)fish.RollBoon();}
             SetCursor(!Player.ChoosingBoon);
         }
         public void FinishBoonChoice(){Input.ResetSprint();Input.SuppressCombat();SetCursor(Mode==TrialMode.Playing);Hud.Notify("获得增益 · "+TrialRunBoons.Name(Player.Boon),2);}
@@ -230,6 +238,7 @@ namespace TomorinTrial
         public void StartBossChallenge()
         {
             RestartTrial();
+            if(IsRunStage)return;
             if(IsChampionStage){Hud.Notify(TrialChampionCatalog.Lesson(Level),5);return;}
             for(int i=0;i<3;i++)enemies[i].ReceiveHit(Player,10000,100,true);
             Player.Restore(new Vector3(0,0,19));CameraRig.Snap();
@@ -256,11 +265,12 @@ namespace TomorinTrial
         public void OnPlayerDied()
         {
             Deaths++;if(TrialNetworkManager.SessionActive){Hud.Notify(IsArena?"3 秒后重生":"5 秒后重生",3);return;}
-            if(IsChampionStage)foreach(var enemy in enemies)enemy.Champion.CancelAttack(true);
+            foreach(var enemy in enemies)if(enemy.Champion)enemy.Champion.CancelAttack(true);
             Mode=TrialMode.Dead;SetCursor(false);
         }
         public void OnEnemyDied(TrialEnemy enemy)
         {
+            if(IsRunStage){Run.EnemyDied(enemy);Player.OnRunKill(enemy);return;}
             if(enemy.IsBoss)
             {
                 if(IsChampionStage){foreach(var other in enemies)if(other!=enemy && other.Alive){Hud.Notify(enemy.DisplayName+" 倒下 · 另一位进入决意阶段",3);return;}foreach(var other in enemies)other.Champion.CancelAttack(true);}
@@ -277,8 +287,8 @@ namespace TomorinTrial
             if(TrialNetworkManager.SessionActive)TrialNetworkManager.Current.RetryChallenge();
             else RestartTrial();
         }
-        public void Respawn(){Player.Restore(Checkpoint);ResetEnemies();CameraRig.Snap();StartTrial();Hud.Notify("",0);}
-        public void RestartTrial(){Checkpoint=IsChampionStage?new Vector3(0,0,8):new Vector3(0,0,-21);Deaths=0;PlaySeconds=0;Player.ResetRunBoon();var fish=enemies[enemies.Count-1].Boss;if(fish)fish.ClearBoon();Respawn();}
+        public void Respawn(){if(IsRunStage){RestartTrial();return;}Player.Restore(Checkpoint);ResetEnemies();CameraRig.Snap();StartTrial();Hud.Notify("",0);}
+        public void RestartTrial(){if(IsRunStage){RestartRun();return;}Checkpoint=IsChampionStage?new Vector3(0,0,8):new Vector3(0,0,-21);Deaths=0;PlaySeconds=0;Player.ResetRunBoon();var fish=enemies.Count>0?enemies[enemies.Count-1].Boss:null;if(fish)fish.ClearBoon();Respawn();}
         void ResetEnemies(){World.ArenaEntrance.SetActive(false);foreach(var enemy in enemies)enemy.ResetFighter();DefeatedGuards=0;GateOpen=IsChampionStage;World.Gate.SetActive(!IsChampionStage);}
         public TrialEnemy NearestEnemy(Vector3 point,float range)
         {
@@ -293,6 +303,6 @@ namespace TomorinTrial
         }
         void SetCursor(bool captured){Cursor.lockState=captured?CursorLockMode.Locked:CursorLockMode.None;Cursor.visible=!captured;}
         void OnDestroy()
-        {Ready=false;if(World!=null)World.Dispose();Time.timeScale=1;Cursor.lockState=CursorLockMode.None;Cursor.visible=true;Application.runInBackground=previousBackground;}
+        {Ready=false;if(Run!=null)Run.Dispose();if(World!=null)World.Dispose();Time.timeScale=1;Cursor.lockState=CursorLockMode.None;Cursor.visible=true;Application.runInBackground=previousBackground;}
     }
 }

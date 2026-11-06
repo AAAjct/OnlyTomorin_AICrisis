@@ -48,7 +48,7 @@ namespace TomorinTrial
                 var size=inkMist.sizeOverLifetime;size.enabled=true;size.size=new ParticleSystem.MinMaxCurve(1,new AnimationCurve(new Keyframe(0,.3f),new Keyframe(.4f,1),new Keyframe(1,1.5f)));
                 inkMist.GetComponent<ParticleSystemRenderer>().sharedMaterial=inkMistMaterial;
             }
-            inkMist.Play();int count=Mathf.CeilToInt((Application.isMobilePlatform?5:10)*strength);
+            inkMist.Play();int count=Mathf.CeilToInt((Application.isMobilePlatform?5:10)*strength*TrialGraphicsBudget.EffectDensity);
             for(int i=0;i<count;i++)
                 inkMist.Emit(new ParticleSystem.EmitParams{position=point+Random.insideUnitSphere*.28f*strength,velocity=drift+Random.insideUnitSphere*.9f,startSize=Random.Range(.12f,.38f)*strength,startColor=new Color(.008f,.006f,.012f,.65f),rotation=Random.Range(0,360)},1);
         }

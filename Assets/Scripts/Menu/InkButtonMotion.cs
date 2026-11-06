@@ -14,6 +14,7 @@ namespace TomorinTrial
         UnityEngine.UI.Selectable selectable;
         bool pointerOver, selected, pressed;
         float amount;
+        public bool PreserveLayout {get;set;}
         public void Configure(RectTransform text, RectTransform line, UnityEngine.UI.Image background)
         { caption=text;rule=line;wash=background;Restyle(null); }
 
@@ -35,10 +36,11 @@ namespace TomorinTrial
             if(captionText)
             {
                 if(font)captionText.font=font;
-                captionText.fontStyle=FontStyle.Normal;captionText.fontSize=rect.sizeDelta.y>=55?25:rect.sizeDelta.y>=40?21:17;
-                caption.anchoredPosition=new Vector2(44,0);caption.sizeDelta=new Vector2(rect.sizeDelta.x-60,rect.sizeDelta.y);
+                captionText.fontStyle=FontStyle.Normal;
+                if(!PreserveLayout){captionText.fontSize=rect.sizeDelta.y>=55?25:rect.sizeDelta.y>=40?21:17;
+                caption.anchoredPosition=new Vector2(44,0);caption.sizeDelta=new Vector2(rect.sizeDelta.x-60,rect.sizeDelta.y);}
             }
-            if(!prefix)foreach(var label in GetComponentsInChildren<UnityEngine.UI.Text>(true))if(label!=captionText){prefix=label;break;}
+            if(!prefix && !PreserveLayout)foreach(var label in GetComponentsInChildren<UnityEngine.UI.Text>(true))if(label!=captionText){prefix=label;break;}
             if(prefix){prefix.fontSize=12;prefix.rectTransform.anchoredPosition=new Vector2(10,0);prefix.rectTransform.sizeDelta=new Vector2(30,rect.sizeDelta.y);}
             baseTint=new Color(.065f,.08f,.08f);hoverTint=new Color(.61f,.18f,.13f);
             amount=0;Apply();

@@ -119,6 +119,7 @@ namespace TomorinTrial
             {
                 if(r==null || !r.core.enabled)continue;
                 float left=r.until-Time.time;if(left<=0){r.core.enabled=r.halo.enabled=false;continue;}
+                r.halo.enabled=!TrialGraphicsBudget.Performance;
                 float fade=Mathf.Clamp01(left/r.duration);Color c=Color.Lerp(r.color,Color.white,.65f);c.a=fade;r.core.startColor=r.core.endColor=c;
                 c=r.color;c.a=fade*.36f;r.halo.startColor=r.halo.endColor=c;
                 r.halo.widthMultiplier=r.width*(1+(1-fade)*.8f);r.core.widthMultiplier=r.width*.22f*fade;

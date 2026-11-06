@@ -28,6 +28,9 @@ namespace TomorinTrial
         Vector3 transitionHand,transitionOffhand,transitionRoot;
         Quaternion transitionSword,transitionRotation;
         const float TransitionDuration=.11f;
+        float activeTransitionDuration=TransitionDuration;
+        bool responsiveTransition;
+        Vector3 posedHand,posedOffhand;
 
         public void Initialize(TrialFighter owner,Transform visual)
         {
@@ -57,7 +60,12 @@ namespace TomorinTrial
             bool changed=renderedAction!=fighter.Action || renderedCombo!=fighter.Combo || fighter.ActionTime<renderedTime;
             if(hasRenderedPose && changed)
             {
-                transitionAge=0;
+                bool attacking=fighter.Action==FighterAction.Light || fighter.Action==FighterAction.Heavy;
+                bool landingLink=TrialPlayer.IsDive(fighter.Combo) && TrialPlayer.IsAirVolleyFinisher(renderedCombo)
+                    || fighter.Combo==TrialPlayer.SakuraFollowup && (TrialPlayer.IsDive(renderedCombo) || TrialPlayer.IsAirVolleyFinisher(renderedCombo));
+                responsiveTransition=attacking && (landingLink || renderedAction==FighterAction.Dodge || fighter.Combo==TrialPlayer.RollThrust || fighter.Combo==TrialPlayer.RollFlash || fighter.Combo==TrialPlayer.SpiralSword || fighter.Combo==TrialPlayer.SwordGuardReturn);
+                activeTransitionDuration=responsiveTransition?.075f:TransitionDuration;
+                transitionAge=responsiveTransition?Mathf.Min(Time.deltaTime,.025f):0;
                 transitionHand=transform.InverseTransformPoint(RightHand?RightHand.position:weapon?weapon.position:transform.position);
                 transitionOffhand=transform.InverseTransformPoint(leftHand?leftHand.position:transform.position);
                 transitionSword=Quaternion.Inverse(transform.rotation)*(weapon?weapon.rotation:transform.rotation);
@@ -65,7 +73,7 @@ namespace TomorinTrial
                 for(int i=0;i<bones.Length;i++)transitionRotations[i]=bones[i].localRotation;
             }
             else transitionAge+=Time.deltaTime;
-            renderingTransition=hasRenderedPose && transitionAge<TransitionDuration && fighter.Action!=FighterAction.Dodge && fighter.Action!=FighterAction.Dead;
+            renderingTransition=hasRenderedPose && transitionAge<activeTransitionDuration && fighter.Action!=FighterAction.Dodge && fighter.Action!=FighterAction.Dead;
             renderedAction=fighter.Action;renderedCombo=fighter.Combo;renderedTime=fighter.ActionTime;
             for(int i=0;i<bones.Length;i++)previousRotations[i]=bones[i].localRotation;
             if(fighter is TrialEnemy enemy && enemy.Champion && enemy.Champion.IsRemnant && enemy.Alive && !enemy.Vulnerable)
@@ -74,13 +82,22 @@ namespace TomorinTrial
                 int cut=shape==ChampionShape.Thrust?11:shape==ChampionShape.BladeWave?12:shape==ChampionShape.Stomp?4:shape==ChampionShape.Spiral?2:brain.MoveIndex%2;
                 Pose(enemy.Flinching?FighterAction.Stagger:brain.Attacking && !brain.CounterReady?FighterAction.Light:FighterAction.Free,brain.AnimationBeat,cut,fighter.MoveBlend,fighter.Guarding || brain.CounterReady,phase);
             }
+            else if(player && player.AirVolleyDescending && fighter.Action==FighterAction.Free)
+                Pose(FighterAction.Light,.90f,fighter.Combo,0,false,phase);
             else Pose(fighter.Action,fighter.Action==FighterAction.Dead?Mathf.Clamp01(deathPoseTime/1.3f):fighter.Progress,fighter.Combo,fighter.MoveBlend,fighter.Guarding,phase);
             Quaternion posedSwordRotation=weapon?weapon.rotation:Quaternion.identity;
             float blend=1-Mathf.Exp(-((fighter.Action==FighterAction.Light || fighter.Action==FighterAction.Heavy) && fighter.Progress<.55f?48:28)*Time.deltaTime);
             if(fighter.Action!=FighterAction.Dodge && fighter.Action!=FighterAction.Dead)
                 for(int i=0;i<bones.Length;i++)bones[i].localRotation=renderingTransition
-                    ?Quaternion.Slerp(transitionRotations[i],bones[i].localRotation,Mathf.SmoothStep(0,1,transitionAge/TransitionDuration))
+                    ?Quaternion.Slerp(transitionRotations[i],bones[i].localRotation,Mathf.SmoothStep(0,1,transitionAge/activeTransitionDuration))
                     :Quaternion.Slerp(previousRotations[i],bones[i].localRotation,blend);
+            // Body blending changes shoulder positions. Solve the grips again
+            // against the already blended hand targets, rather than blending IK twice.
+            if(renderingTransition && responsiveTransition)
+            {
+                SolveArm(rightArm,rightElbow,RightHand,transform.TransformPoint(posedHand),transform.TransformPoint(new Vector3(.75f,.86f,-.1f)));
+                SolveArm(leftArm,leftElbow,leftHand,transform.TransformPoint(posedOffhand),transform.TransformPoint(new Vector3(-.75f,.80f,-.1f)));
+            }
             // Bone smoothing changes the final hand position; keep the sword in its grip.
             if(weapon){weapon.rotation=posedSwordRotation;if(RightHand)weapon.position=RightHand.position;}
             if(flask && leftHand)flask.position=leftHand.position;
@@ -118,12 +135,20 @@ namespace TomorinTrial
                 if(combo==TrialPlayer.DoubleFang){float beat=Mathf.Clamp01((p-(p<.48f?.08f:.48f))/.27f);swing=Mathf.SmoothStep(0,1,beat);recover=p>.85f?(p-.85f)/.15f:0;}
                 if(combo==TrialPlayer.ParryMirror){float beat=Mathf.Clamp01((p-(p<.42f?.08f:.42f))/.27f);swing=Mathf.SmoothStep(0,1,beat);recover=p>.82f?(p-.82f)/.18f:0;}
                 if(combo==TrialPlayer.RollFlash){swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.12f,.40f,p));recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.62f,1,p));}
+                if(combo==TrialPlayer.RollThrust)swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,.30f,p));
+                if(combo==TrialPlayer.SakuraFollowup && player && player.LandingSakuraFlow)
+                    swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,.42f,p));
+                if(combo==TrialPlayer.SwordGuardReturn){swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.02f,.50f,p));recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.68f,1,p));}
+                if(combo==TrialPlayer.SpiralSword){swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.025f,.18f,p));recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.62f,1,p));}
                 if(combo==TrialPlayer.AirFan || combo==TrialPlayer.AerialCascade){swing=Mathf.Sin(Mathf.Clamp01(Mathf.Repeat(Mathf.Max(0,p-.08f),.22f)/.22f)*Mathf.PI);recover=0;}
                 if(combo==TrialPlayer.DodgeDragon){swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.64f,.82f,p));recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.86f,1,p));}
                 Vector3 windup,finish;
                 Vector3 startAngles,endAngles;
                 switch(combo)
                 {
+                    case TrialPlayer.SwordGuardReturn:
+                        windup=new Vector3(-.45f,.80f,.10f);finish=new Vector3(.52f,1.10f,.68f);
+                        startAngles=new Vector3(95,-100,0);endAngles=new Vector3(85,105,-10);break;
                     case TrialPlayer.SwordRecallCut:
                         windup=new Vector3(.28f,1.18f,.92f);finish=new Vector3(-.48f,.65f,.65f);
                         startAngles=new Vector3(75,80,-25);endAngles=new Vector3(135,-95,25);break;
@@ -327,12 +352,18 @@ namespace TomorinTrial
                 // Windup, fast contact arc, then controlled recovery. Adjacent cuts use
                 // the previous finish as their starting guard, so a chain keeps its flow.
                 Vector3 ready=hand;
-                float wind=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,heavy?.20f:.10f,p));
+                float wind=combo==TrialPlayer.SakuraFollowup && player && player.LandingSakuraFlow?1:Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,heavy?.20f:.10f,p));
                 bool thrust=combo==TrialPlayer.GatheredPierce || combo==TrialPlayer.GuardNeedle || combo==TrialPlayer.AirPierce || combo==TrialPlayer.RollThrust || combo==TrialPlayer.ThreadPierce || combo==2 || combo==5 || combo==8 || combo==11 || combo==25 || combo==TrialPlayer.MoonChase || combo==TrialPlayer.SakuraFollowup || combo==TrialPlayer.ParryTriple || combo==TrialPlayer.BehindThrust;
                 Vector3 arc=(windup+finish)*.5f+Vector3.forward*(thrust?0:heavy?.20f:.16f);
                 Vector3 cut=Vector3.Lerp(Vector3.Lerp(windup,arc,swing),Vector3.Lerp(arc,finish,swing),swing);
                 hand=Vector3.Lerp(Vector3.Lerp(ready,cut,wind),ready,recover);
                 offhand=Vector3.Lerp(heavy?hand+new Vector3(-.12f,-.10f,-.08f):new Vector3(-.35f,1.02f,-.10f),offhand,recover);
+                if(combo==TrialPlayer.SpiralSword && guard)
+                {
+                    float block=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.18f,.30f,p));
+                    hand=Vector3.Lerp(hand,new Vector3(.14f,1.04f,.32f),block);
+                    offhand=Vector3.Lerp(offhand,new Vector3(-.10f,.99f,.35f),block);
+                }
                 float side=combo==1 || combo==2 || combo==4 || combo==10 || combo==16 || combo==TrialPlayer.AirBladeSecond?-1:1;
                 twist=Mathf.Lerp(-42*side,58*side,swing)*(1-recover);
                 lean=Mathf.Lerp(-12,heavy?25:14,swing)*(1-recover);
@@ -405,7 +436,22 @@ namespace TomorinTrial
                     model.localPosition+=bodyPivot-rootTurn*bodyPivot;
                 }
                 if(TrialPlayer.IsDive(combo))
-                {lean=combo==TrialPlayer.AirSandDive?48:14;twist=0;offhand=hand+new Vector3(-.12f,-.1f,0);Leg(leftLeg,leftFoot,-22);Leg(rightLeg,rightFoot,22);}
+                {
+                    float landed=player?player.SwordLandingBlend:0;
+                    lean=Mathf.Lerp(combo==TrialPlayer.AirSandDive?48:14,12,landed);twist=0;
+                    hand=Vector3.Lerp(hand,new Vector3(.20f,.94f,.12f),landed);
+                    swordRotation=Quaternion.Slerp(swordRotation??Quaternion.Euler(180,0,0),Quaternion.Euler(90,0,0),landed);
+                    offhand=hand+new Vector3(-.12f,-.1f,0);
+                    Leg(leftLeg,leftFoot,Mathf.Lerp(-22,-32,landed));Leg(rightLeg,rightFoot,Mathf.Lerp(22,14,landed));
+                    model.localPosition-=Vector3.up*(Mathf.Sin(landed*Mathf.PI)*.12f);
+                }
+                if(TrialPlayer.IsAirVolleyFinisher(combo))
+                {
+                    float release=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.64f,.90f,p));
+                    lean=Mathf.Lerp(lean,24,release);twist*=1-release;
+                    hand=Vector3.Lerp(hand,new Vector3(.18f,.88f,.34f),release);
+                    swordRotation=Quaternion.Slerp(swordRotation??Quaternion.identity,Quaternion.Euler(135,0,0),release);
+                }
                 if(combo==TrialPlayer.FireDragon && p<.44f)
                 {
                     float roll=Mathf.SmoothStep(0,1,p/.44f);var rotation=Quaternion.Euler(-360*roll,0,-25*Mathf.Sin(roll*Mathf.PI));
@@ -445,7 +491,7 @@ namespace TomorinTrial
                 model.localPosition=modelOrigin+new Vector3(0,.12f*p,0);
                 hand=new Vector3(.38f,.48f,.05f);offhand=new Vector3(-.38f,.48f,.05f);
             }
-            float transition=renderingTransition?Mathf.SmoothStep(0,1,transitionAge/TransitionDuration):1;
+            float transition=renderingTransition?Mathf.SmoothStep(0,1,transitionAge/activeTransitionDuration):1;
             if(renderingTransition)
             {
                 model.localPosition=Vector3.Lerp(transitionRoot,model.localPosition,transition);
@@ -464,6 +510,7 @@ namespace TomorinTrial
             }
             Vector3 handTarget=Vector3.Lerp(transform.TransformPoint(transitionHand),basis+orientation*hand,transition);
             Vector3 offhandTarget=Vector3.Lerp(transform.TransformPoint(transitionOffhand),basis+orientation*offhand,transition);
+            posedHand=transform.InverseTransformPoint(handTarget);posedOffhand=transform.InverseTransformPoint(offhandTarget);
             SolveArm(rightArm,rightElbow,RightHand,handTarget,basis+orientation*new Vector3(.75f,.86f,-.1f));
             SolveArm(leftArm,leftElbow,leftHand,offhandTarget,basis+orientation*new Vector3(-.75f,.80f,-.1f));
             if(flask)

@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace TomorinTrial
 {
-    public sealed class TrialEnemy : TrialFighter
+    public sealed partial class TrialEnemy : TrialFighter
     {
         public bool IsBoss { get; private set; }
         public float BodyRadius => IsBoss?.75f:.38f;
@@ -106,6 +106,7 @@ namespace TomorinTrial
 
         public void Tick(float dt)
         {
+            TickRunStatuses(dt);
             TickResolve(dt);
             if(CombatFrozen)return;
             flinchCooldown=Mathf.Max(0,flinchCooldown-dt);
@@ -176,7 +177,7 @@ namespace TomorinTrial
                 foreach(var other in game.Enemies)
                     if(other!=this && other.Alive && (other.transform.position-transform.position).sqrMagnitude<1.8f)
                         direction+=Vector3.ProjectOnPlane(transform.position-other.transform.position,Vector3.up).normalized*.7f;
-                Move(direction.normalized*(IsBoss?2.4f:1.8f),dt);MoveBlend=1;
+                Move(direction.normalized*(IsBoss?2.4f:1.8f)*(Time.time<runSlowUntil?1-runSlow:1),dt);MoveBlend=1;
             }
             else if(cooldown<=0)
             {
@@ -199,6 +200,7 @@ namespace TomorinTrial
         {
             if(!Alive || (IsBoss && !game.GateOpen))return false;
             if(attacker is TrialPlayer && Invulnerable)return false;
+            if(attacker is TrialPlayer runPlayer)damage=runPlayer.ModifyRunDamage(this,damage,ref postureDamage);
             bool exposed=Action==FighterAction.Stagger;
             if(Champion)
             {

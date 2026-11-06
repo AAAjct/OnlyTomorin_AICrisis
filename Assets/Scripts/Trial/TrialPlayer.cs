@@ -12,7 +12,7 @@ namespace TomorinTrial
         public const float HitStamina=10;
         public const float KillStamina=45;
         protected override bool CanRecoverStamina => base.CanRecoverStamina || Action==FighterAction.Light || Action==FighterAction.Heavy;
-        protected override float StaminaRecoveryRate => Action==FighterAction.Light || Action==FighterAction.Heavy?18:Guarding?40:PlanarVelocity.sqrMagnitude<.25f?165:120;
+        protected override float StaminaRecoveryRate => (1+.12f*AffixStacks(TrialAffix.Recovery))*(Action==FighterAction.Light || Action==FighterAction.Heavy?18:Guarding?40:PlanarVelocity.sqrMagnitude<.25f?165:120);
         protected override float StaminaRecoveryDelay => .18f;
         public int Flasks { get; private set; } = 3;
         public TrialEnemy Target { get; private set; }
@@ -107,6 +107,8 @@ namespace TomorinTrial
         public void Tick(float dt, TrialInput input)
         {
             if (!Alive || ChoosingBoon) return;
+            TickRoguelike(dt);
+            guardPressedThisTick=input.Guard && !guardWasHeld;guardWasHeld=input.Guard;
             if(input.Attack)commandLightAt=Time.time;
             if(input.Heavy || input.HeavyHeld)commandHeavyAt=Time.time;
             if(input.Dodge)commandDodgeAt=Time.time;
@@ -115,14 +117,17 @@ namespace TomorinTrial
             // Contact pauses the pose, not input collection. Preserve taps made
             // during hit-stop so heavier impact never makes a chain unresponsive.
             if (input.Attack) bufferedLight=Time.time;
-            if (input.Dodge) bufferedDodge=Time.time;
+            if (input.Dodge){bufferedDodge=Time.time;bufferedDodgeOrder=++combatInputOrder;}
             if (input.Heavy) bufferedHeavy=Time.time;
             if (input.Heal) bufferedHeal=Time.time;
             if (input.Jump) bufferedJump=Time.time;
             CollectAttackInputs(dt,input);
+            if(Action==FighterAction.Dodge && guardPressedThisTick)dodgeGuardQueued=true;
             if(!input.Guard)attackGuardLatch=false;
             if(CombatFrozen)return;
+            TickDodgeLink(dt);
             TickBase(dt);
+            TickSwordThrowGuard(dt);
             if(combatImpulse.sqrMagnitude>.01f){if(!Invulnerable)Move(combatImpulse,dt);combatImpulse=Vector3.MoveTowards(combatImpulse,Vector3.zero,dt*38);}
             if (input.Lock) ToggleLock();
             if (Target && (!Target.Alive || Vector3.Distance(Target.transform.position,transform.position)>21)) Target=null;
@@ -147,7 +152,7 @@ namespace TomorinTrial
                 else if(Action!=FighterAction.Light || Progress<=.54f)PlanarVelocity=Vector3.zero;
                 if (Action == FighterAction.Dodge)
                 {
-                    Move(dodgeDirection * Mathf.Lerp(11.8f,3.2f,Progress)*(Combo==ParryDodge?2:1),dt);
+                    Move(DodgeVelocity,dt);
                     TickDodgeGhosts();
                 }
                 if (Action == FighterAction.Light || Action == FighterAction.Heavy)
@@ -161,6 +166,7 @@ namespace TomorinTrial
                         Move(PlanarVelocity,dt);
                     }
                     TrackSwordTarget(dt);
+                    TickDodgeCarry(dt);
                     if(TickSwordMotion(dt)){}
                     else if(Combo==9 && Progress>.10f && Progress<.33f)
                     {float step=18*dt;if(blinkTarget)step=Mathf.Min(step,Mathf.Max(0,Vector3.ProjectOnPlane(blinkTarget.transform.position-transform.position,Vector3.up).magnitude-1.1f));Move(blinkDirection*(step/Mathf.Max(.001f,dt)),dt);}
@@ -174,8 +180,15 @@ namespace TomorinTrial
                     // Preserve contact, then accept defensive cancels and buffered branches.
                     bool canCancel=!IsDive(Combo) || swordLanded;
                     if (ActionTime>(light?.055f:.075f) && Time.time-bufferedDodge<InputBuffer && TryDodge(input)) return;
-                    if (ActionTime>.045f && input.Guard && !attackGuardLatch && Stamina>1)
+                    if (ActionTime>.045f && Combo!=SpiralSword && input.Guard && !attackGuardLatch && Stamina>1)
                     { BeginWeaveGuard(); return; }
+                    // Contact confirms the landing. A short compression beat replaces
+                    // the old full-duration recovery and intervening idle frame.
+                    if(IsSwordLandingSource(Combo) && swordLanded && AttackQueued(false))
+                    {
+                        if(swordLandingAge<.025f)return;
+                        if(StartAttack(false,SakuraFollowup))return;
+                    }
                     if(attackInputs.Count>0 && RecallFlight!=null && ActionTime>.075f)
                     {
                         if(AttackQueued(false) && StartAttack(false,SwordRecallCut))return;
@@ -195,26 +208,31 @@ namespace TomorinTrial
                 }
                 if(Action==FighterAction.Dodge)
                 {
-                    if(ActionTime>.10f && input.Guard && Stamina>1){ClearAttackInputs();Begin(FighterAction.Free,0);Guarding=true;GuardAge=0;return;}
+                    if(ActionTime>=.10f && dodgeGuardQueued && Stamina>1){BeginWeaveGuard();return;}
                     if(Combo==7 && Progress>.32f && Progress<.64f)HitEnemies();
                     if(ActionTime>=.10f)
                     {
                         if(AttackQueued(false) && StartAttack(false,RollThrust))return;
                         if(AttackQueued(true) && (BeginDragonCharge(input) || StartAttack(true,RollFlash)))return;
-                        if(input.Guard && Stamina>1){Begin(FighterAction.Free,0);Guarding=true;GuardAge=0;return;}
                     }
                 }
                 if (Action == FighterAction.Heal && !healingApplied && Progress>.63f)
                 {
-                    healingApplied=true; Flasks--; Health=Mathf.Min(MaxHealth,Health+85+(Boon==TrialBoon.SpiritDew?12:0));
+                    healingApplied=true; Flasks--; Health=Mathf.Min(MaxHealth,Health+85+(Boon==TrialBoon.SpiritDew?12:0)+18*AffixStacks(TrialAffix.FlaskPower));
                     RestoreCombatStamina(MaxStamina);
                     game.Effects.Burst(transform.position+Vector3.up,new Color(.35f,1,.74f),30);
                     EmitCombat(TrialCombatCue.Heal,transform.position);
                 }
-                if (!(Action==FighterAction.Heavy && AwaitingDragonLanding) && (!(Action==FighterAction.Light || Action==FighterAction.Heavy) || !IsDive(Combo) || swordLanded) && (ActionTime >= ActionDuration || (Action==FighterAction.Light && !IsComboEnd(false,Combo) && !IsAerialMove(Combo) && Progress>.72f && input.Move.sqrMagnitude>.01f) || (Action==FighterAction.Dodge && Progress>.84f && input.Move.sqrMagnitude>.01f)))
+                if (!(Action==FighterAction.Heavy && AwaitingDragonLanding) && (!(Action==FighterAction.Light || Action==FighterAction.Heavy) || !IsDive(Combo) || swordLanded) && (ActionTime >= ActionDuration || IsSwordLandingSource(Combo) && swordLanded && swordLandingAge>=.16f || (Action==FighterAction.Light && !IsComboEnd(false,Combo) && !IsAerialMove(Combo) && Progress>.72f && input.Move.sqrMagnitude>.01f) || (Action==FighterAction.Dodge && Progress>.84f && input.Move.sqrMagnitude>.01f)))
                 {
-                    if(Action==FighterAction.Light || Action==FighterAction.Heavy){chainCount=Combo;chainHeavy=Action==FighterAction.Heavy;chainUntil=IsComboEnd(chainHeavy,Combo)?0:Time.time+ChainGrace;attackInputAge=0;}
+                    if(Action==FighterAction.Light || Action==FighterAction.Heavy)
+                    {
+                        chainCount=Combo;chainHeavy=Action==FighterAction.Heavy;
+                        chainUntil=IsSwordLandingSource(Combo) && swordLanded?Time.time+LandingSakuraGrace:IsComboEnd(chainHeavy,Combo)?0:Time.time+ChainGrace;
+                        attackInputAge=0;
+                    }
                     Begin(FighterAction.Free,0);
+                    TickSwordThrowGuard(0);
                 }
                 if(Action!=FighterAction.Heal)
                 {
@@ -224,17 +242,17 @@ namespace TomorinTrial
                 return;
             }
             bool wasGuarding=Guarding;
-            Guarding=input.Guard && Stamina>1;
-            GuardAge=Guarding ? (wasGuarding?GuardAge+dt:0) : 100;
+            Guarding=(input.Guard || AutoSwordThrowGuard) && Stamina>1;
+            GuardAge=AutoSwordThrowGuard?swordThrowGuardAge:Guarding ? (wasGuarding?GuardAge+dt:0) : 100;
             if(Time.time-bufferedDodge<InputBuffer && TryDodge(input)) return;
-            if(input.Guard && !attackGuardLatch && Time.time<chainUntil){BeginWeaveGuard();return;}
+            if(!AutoSwordThrowGuard && input.Guard && !attackGuardLatch && (Time.time<chainUntil || dodgeLinkRemaining>0)){BeginWeaveGuard();return;}
             if(TickGuardCombo(dt,input))return;
             if(AttackQueued(true))
             {
                 if(BeginDragonCharge(input))return;
                 if(StartAttack(true,Mathf.Max(0,Time.time<chainUntil?(chainHeavy?HeavyHeavyBranch(chainCount):LightHeavyBranch(chainCount)):0)))return;
             }
-            if(AttackQueued(false) && StartAttack(false,Mathf.Max(0,Time.time<chainUntil?(chainHeavy?HeavyLightBranch(chainCount):NextLight(chainCount)):0))) return;
+            if(AttackQueued(false) && StartAttack(false,LandingSakuraReady?SakuraFollowup:Mathf.Max(0,Time.time<chainUntil?(chainHeavy?HeavyLightBranch(chainCount):NextLight(chainCount)):0))) return;
             if(TryHeal(dt,input))return;
             TickLocomotion(dt,input,false);
         }
@@ -254,7 +272,7 @@ namespace TomorinTrial
             bool running=input.Sprint && !sprintExhausted && !Guarding && direction.sqrMagnitude>.05f && Stamina>1;
             if(running) {Stamina=Mathf.Max(0,Stamina-5*dt);recoveryDelay=.32f;}
             float speed=Guarding?3.8f:running?8f:5f;
-            var desired=direction*speed;
+            var desired=direction*speed*(1+.06f*AffixStacks(TrialAffix.Haste));
             float acceleration=direction.sqrMagnitude<.01f?58:Vector3.Dot(PlanarVelocity,direction)<0?72:46;
             PlanarVelocity=Vector3.MoveTowards(PlanarVelocity,desired,acceleration*dt);
             float oldYaw=transform.eulerAngles.y;
@@ -278,6 +296,11 @@ namespace TomorinTrial
 
         bool StartAttack(bool heavy,int combo)
         {
+            bool landingPursuit=combo==SakuraFollowup && LandingSakuraReady;
+            Vector3 landingVelocity=landingPursuit?LandingCarryVelocity:Vector3.zero;
+            bool dodgeFollowup=CanLinkDodgeAttack;
+            Vector3 incomingDodge=Action==FighterAction.Dodge?DodgeVelocity:Vector3.zero;
+            if(dodgeFollowup && combo==0)combo=heavy?RollFlash:RollThrust;
             if(!startingGuardCombo && RecallFlight!=null)combo=heavy?SwordRecallRise:SwordRecallCut;
             if(combo<0 || (combo==SwordRecallCut || combo==SwordRecallRise) && RecallFlight==null)return false;
             var executionTarget=Locked?LockTarget as TrialEnemy:game.NearestEnemy(transform.position,3.5f);
@@ -302,6 +325,9 @@ namespace TomorinTrial
                 if(chaseTarget)Turn(chaseTarget.transform.position-transform.position,1440,.06f);
             }
             BeginSwordArt();
+            landingSakuraFlow=landingPursuit;
+            if(landingPursuit)CarryDodgeIntoAttack(landingVelocity);
+            if(dodgeFollowup)CarryDodgeIntoAttack(incomingDodge);
             if(IsMartialMove(Combo))BeginMartialArt();
             PrepareEmpoweredArt();
             if(Combo==9)
@@ -312,9 +338,10 @@ namespace TomorinTrial
                 Turn(blinkDirection,36000,.02f);game.Effects.Afterimage(this);EmitCombat(TrialCombatCue.BlinkSlash,transform.position+Vector3.up);
             }
             Begin(heavy?FighterAction.Heavy:FighterAction.Light,IsMartialMove(Combo)?MartialDuration(Combo):Combo==AerialCascade?.94f:Combo==StormWheel?.84f:Combo==GuardBloom?.72f:Combo==GatheredPierce?.62f:Combo==GuardNeedle?.48f:IsLowAirMove(Combo)?Combo==AirStep?.56f:Combo==AirFan?.92f:Combo==WallRebound?.64f:.72f:IsExtendedMove(Combo)?Combo==DoubleFang?.76f:Combo==WheelFinish?.78f:Combo==RollThrust?.46f:Combo==RollFlash?.56f:.54f:Combo==FlowingSweep?.60f:Combo==RisingBridge?.62f:Combo==MoonChase?.60f:Combo==DodgeDragon?1.25f:Combo==ParryTriple?.78f:Combo==FireDragon?1.05f:Combo==SpiralSword?.85f:Combo==BehindThrust?.52f:IsAirBlade(Combo)?.56f:Combo==AirSandDive?.78f:Combo==SakuraFollowup?.64f:Combo==6?1.02f:Combo==3?.82f:Combo==20?.92f:Combo==21?.78f:Combo==22?.44f:Combo==23?.52f:Combo==24?.86f:Combo==25?.68f:Combo==19?.94f:Combo==18?.78f:Combo==17?1.0f:Combo==15?.66f:Combo==16?.46f:Combo==14?1.12f:Combo==13?.90f:Combo==12?.68f:Combo==11?.58f:Combo==9?.64f:heavy?(Combo>=4?.76f:.84f):combo==2?.48f:combo==1?.42f:combo==8?.36f:.44f);
+            if(Combo==SpiralSword)BeginSwordThrowGuard();
             if(rollCancel && Combo!=DodgeDragon){airborneCombo=false;verticalSpeed=Mathf.Min(verticalSpeed,0);game.Effects.Afterimage(this,false);}
             if(Combo==14 && executionTarget && this==game.Player)game.CameraRig.CombatFrame(executionTarget,.8f,1);
-            game.Effects.Sound("swing",transform.position,heavy?.72f:1+Mathf.Clamp(combo,0,3)*.06f);
+            game.Effects.MoveSound(Combo,heavy,transform.position);
             return true;
         }
 
@@ -331,8 +358,11 @@ namespace TomorinTrial
             bool derivative=!enhanced && Action==FighterAction.Light && Combo>=1 && Combo<=3;
             chainCount=0;chainUntil=0;struck.Clear();Combo=enhanced?ParryDodge:derivative?7:0;
             perfectDodgeAwarded=false;perfectGhostUntil=0;nextGhostAt=0;
-            ClearAttackInputs();bufferedDodge=bufferedHeal=-10;PlanarVelocity=Vector3.zero;Begin(FighterAction.Dodge,.44f);
+            PreserveDodgeFollowupInputs();bufferedDodge=bufferedHeal=-10;PlanarVelocity=Vector3.zero;Begin(FighterAction.Dodge,.44f);
+            ClearDodgeLink();dodgeLinkRemaining=ActionDuration+DodgeFollowupGrace;
+            dodgeGuardQueued=guardPressedThisTick;
             if(derivative && this==game.Player)game.Hud.Notify("回风斩 · 闪避衍生",.8f);
+            RunDodge();
             EmitCombat(TrialCombatCue.Dodge,transform.position);
             if(derivative)EmitSwordCue(TrialCombatCue.SwordTurn,transform.position+Vector3.up*.95f,transform.forward,transform.position,1);
             if(enhanced)EmitSwordCue(TrialCombatCue.EmpoweredStep,transform.position+Vector3.up,dodgeDirection,transform.position+dodgeDirection*6+Vector3.up,.5f);
@@ -351,7 +381,8 @@ namespace TomorinTrial
         {
             if(IsMartialMove(Combo) || !HasSwordContact(Combo))return;
             float reach=Combo==StormWheel || Combo==GuardBloom?4.1f:Combo==GatheredPierce || Combo==GuardNeedle || Combo==AirPierce?4.3f:Combo==RollThrust || Combo==ThreadPierce?3.9f:Combo==RollFlash || Combo==WheelFinish?3.7f:Combo==LowReap?3.1f:Combo==MoonChase?4.2f:Combo==FlowingSweep?3.5f:Combo==RisingBridge?3.4f:Combo==BehindThrust?4.4f:Combo==SakuraFollowup?3.9f:Combo==4?4.0f:Combo==25?4.1f:Combo==24?3.6f:Combo==22?2.4f:Combo==11?3.9f:Combo==12?3.6f:Combo==2 || Combo==5?3.7f:Action==FighterAction.Heavy?3.2f:2.75f;
-            if(game.IsChampionStage)for(int i=0;i<game.Enemies.Count;i++)game.Enemies[i].Champion.CutHazards(transform.position,transform.forward,reach,Action==FighterAction.Heavy);
+            reach*=1+Mathf.Min(.4f,.08f*AffixStacks(TrialAffix.Reach));
+            for(int i=0;i<game.Enemies.Count;i++)if(game.Enemies[i].Champion)game.Enemies[i].Champion.CutHazards(transform.position,transform.forward,reach,Action==FighterAction.Heavy);
             foreach(var enemy in game.Opponents(this))
             {
                 if(!enemy.Alive || struck.Contains(enemy)) continue;
@@ -386,7 +417,7 @@ namespace TomorinTrial
             if(ChoosingBoon)return false;
             if(attacker is TrialPlayer player && (!game.IsArena || player==this))return false;
             if(game.IsArena && SpawnProtected && attacker!=null)return false;
-            if(attacker is TrialEnemy enemySource)damage*=game.EnemyDamageScale*(enemySource.Champion?enemySource.Champion.KillDamageScale:enemySource.Boss && enemySource.Boss.Boon==TrialBossBoon.RagingTide?1.08f:1);
+            if(attacker is TrialEnemy enemySource)damage*=enemySource.RunDamageScale*game.EnemyDamageScale*(enemySource.Champion?enemySource.Champion.KillDamageScale:enemySource.Boss && enemySource.Boss.Boon==TrialBossBoon.RagingTide?1.08f:1);
             if(Invulnerable)
             {
                 SuccessfulDodges++;
@@ -410,11 +441,12 @@ namespace TomorinTrial
             {
                 if(GuardAge<.20f && Spend(8))
                 {
-                    SuccessfulParries++;EmpowerParry();
+                    SuccessfulParries++;RunParry();
                     RestoreCombatStamina(ParryStamina);
                     if(attacker is TrialEnemy enemy) enemy.Parried();
                     else if(attacker is TrialPlayer rival)rival.ReceiveParry();
-                    HoldCombat(.115f);attacker?.HoldCombat(.14f);CombatFeedback(TrialCombatCue.Parry);
+                    if(TrySwordGuardReturn())return false;
+                    EmpowerParry();HoldCombat(.115f);attacker?.HoldCombat(.14f);CombatFeedback(TrialCombatCue.Parry);
                     if(attacker is TrialEnemy cameraTarget && cameraTarget.Champion && this==game.Player)game.CameraRig.CombatFrame(cameraTarget,.28f,.45f);
                     // The player chooses the empowered follow-up after the deflect.
                     return false;
@@ -432,7 +464,8 @@ namespace TomorinTrial
                 if(!lastStandSpent && Health>MaxHealth*.12f && damage>=Health)
                 {damage=Health-1;lastStandSpent=true;hurtUntil=Time.time+.65f;}
             }
-            Impact(attacker,damage);
+            damage=RunDefense(damage);
+            ClearDodgeLink();Impact(attacker,damage);RunRetaliate(attacker);
             if(Mirror.NetworkServer.active)TrialNetworkManager.Current.BroadcastCombat(this,TrialCombatCue.Hurt,null,sourceDirection.normalized);
             else game.Effects.PlayCombat(new TrialCombatEvent{cue=TrialCombatCue.Hurt,position=transform.position,forward=sourceDirection.normalized},this==game.Player);
             HoldCombat(.045f);
@@ -477,6 +510,9 @@ namespace TomorinTrial
 
         public void Restore(Vector3 checkpoint)
         {
+            ClearDodgeLink();
+            combatInputOrder=bufferedDodgeOrder=0;
+            guardWasHeld=guardPressedThisTick=false;
             ClearAttackInputs();weaveUntil=0;attackGuardLatch=false;
             commandLightAt=commandHeavyAt=commandDodgeAt=commandHealAt=-10;
             ClearCombatHold();ResetSwordArts();ResetParryArts();
@@ -492,14 +528,14 @@ namespace TomorinTrial
         }
 
         public override TrialActorState CaptureNetwork(int id)
-        {var state=base.CaptureNetwork(id);state.comboGrace=Mathf.Max(0,chainUntil-Time.time);state.comboHeavy=chainHeavy;state.weaveGrace=Mathf.Max(0,weaveUntil-Time.time);state.weaveFrom=(byte)weaveFrom;state.weaveHeavy=weaveHeavy;state.guardComboDelay=weavePending?Mathf.Max(.001f,GuardComboWindup-weaveAge):0;state.orbitSwordTime=RecallFlight!=null?TrialParryFlight.Duration(TrialCombatCue.SpiralSword,1)-RecallFlight.age:0;state.orbitSwordPosition=OrbitSwordPosition;state.swordCharge=SwordCharge;state.dragonLanded=dodgeDragonLanded;state.parryReady=Mathf.Max(0,parryReadyUntil-Time.time);state.dodgeFollowup=Mathf.Max(0,parryDodgeUntil-Time.time);state.dodgeDirection=dodgeDirection;state.flasks=(byte)Flasks;state.kills=Kills;state.deaths=Deaths;state.protection=Mathf.Max(0,protectedUntil-Time.time);state.boon=Boon;state.offerA=OfferA;state.offerB=OfferB;state.offerC=OfferC;return state;}
+        {var state=base.CaptureNetwork(id);state.comboGrace=Mathf.Max(0,chainUntil-Time.time);state.comboHeavy=chainHeavy;state.weaveGrace=Mathf.Max(0,weaveUntil-Time.time);state.weaveFrom=(byte)weaveFrom;state.weaveHeavy=weaveHeavy;state.guardComboDelay=weavePending?Mathf.Max(.001f,GuardComboWindup-weaveAge):0;state.orbitSwordTime=RecallFlight!=null?TrialParryFlight.Duration(TrialCombatCue.SpiralSword,1)-RecallFlight.age:0;state.orbitSwordPosition=OrbitSwordPosition;state.swordReturnOrigin=swordReturnOrigin;state.swordLanding=swordLanded?swordLandingAge+.001f:0;state.landingSakuraFlow=landingSakuraFlow;state.airVolleyDescending=AirVolleyDescending;state.swordCharge=SwordCharge;state.dragonLanded=dodgeDragonLanded;state.parryReady=Mathf.Max(0,parryReadyUntil-Time.time);state.dodgeFollowup=Mathf.Max(0,parryDodgeUntil-Time.time);state.dodgeDirection=dodgeDirection;state.flasks=(byte)Flasks;state.kills=Kills;state.deaths=Deaths;state.protection=Mathf.Max(0,protectedUntil-Time.time);state.boon=Boon;state.offerA=OfferA;state.offerB=OfferB;state.offerC=OfferC;return state;}
         public override void ApplyNetwork(TrialActorState state,float dt)
         {
             base.ApplyNetwork(state,dt);Flasks=state.flasks;Sprinting=state.movement>1.1f;Kills=state.kills;Deaths=state.deaths;protectedUntil=Time.time+state.protection;
-            dodgeDirection=state.dodgeDirection;
+            dodgeDirection=state.dodgeDirection;swordLanded=state.swordLanding>0;swordLandingAge=Mathf.Max(0,state.swordLanding-.001f);landingSakuraFlow=state.landingSakuraFlow;replicaVolleyDescending=state.airVolleyDescending;
             chainUntil=state.comboGrace>0?Time.time+state.comboGrace:0;chainHeavy=state.comboHeavy;chainCount=state.combo;
             weaveUntil=state.weaveGrace>0?Time.time+state.weaveGrace:0;weaveFrom=state.weaveFrom;weaveHeavy=state.weaveHeavy;weavePending=state.guardComboDelay>0;weaveAge=GuardComboWindup-state.guardComboDelay;
-            replicaSwordUntil=state.orbitSwordTime>0?Time.time+state.orbitSwordTime:0;replicaSwordPosition=state.orbitSwordPosition;
+            replicaSwordUntil=state.orbitSwordTime>0?Time.time+state.orbitSwordTime:0;replicaSwordPosition=state.orbitSwordPosition;swordReturnOrigin=state.swordReturnOrigin;
             dragonPower=state.swordCharge;dodgeDragonLanded=state.dragonLanded;parryReadyUntil=Time.time+state.parryReady;parryDodgeUntil=Time.time+state.dodgeFollowup;
             bool wasChoosing=ChoosingBoon;Boon=state.boon;OfferA=state.offerA;OfferB=state.offerB;OfferC=state.offerC;
             if(wasChoosing && !ChoosingBoon && this==game.Player)game.FinishBoonChoice();

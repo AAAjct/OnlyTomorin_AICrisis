@@ -14,7 +14,6 @@ namespace TomorinTrial
                 Vector3 point=cue.position+Vector3.up*(move==TrialPlayer.HeelTurn?.18f:1)+cue.forward*.9f;
                 InkBloom(point,-cue.forward*.25f,.55f);
                 if(move==TrialPlayer.HiltStrike || move==TrialPlayer.ElbowBreak)Burst(point,new Color(.9f,.64f,.20f),8);
-                Sound("dodge",point,move==TrialPlayer.HeelTurn?.85f:1.35f);
                 if(local)Rumble(.12f,.22f,.035f);
             }
             return true;

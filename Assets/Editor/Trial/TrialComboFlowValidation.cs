@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace TomorinTrial.Editor
 {
-public static class TrialComboFlowValidation
+public static partial class TrialComboFlowValidation
 {
     public static string Status {get;private set;}="Not run";
     [UnityEditor.MenuItem("Tools/Tomorin/Verify readable combo flow")]
@@ -26,7 +26,7 @@ public static class TrialComboFlowValidation
     static int errors;
     static float step;
     static void Check(bool pass,string message)
-    {if(!pass)throw new Exception(message+"; actual="+p.Action+"/"+p.Combo+" @ "+p.Progress);checks.Add(message);}
+    {if(!pass)throw new Exception(message+"; actual="+p.Action+"/"+p.Combo+" @ "+p.Progress+" position="+p.transform.position);checks.Add(message);}
     static void Log(string message,string stack,LogType type)
     {if(type==LogType.Error || type==LogType.Exception || type==LogType.Assert)errors++;}
     static void Tick(float dt,byte pressed=0,byte held=0,Vector2 move=default)
@@ -75,6 +75,51 @@ public static class TrialComboFlowValidation
     {
         foreach(float fps in new[]{30f,60f,144f})
         {
+            step=1/fps;
+            Reset();Tick(.001f,1);Tick(.001f,4);Tick(.001f,1);Advance(.20f);
+            Check(p.Action==FighterAction.Light && p.Combo==TrialPlayer.RollThrust,"Rapid dodge/light survives a pending opener cancel at "+fps+" FPS");
+            Reset();Tick(.001f,1);Tick(.001f,1);Tick(.001f,1);Tick(.001f,4);Tick(.001f,1);Advance(.20f);
+            Check(p.Combo==TrialPlayer.RollThrust,"A full old attack queue leaves room for the fresh dodge thrust at "+fps+" FPS");
+            Reset();Tick(.001f,1);Advance(.10f);p.HoldCombat(1);
+            input.ApplyNetwork(new TrialControls{pressed=4});p.Tick(step,input);
+            input.ApplyNetwork(new TrialControls{pressed=1});p.Tick(step,input);
+            Tick(step);Advance(.12f);
+            Check(p.Combo==TrialPlayer.RollThrust,"Hit-stop keeps a light entered after the pending dodge at "+fps+" FPS");
+            Reset();Tick(.001f,4,1);Tick(.001f);Advance(.28f);
+            Check(p.Combo==TrialPlayer.SpiralSword,"A quick dodge/guard tap schedules the physical throw at "+fps+" FPS");
+            Reset();Tick(.001f,4,1,Vector2.up);Advance(.105f);
+            Check(p.Action==FighterAction.Heavy && p.Combo==TrialPlayer.SpiralSword && p.Guarding,"Dodge/guard enters the guarded throw without an idle windup at "+fps+" FPS");
+            while(p.ActionTime<.15f)
+            {
+                var castBefore=p.transform.position;Tick(step);
+                Check(Vector3.Distance(castBefore,p.transform.position)>.0005f,"Dodge momentum remains continuous until sword release at "+fps+" FPS");
+            }
+            foreach(byte key in new byte[]{1,2})
+            {
+                Reset();Tick(.001f,(byte)(4|key));Advance(.105f);Advance(.075f);Tick(step,0,1);Advance(.18f);
+                Check(p.Combo==TrialPlayer.SpiralSword,"Guard after roll derivative "+key+" throws at "+fps+" FPS");
+            }
+            foreach(bool heavy in new[]{false,true})
+            {
+                Reset();Tick(step,(byte)(4|(heavy?2:1)),heavy?(byte)4:(byte)8,Vector2.up);
+                Check(p.Action==FighterAction.Dodge,"Same-frame dodge and attack keeps the dodge at "+fps+" FPS");
+                Advance(.105f);
+                Check(p.Combo==(heavy?TrialPlayer.RollFlash:TrialPlayer.RollThrust) && p.Action==(heavy?FighterAction.Heavy:FighterAction.Light),"Same-frame dodge press buffers the correct follow-up at "+fps+" FPS");
+                var before=p.transform.position;Tick(step);
+                Check(Vector3.Distance(before,p.transform.position)>.005f,"Dodge follow-up inherits movement on its first frame at "+fps+" FPS");
+            }
+            Reset();Tick(step,4,0,Vector2.up);Advance(.45f);
+            Check(p.Action==FighterAction.Free,"Dodge finishes before late-input grace check at "+fps+" FPS");
+            Tick(.001f,1);Check(p.Combo==TrialPlayer.RollThrust,"A light just after dodge still selects the thrust at "+fps+" FPS");
+            Reset();Tick(step,4);Advance(.65f);Tick(.001f,1);
+            Check(p.Combo==0 && p.Action==FighterAction.Light,"Expired dodge grace returns to the ordinary opener at "+fps+" FPS");
+            Reset();typeof(TrialPlayer).GetField("parryReadyUntil",Private).SetValue(p,Time.time+5);
+            Tick(step,4,0,Vector2.up);Advance(.105f);Tick(.001f,2);
+            Check(p.Combo==TrialPlayer.SpiralSword,"Enhanced dodge still selects the physical thrown sword at "+fps+" FPS");
+            var throwStart=p.transform.position;Tick(step);
+            Check(Vector3.Distance(throwStart,p.transform.position)>.005f,"Thrown-sword transition retains dodge momentum at "+fps+" FPS");
+            Advance(.18f);
+            Check((int)typeof(TrialPlayer).GetField("swordEmissions",Private).GetValue(p)==1,"Thrown sword releases once within the new windup at "+fps+" FPS");
             step=1/fps;Reset();Tick(.001f,1);
             foreach(int expected in new[]{0,1,2,TrialPlayer.WheelFinish})
             {
@@ -89,6 +134,7 @@ public static class TrialComboFlowValidation
 
             Reset();Tick(step,1);Tick(step,1);Tick(step,2);Advance(.53f);
             Check(p.Combo==5 && p.Action==FighterAction.Heavy,"Rapid L,L,H keeps input order at "+fps+" FPS");
+            SakuraEntryChecks(fps);
             Reset();Tick(.001f,2);Link(2);Check(p.Combo==18,"Second heavy at "+fps+" FPS");
             Link(2);Check(p.Combo==19,"Third heavy finishes at "+fps+" FPS");
             Advance(1.2f);Check(p.Action==FighterAction.Free,"Heavy route stops at "+fps+" FPS");
@@ -121,6 +167,7 @@ public static class TrialComboFlowValidation
             Check((byte)typeof(TrialPlayer).GetField("comboBladeEmissions",Private).GetValue(p)==3,"All three air blades emit before the link at "+fps+" FPS");
             Link(1);Check(p.Combo==TrialPlayer.AirSandDive,"Air chain selects landing at "+fps+" FPS");
             Advance(1.3f);Check(p.Action==FighterAction.Free && p.transform.position.y<.2f,"Air route lands and ends at "+fps+" FPS");
+            AirLandingSakuraChecks(fps);
         }
         step=1f/60;
         for(int count=1;count<=3;count++)
@@ -181,15 +228,15 @@ public static class TrialComboFlowValidation
 
         foreach(var branch in new[]{
             new[]{0,0,TrialPlayer.CrossDraw},new[]{1,0,TrialPlayer.SpiralSword},
-            new[]{2,0,TrialPlayer.MoonChase},new[]{TrialPlayer.CrossDraw,0,TrialPlayer.SpiralSword},new[]{TrialPlayer.OrbitCut,0,TrialPlayer.SpiralSword},new[]{TrialPlayer.DoubleFang,0,TrialPlayer.SpiralSword},
+            new[]{2,0,TrialPlayer.SpiralSword},new[]{TrialPlayer.RollThrust,0,TrialPlayer.SpiralSword},new[]{TrialPlayer.RollFlash,1,TrialPlayer.SpiralSword},new[]{TrialPlayer.CrossDraw,0,TrialPlayer.SpiralSword},new[]{TrialPlayer.OrbitCut,0,TrialPlayer.SpiralSword},new[]{TrialPlayer.DoubleFang,0,TrialPlayer.SpiralSword},
             new[]{TrialPlayer.HiltStrike,0,TrialPlayer.ElbowBreak},new[]{TrialPlayer.WheelFinish,0,TrialPlayer.LowVault},
-            new[]{0,1,TrialPlayer.LoftingDraw},new[]{18,1,17},new[]{17,1,TrialPlayer.SakuraFollowup},
+            new[]{0,1,TrialPlayer.SpiralSword},new[]{18,1,17},new[]{17,1,TrialPlayer.SakuraFollowup},
             new[]{TrialPlayer.AirCross,0,TrialPlayer.WallRebound},new[]{TrialPlayer.AirFan,0,TrialPlayer.AirPierce}})
         {
             Reset();
             if(TrialPlayer.IsAerialMove(branch[0])){Tick(step,64);Advance(.34f);}
             Move(branch[0],branch[1]==1);Advance(.12f);Tick(.001f,0,1);
-            Check(p.Guarding && p.Action==FighterAction.Free,"Guard immediately defends from source "+branch[0]);
+            Check(p.Guarding && p.Action==(branch[2]==TrialPlayer.SpiralSword?FighterAction.Heavy:FighterAction.Free),"Guard immediately defends from source "+branch[0]);
             Check(p.GuardFollowupMove==branch[2] && p.ComboGuideTitle.Contains(TrialPlayer.SwordMoveName(false,branch[2])),"Guard guide names the scheduled move "+branch[2]);
             Advance(.16f,1);
             Check(p.Combo==branch[2],"Guard alone from source "+branch[0]+" directly performs "+branch[2]);
@@ -197,7 +244,7 @@ public static class TrialComboFlowValidation
         }
         Reset();Tick(.001f,1);Advance(.1f);Tick(.001f,0,1);Advance(.16f,1);
         Advance(.09f);Tick(.001f,0,1);
-        Check(p.Guarding && p.Action==FighterAction.Free,"Release and repress guard enables another deliberate guard art");
+        Check(p.Guarding && p.Action==FighterAction.Heavy && p.Combo==TrialPlayer.SpiralSword,"Release and repress guard enters the deliberate throw directly");
         Reset();Tick(.001f,1);Advance(.08f);Tick(.001f,0,1);Tick(.001f,1);Advance(.5f);
         Check(p.Combo==TrialPlayer.HiltStrike,"Attack pressed during guard windup is preserved after the automatic art");
         Reset();Tick(.001f,1);Advance(.08f);Tick(.001f,0,1);Tick(.001f,4);Advance(1);
@@ -315,7 +362,98 @@ public static class TrialComboFlowValidation
         foreach(int root in new[]{0,TrialPlayer.AirStep,TrialPlayer.RollThrust,TrialPlayer.RollFlash,TrialPlayer.GuardNeedle,TrialPlayer.GuardBloom,TrialPlayer.ParryTriple,TrialPlayer.FireDragon,TrialPlayer.BehindThrust,TrialPlayer.SpiralSword,TrialPlayer.SwordRecallCut,TrialPlayer.SwordRecallRise})
             foreach(bool heavy in new[]{false,true})
                 Check(Visit(heavy,root,new HashSet<int>())<=16,"Every choice from root "+root+"/"+heavy+" reaches a recovery boundary within sixteen moves");
+        SwordGuardReturnChecks();
         Check(errors==0,"No runtime errors during combo flow checks");
+    }
+    static void AirLandingSakuraChecks(float fps)
+    {
+        Reset();Tick(step,64|1);Advance(.32f);Link(1);Link(1);
+        int naturalFrames=0;
+        while(!(bool)typeof(TrialPlayer).GetField("swordLanded",Private).GetValue(p) && naturalFrames++<180)Tick(step);
+        Check(p.transform.position.y<.2f && naturalFrames<180,"Final air volley descends and lands without another attack at "+fps+" FPS");
+        Tick(step,1);
+        for(int i=0;i<6 && p.Combo!=TrialPlayer.SakuraFollowup;i++)Tick(step);
+        Check(p.Combo==TrialPlayer.SakuraFollowup && p.LandingSakuraFlow,"Natural landing light goes straight to flowing sakura, never another dive, at "+fps+" FPS");
+        var flowState=p.CaptureNetwork(7);
+        using(var writer=NetworkWriterPool.Get())
+        {
+            writer.Write(flowState);
+            using(var reader=NetworkReaderPool.Get(writer.ToArraySegment()))
+                Check(reader.Read<TrialActorState>().landingSakuraFlow,"Mirror snapshots preserve the flowing sakura pose at "+fps+" FPS");
+        }
+        foreach(bool heavyLanding in new[]{false,true})foreach(bool buffered in new[]{false,true})
+        {
+            Reset();Tick(step,64|1);Advance(.32f);Link(1);Link(1);
+            Advance(p.ActionDuration*.76f);
+            Check(p.Combo==TrialPlayer.AirFan && (byte)typeof(TrialPlayer).GetField("comboBladeEmissions",Private).GetValue(p)==3,"Full aerial volley precedes the landing pursuit at "+fps+" FPS");
+            Link(heavyLanding?(byte)2:(byte)1);
+            Check(p.Combo==(heavyLanding?20:TrialPlayer.AirSandDive),"Both aerial landing routes support pursuit at "+fps+" FPS");
+            if(buffered)Tick(.001f,1);
+            int frames=0;
+            while(p.Action!=FighterAction.Free && p.Combo!=TrialPlayer.SakuraFollowup && frames++<180)Tick(step);
+            if(!buffered)
+            {
+                Check(p.Action==FighterAction.Free && p.transform.position.y<.2f,"Pursuit window opens after grounded recovery at "+fps+" FPS");
+                Check(p.ComboGuideHint("L","H","J").Contains("樱花突刺"),"Landing guide offers light pursuit at "+fps+" FPS");
+                var state=p.CaptureNetwork(7);
+                using(var writer=NetworkWriterPool.Get())
+                {
+                    writer.Write(state);
+                    using(var reader=NetworkReaderPool.Get(writer.ToArraySegment()))
+                    {
+                        var copy=reader.Read<TrialActorState>();p.Restore(new Vector3(0,0,20));p.ApplyNetwork(copy,.1f);
+                        Check(copy.comboGrace>0 && p.ComboGuideTitle.Contains("樱花追击"),"Mirror snapshot preserves the landing pursuit window at "+fps+" FPS");
+                        // ApplyNetwork disables client collision; resume offline authority ticks.
+                        p.GetComponent<CharacterController>().enabled=true;
+                    }
+                }
+                Tick(.001f,1);
+            }
+            else if(p.Action==FighterAction.Free)Tick(step);
+            Check(p.Combo==TrialPlayer.SakuraFollowup && p.Action==FighterAction.Light && p.transform.position.y<.2f,"Landing light starts grounded sakura (buffered="+buffered+") at "+fps+" FPS");
+            Advance(p.ActionDuration*.54f);
+            Check((int)typeof(TrialPlayer).GetField("swordEmissions",Private).GetValue(p)==1,"Landing light emits one sakura scatter at "+fps+" FPS");
+            Advance(1);
+            Check(p.Action==FighterAction.Free,"Landing sakura stops without further input at "+fps+" FPS");
+        }
+        Reset();Move(TrialPlayer.AirSandDive);Advance(1.3f);
+        typeof(TrialPlayer).GetField("chainUntil",Private).SetValue(p,Time.time-1);
+        Tick(.001f,1);Check(p.Combo==0,"Expired landing window returns to normal light at "+fps+" FPS");
+        Reset();Move(TrialPlayer.AirSandDive);Advance(1.3f);Tick(.001f,2);
+        Check(p.Combo==0 && p.Action==FighterAction.Heavy,"Landing heavy keeps its normal opener at "+fps+" FPS");
+        Reset();Move(TrialPlayer.AirSandDive);Advance(1.3f);Tick(.001f,4);Advance(.65f);Tick(.001f,1);
+        Check(p.Combo==0,"Dodge clears the landing sakura opportunity at "+fps+" FPS");
+    }
+    static void SakuraEntryChecks(float fps)
+    {
+        foreach(var route in new[]{new byte[]{1,2,2},new byte[]{4,2,2},new byte[]{1,1,1,1,2},new byte[]{2,2,2,2}})
+        {
+            Reset();Tick(.001f,route[0]);
+            int index=1;
+            if(route[0]==4){Advance(.105f);Tick(.001f,route[index++]);}
+            for(;index<route.Length;index++)
+            {
+                if(index==route.Length-1)
+                    Check(p.ComboGuideHint("L","H","J").Contains("樱花突刺"),"Guide exposes new sakura entry at "+fps+" FPS");
+                Link(route[index]);
+            }
+            int expected=route[0]==1 && route.Length==3?5:TrialPlayer.SakuraFollowup;
+            Check(p.Action==FighterAction.Heavy && p.Combo==expected,"New sakura route "+string.Join(",",route)+" selects pursuit at "+fps+" FPS");
+            Advance(p.ActionDuration*.52f);
+            Check((int)typeof(TrialPlayer).GetField("swordEmissions",Private).GetValue(p)==1,"New sakura pursuit emits exactly one scatter at "+fps+" FPS");
+            var state=p.CaptureNetwork(7);
+            using(var writer=NetworkWriterPool.Get())
+            {
+                writer.Write(state);
+                using(var reader=NetworkReaderPool.Get(writer.ToArraySegment()))
+                {
+                    var copy=reader.Read<TrialActorState>();
+                    Check(copy.combo==expected && copy.action==(byte)FighterAction.Heavy,"New sakura pursuit survives Mirror snapshot at "+fps+" FPS");
+                }
+            }
+            Advance(1.3f);
+            Check(p.Action==FighterAction.Free,"New sakura route stops when input is released at "+fps+" FPS");
+        }
     }
     public static string Main()
     {

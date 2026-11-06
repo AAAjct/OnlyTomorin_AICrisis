@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace TomorinTrial
@@ -22,9 +22,10 @@ namespace TomorinTrial
         public bool Pause { get; private set; }
         public bool Confirm { get; private set; }
         public bool Restart { get; private set; }
+        public bool Upgrade { get; private set; }
         public bool UsingGamepad {get;private set;}
         int suppressUntilFrame=-1;
-        public void SuppressCombat(){suppressUntilFrame=Time.frameCount+2;Attack=AttackHeld=Heavy=HeavyHeld=Dodge=Jump=Guard=Heal=Interact=Lock=false;}
+        public void SuppressCombat(){suppressUntilFrame=Time.frameCount+2;Upgrade=Attack=AttackHeld=Heavy=HeavyHeld=Dodge=Jump=Guard=Heal=Interact=Lock=false;}
         bool sprintToggled;
         bool toggleSprint;
         int bindingVersion=-1;
@@ -35,7 +36,7 @@ namespace TomorinTrial
         public void ClearTouch(){TouchMove=TouchLook=Vector2.zero;TouchGuard=TouchSprint=TouchHeavy=TouchLight=false;touchPressed=0;}
         public void ResetSprint(){sprintToggled=false;Sprint=false;ClearTouch();}
         void OnApplicationFocus(bool focused){if(!focused)ResetSprint();}
-        InputAction move,look,attack,interact,sprint,heavy,dodge,jump,guard,heal,target,pause,confirm;
+        InputAction move,look,attack,interact,sprint,heavy,dodge,jump,guard,heal,target,pause,confirm,upgrade;
         InputActionAsset actions;
         InputActionMap combat;
         public bool NetworkDirected { get; private set; }
@@ -72,6 +73,7 @@ namespace TomorinTrial
             target=Button("Lock","<Keyboard>/tab","<Mouse>/middleButton","<Gamepad>/rightStickPress");
             pause=Button("Pause","<Keyboard>/escape","<Gamepad>/start");
             confirm=Button("Confirm","<Keyboard>/enter","<Gamepad>/buttonSouth");
+            upgrade=Button("Upgrade","<Keyboard>/t","<Gamepad>/dpad/down");
             actions.FindActionMap("Player",true).Enable();combat.Enable();
             foreach(var map in actions.actionMaps)foreach(var action in map.actions)action.performed+=TrackDevice;
             foreach(var action in combat.actions)action.performed+=TrackDevice;
@@ -93,7 +95,7 @@ namespace TomorinTrial
             if(bindingVersion!=TrialBindings.Version)RefreshBindings();
             if(TrialSettingsPanel.InputBlocked || Time.frameCount<=suppressUntilFrame)
             {
-                Move=Look=Vector2.zero;Attack=AttackHeld=Heavy=HeavyHeld=Dodge=Jump=Guard=Heal=Interact=Lock=Pause=Confirm=Restart=false;ResetSprint();return;
+                Move=Look=Vector2.zero;Upgrade=Attack=AttackHeld=Heavy=HeavyHeld=Dodge=Jump=Guard=Heal=Interact=Lock=Pause=Confirm=Restart=false;ResetSprint();return;
             }
             Move=Vector2.ClampMagnitude(move.ReadValue<Vector2>()+TouchMove,1);
             Look=look.ReadValue<Vector2>()*(look.activeControl?.device is Gamepad?125*Time.unscaledDeltaTime:.105f);
@@ -101,7 +103,7 @@ namespace TomorinTrial
             // bindings can also read the same finger as a mouse/touch delta.
             if(look.activeControl?.device is Touchscreen || Application.isMobilePlatform && look.activeControl?.device is Mouse)Look=Vector2.zero;
             AttackHeld=attack.IsPressed() || TouchLight;Attack=attack.WasPressedThisFrame();HeavyHeld=heavy.IsPressed() || TouchHeavy;Heavy=heavy.WasPressedThisFrame();Dodge=dodge.WasPressedThisFrame();Guard=guard.IsPressed();
-            Jump=jump.WasPressedThisFrame();
+            Jump=jump.WasPressedThisFrame();Upgrade=upgrade.WasPressedThisFrame();
             // Mobile taps belong to UI controls, including taps reported as mouse clicks.
             // Apply the dedicated light-attack button below after filtering raw pointer input.
             if(attack.activeControl?.device is Touchscreen || Application.isMobilePlatform && attack.activeControl?.device is Mouse){Attack=false;AttackHeld=TouchLight;}
@@ -111,6 +113,7 @@ namespace TomorinTrial
             Look+=TouchLook;TouchLook=Vector2.zero;
             Attack|=(touchPressed&1)!=0;Heavy|=(touchPressed&2)!=0;Dodge|=(touchPressed&4)!=0;
             Heal|=(touchPressed&8)!=0;Lock|=(touchPressed&16)!=0;Interact|=(touchPressed&32)!=0;
+            Jump|=(touchPressed&64)!=0;
             Pause|=(touchPressed&128)!=0;Guard|=TouchGuard;touchPressed=0;
         }
         void OnDestroy(){combat?.Dispose();if(actions){actions.Disable();Destroy(actions);}}

@@ -77,23 +77,35 @@ namespace TomorinTrial
             ps.GetComponent<ParticleSystemRenderer>().sharedMaterial=particles;
         }
 
+        int burstFrame=-1,burstParticles;
         public void Burst(Vector3 position,Color tint,int count)
         {
             if(Application.isMobilePlatform)count=Mathf.Max(1,Mathf.CeilToInt(count*.55f));
+            count=Mathf.Max(1,Mathf.CeilToInt(count*TrialGraphicsBudget.EffectDensity));
+            if(burstFrame!=Time.frameCount){burstFrame=Time.frameCount;burstParticles=0;}
+            count=Mathf.Min(count,(TrialGraphicsBudget.Performance?90:180)-burstParticles);
+            if(count<=0)return;burstParticles+=count;
             ParticleSystem selected=pool[0];foreach(var ps in pool) if(!ps.IsAlive()){selected=ps;break;}
             selected.transform.position=position;selected.Play();var emit=new ParticleSystem.EmitParams{startColor=tint};selected.Emit(emit,count);
         }
         public void Sound(string key,Vector3 point,float pitch=1)
         {
             if(!sounds.TryGetValue(key,out var clip))return;
-            if(combatVariants.TryGetValue(key,out var variants))clip=variants[nextSource%variants.Length]??clip;
+            // A fan of simultaneous projectiles has one launch cue, not several stacked copies.
+            if(key=="skillCrimson" || key=="skillMoon")
+            {
+                if(nextFlightSound.TryGetValue(key,out float next) && Time.unscaledTime<next)return;
+                nextFlightSound[key]=Time.unscaledTime+.075f;
+            }
+            clip=NextCombatClip(key,clip);
             bool boss=key=="warning" || key=="tideCharge" || key=="tideImpact" || key=="bubbleCast" || key=="bubblePop" || key=="heavy";
             bool clash=key=="parry" || key=="block" || key=="counter";
-            bool attack=key=="swing" || key=="hit" || key=="impactHeavy" || key=="finish" || key=="charge" || key=="landing";
+            bool attack=ComboAudioSet.Contains(key) || key=="swing" || key=="hit" || key=="impactHeavy" || key=="finish" || key=="charge" || key=="landing";
             var source=sources[boss?10+nextWarningSource++%4:nextSource++%10];
             float gain=TrialPreferences.AudioLevel(0)*(boss?TrialPreferences.AudioLevel(3):clash?TrialPreferences.AudioLevel(2):attack?TrialPreferences.AudioLevel(1):1);
             source.volume=(boss?.92f:key=="footstep"?.24f:.62f)*gain;source.priority=boss?24:128;
             source.spatialBlend=boss?.18f:.65f;source.minDistance=boss?8:2;source.maxDistance=boss?45:24;
+            if(attack){pitch*=.975f+(float)audioRandom.NextDouble()*.05f;source.volume*=.96f+(float)audioRandom.NextDouble()*.08f;}
             source.transform.position=point;source.pitch=pitch;source.Stop();source.clip=clip;source.Play();
         }
         public void HitStop(float duration){stopUntil=Mathf.Max(stopUntil,Time.unscaledTime+duration);}
@@ -129,7 +141,8 @@ namespace TomorinTrial
             else if(localPlayer && value.cue==TrialCombatCue.Death)game.OnPlayerDied();
         }
         public void TickTime()
-        {TickSignatureEffects();TickImpactEffects();TickTides();TickCombatAudio();TickSwordEffects();Time.timeScale=game.Mode==TrialMode.Victory || game.Mode==TrialMode.Dead?0:TrialNetworkManager.SessionActive?(Time.unscaledTime<slowUntil?.35f:1):game.Mode==TrialMode.Playing?(Time.unscaledTime<stopUntil?.08f:Time.unscaledTime<slowUntil?.30f:1):0;}
+        {TickSignatureEffects();TickImpactEffects();TickTides();TickCombatAudio();TickSwordEffects();Time.timeScale=game.Mode==TrialMode.Victory || game.Mode==TrialMode.Dead?0:TrialNetworkManager.SessionActive?(Time.unscaledTime<slowUntil?.35f:1):game.Mode==TrialMode.Playing && !game.Player.ChoosingBoon?(Time.unscaledTime<stopUntil?.08f:Time.unscaledTime<slowUntil?.30f:1):0;}
+        public void ResumeSwordReturn(){stopUntil=slowUntil=0;}
         void OnDestroy(){if(signatureMaterial)Destroy(signatureMaterial);DisposeImpactEffects();DisposeSwordArtEffects();Time.timeScale=1;foreach(var clip in generatedSounds)if(clip)Destroy(clip);if(particles)Destroy(particles);if(petalMesh)Destroy(petalMesh);}
     }
 }

@@ -8,7 +8,7 @@ namespace TomorinTrial.Editor
     public static class TrialIconSetup
     {
         const string Folder="Assets/Art/UI/Resources/Trial/Icons/";
-        static readonly string[] Names={"GameIcon","LightSlash","HeavySlash","Parry","Dodge","SpiritDew","TargetLock"};
+        static readonly string[] Names={"GameIcon","LightSlash","HeavySlash","Parry","Dodge","SpiritDew","TargetLock","Jump"};
 
         [MenuItem("Tools/Tomorin/Configure icons")]
         public static void Configure()
@@ -29,7 +29,7 @@ namespace TomorinTrial.Editor
             var icon=AssetDatabase.LoadAssetAtPath<Texture2D>(Folder+"GameIcon.png");
             SetIcon(NamedBuildTarget.Unknown,icon);SetIcon(NamedBuildTarget.Standalone,icon);
             AssetDatabase.SaveAssets();
-            Debug.Log("[Tomorin] Seven icons imported; default and Windows application icons configured.");
+            Debug.Log("[Tomorin] "+Names.Length+" icons imported; default and Windows application icons configured.");
         }
 
         static void SetIcon(NamedBuildTarget target,Texture2D icon)

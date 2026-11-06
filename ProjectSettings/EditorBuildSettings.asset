@@ -29,6 +29,12 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/PenguinRemnantSanctum.unity
     guid: 89f1c554abec6c84cab37a0209c9e404
+  - enabled: 1
+    path: Assets/Scenes/EndlessMist.unity
+    guid: 30a3f423ca324cb4880b61a8767bc5f2
+  - enabled: 1
+    path: Assets/Scenes/BossGauntlet.unity
+    guid: a0603d7cbe2a3d040ad1371b1d1d4e89
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

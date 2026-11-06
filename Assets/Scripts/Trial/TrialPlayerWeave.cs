@@ -27,13 +27,13 @@ namespace TomorinTrial
         public static int GuardComboMove(bool heavy,int from,bool air)
         {
             if(air)return from==AirFan || from==AerialCascade || IsAirBlade(from)?AirPierce:WallRebound;
-            if(!heavy && from==1 || from==CrossDraw || from==DoubleFang || from==OrbitCut || from==FlowingSweep)return SpiralSword;
+            if(!heavy && (from==1 || from==2) || heavy && from==0 || from==RollThrust || from==RollFlash || from==CrossDraw || from==DoubleFang || from==OrbitCut || from==FlowingSweep)return SpiralSword;
             if(from==SpiralSword)return ThreadPierce;
             if(from==WheelFinish || from==19 || from==FallingDraw)return LowVault;
             if(from==17)return SakuraFollowup;
             if(heavy && from==18)return 17;
-            if(heavy && (from==0 || from==18) || from==HeelTurn)return LoftingDraw;
-            if(from==2 || from==5 || from==RollThrust || from==ThreadPierce || from==MoonChase)return MoonChase;
+            if(from==HeelTurn)return LoftingDraw;
+            if(from==5 || from==ThreadPierce || from==MoonChase)return MoonChase;
             if(IsBodyStrike(from))return ElbowBreak;
             if(from==OrbitCut || from==SheathTurn)return FlowingSweep;
             return CrossDraw;
@@ -42,13 +42,28 @@ namespace TomorinTrial
         public int GuardFollowupMove=>GuardComboMove(weaveHeavy,weaveFrom,IsAerialMove(weaveFrom) && transform.position.y>launchFloor+.35f);
         void BeginWeaveGuard()
         {
-            weaveFrom=Combo;weaveHeavy=Action==FighterAction.Heavy || Action==FighterAction.Free && chainHeavy;
+            // Reuse the roll-slash source ID so the existing replicated weave
+            // state and the client's guide describe dodge -> guard correctly.
+            bool fromDodge=Action==FighterAction.Dodge || Action==FighterAction.Free && dodgeLinkRemaining>0;
+            weaveFrom=fromDodge?RollFlash:Combo;weaveHeavy=!fromDodge && (Action==FighterAction.Heavy || Action==FighterAction.Free && chainHeavy);
             // Recognize rapidly buffered L,L,G / L,L,L,G as the same gesture as
             // spaced taps, while letting G defend immediately instead of waiting.
             if(!weaveHeavy && weaveFrom<=2)
                 foreach(var press in attackInputs)
                 {if(press.heavy || weaveFrom>=2)break;weaveFrom++;}
-            ClearAttackInputs(false);chainUntil=0;weaveUntil=Time.time+.85f;weaveAge=0;weavePending=true;
+            // A throw already guards during its own animation. Enter it directly
+            // instead of inserting a stationary guard pose before the cast.
+            if(GuardFollowupMove==SpiralSword && !ParryEmpowered)
+            {
+                startingGuardCombo=true;
+                try
+                {
+                    if(StartAttack(true,SpiralSword))
+                    {ClearAttackInputs(false);attackGuardLatch=true;return;}
+                }
+                finally{startingGuardCombo=false;}
+            }
+            ClearDodgeLink();ClearAttackInputs(false);chainUntil=0;weaveUntil=Time.time+.85f;weaveAge=0;weavePending=true;
             attackGuardLatch=true;PlanarVelocity=Vector3.zero;
             Begin(FighterAction.Free,0);Guarding=true;GuardAge=0;
             EmitSwordCue(TrialCombatCue.WeaveSigil,transform.position+Vector3.up,transform.forward,transform.position,5);
@@ -70,7 +85,7 @@ namespace TomorinTrial
         void TrackSwordTarget(float dt)
         {
             bool attacking=Action==FighterAction.Light || Action==FighterAction.Heavy;
-            if(!attacking || Combo==FireDragon || Combo==SpiralSword || IsDive(Combo))return;
+            if(!attacking || SwordGuardReturning || Combo==FireDragon || Combo==SpiralSword || IsDive(Combo))return;
             if(Locked && LockTarget.Alive)chaseTarget=LockTarget;
             else if(!chaseTarget || !chaseTarget.Alive)chaseTarget=FindChaseTarget();
             if(!chaseTarget)return;

@@ -1,6 +1,6 @@
 """Original physically inspired combat sound layers. No samples or external dependencies.
 Rebuild with Python 3: python Tools/create_combat_audio.py
-Output: mono 44.1 kHz PCM16 WAV, deterministic three-take variations.
+Output: mono 44.1 kHz PCM16 WAV; 63 base clips plus 76 combo/skill clips.
 """
 from pathlib import Path
 import math
@@ -103,3 +103,5 @@ if __name__ == '__main__':
     for key,(length,kind,gain) in SPECS.items():
         for take in range(3):render(key,length,kind,gain,take)
     print(f'Created {len(SPECS)*3} original combat sounds in {ROOT}')
+    from create_combo_audio import generate
+    generate()

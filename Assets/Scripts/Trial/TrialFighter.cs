@@ -25,7 +25,7 @@ namespace TomorinTrial
         public bool Alive => Health > 0;
         public float Progress => ActionDuration > 0 ? Mathf.Clamp01(ActionTime / ActionDuration) : 0;
         public bool AttackActive => (!(this is TrialPlayer) || TrialPlayer.HasSwordContact(Combo)) && (Action == FighterAction.Light || Action == FighterAction.Heavy || (this is TrialPlayer && Action==FighterAction.Dodge && Combo==7)) && Progress >= (this is TrialPlayer && Action==FighterAction.Light?.22f:.33f) && Progress <= (this is TrialPlayer && Action==FighterAction.Light?.54f:.63f);
-        public bool Invulnerable => this is TrialEnemy enemy && (enemy.BreakoutInvulnerable || enemy.Champion && (enemy.Champion.Evading || enemy.Champion.Introducing)) || Action == FighterAction.Dodge && ActionTime >= .025f && ActionTime <= .32f || this is TrialPlayer && (Action==FighterAction.Light && (Combo==9 || Combo==TrialPlayer.BehindThrust) && Progress<.32f || Action==FighterAction.Heavy && Combo==10 && Progress<.48f);
+        public bool Invulnerable => this is TrialEnemy enemy && (enemy.BreakoutInvulnerable || enemy.Champion && (enemy.Champion.Evading || enemy.Champion.Introducing)) || Action == FighterAction.Dodge && ActionTime >= .025f && ActionTime <= .32f || this is TrialPlayer && (Action==FighterAction.Heavy && Combo==TrialPlayer.SwordGuardReturn && Progress<.68f || Action==FighterAction.Light && (Combo==9 || Combo==TrialPlayer.BehindThrust) && Progress<.32f || Action==FighterAction.Heavy && Combo==10 && Progress<.48f);
         public Transform Visual { get; protected set; }
         public Transform Weapon { get; protected set; }
         protected TrialGame game;
@@ -53,7 +53,8 @@ namespace TomorinTrial
             // The owning peer should converge promptly; the old 45 ms smoothing
             // time constant added visible delay on top of the round trip.
             bool local=game && game.Player==this;
-            float t=(transform.position-state.position).sqrMagnitude>16?1:1-Mathf.Exp(-(local?60:30)*dt);
+            bool swordBlink=this is TrialPlayer && state.combo==TrialPlayer.SwordGuardReturn && (Combo!=TrialPlayer.SwordGuardReturn || Action!=FighterAction.Heavy || state.actionTime<ActionTime);
+            float t=swordBlink || (transform.position-state.position).sqrMagnitude>16?1:1-Mathf.Exp(-(local?60:30)*dt);
             transform.position=Vector3.Lerp(transform.position,state.position,t);
             transform.rotation=Quaternion.Slerp(transform.rotation,Quaternion.Euler(0,state.yaw,0),t);
             Health=state.health;if(state.maxHealth>0)MaxHealth=state.maxHealth;if(state.postureLimit>0)PostureLimit=state.postureLimit;Stamina=state.stamina;Posture=state.posture;
@@ -65,7 +66,11 @@ namespace TomorinTrial
             {
                 if(Health<previousHealth)HoldCombat(Alive?.04f:.09f);
                 if(Health<previousHealth){game.Effects.Burst(transform.position+Vector3.up,new Color(1,.65f,.23f),18);game.Effects.Sound(Alive?"hit":"death",transform.position);}
-                if((Action==FighterAction.Light||Action==FighterAction.Heavy)&&(Action!=previousAction||Combo!=previousCombo))game.Effects.Sound("swing",transform.position);
+                if((Action==FighterAction.Light||Action==FighterAction.Heavy)&&(Action!=previousAction||Combo!=previousCombo))
+                {
+                    if(this is TrialPlayer)game.Effects.MoveSound(Combo,Action==FighterAction.Heavy,transform.position);
+                    else game.Effects.Sound("swing",transform.position);
+                }
             }
         }
 
@@ -161,12 +166,14 @@ namespace TomorinTrial
         public abstract bool ReceiveHit(TrialFighter attacker, float damage, float postureDamage, bool unblockable = false);
         protected void Impact(TrialFighter attacker, float damage)
         {
+            float previousHealth=Health;
             Health = Mathf.Max(0,Health-damage);
             hitFlash = .16f;
             game.Effects.Burst(transform.position + Vector3.up * 1.05f, new Color(1,.65f,.23f), 18);
             game.Effects.Sound(Health <= 0 ? "death" : "hit", transform.position);
             if(!TrialNetworkManager.SessionActive || this==game.Player || attacker==game.Player)game.CameraRig.Kick(.13f);
             if (Health <= 0) { MoveBlend=0;Begin(FighterAction.Dead, 1.4f); motor.enabled = false; }
+            if(this is TrialEnemy runEnemy && attacker is TrialPlayer runPlayer)runPlayer.OnRunHit(runEnemy,previousHealth-Health);
         }
     }
 }

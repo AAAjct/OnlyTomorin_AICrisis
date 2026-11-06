@@ -1,0 +1,12 @@
+{
+    "scene": "Assets/Scenes/AshenCourt.unity",
+    "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "resolution": "1111x777",
+    "samples": 119,
+    "oldGpuMs": 0.397312,
+    "balancedGpuMs": 0.386048,
+    "oldTriangles": 352457.0,
+    "balancedTriangles": 278552.0,
+    "oldBatches": 488.0,
+    "balancedBatches": 329.0
+}

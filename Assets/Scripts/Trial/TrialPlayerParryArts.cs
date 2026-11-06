@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace TomorinTrial
@@ -17,7 +17,7 @@ namespace TomorinTrial
         sealed class ParryFlight
         {
             public TrialCombatCue cue;
-            public Vector3 start,end,point,direction;
+            public Vector3 start,end,point,direction,origin;
             public float age,power;
             public readonly HashSet<TrialFighter> hits=new HashSet<TrialFighter>();
         }
@@ -104,7 +104,7 @@ namespace TomorinTrial
                 swordEmissions++;
                 LaunchParryFlight(TrialCombatCue.FireDragon,dragonPower);
             }
-            if(Combo==SpiralSword && Progress>=.23f && swordEmissions==0)
+            if(Combo==SpiralSword && Progress>=.18f && swordEmissions==0)
             {
                 swordEmissions++;
                 LaunchParryFlight(TrialCombatCue.SpiralSword,1);
@@ -117,11 +117,13 @@ namespace TomorinTrial
             if(cue==TrialCombatCue.SpiralSword)parryFlights.RemoveAll(f=>f.cue==TrialCombatCue.SpiralSword);
             if(parryFlights.Count>=8)return;
             Vector3 start=transform.position+Vector3.up;
+            if(cue==TrialCombatCue.SpiralSword && Weapon)start=Weapon.position+Weapon.up*.35f;
             var target=Locked?LockTarget:game.NearestOpponent(this,22);
             Vector3 direction=cue==TrialCombatCue.SpiralSword?transform.forward:target?Vector3.ProjectOnPlane(target.transform.position-transform.position,Vector3.up).normalized:transform.forward;
             if(direction.sqrMagnitude<.01f)direction=transform.forward;
             Vector3 end=start+direction*(cue==TrialCombatCue.SpiralSword?12:Mathf.Lerp(9,24,power));
-            parryFlights.Add(new ParryFlight{cue=cue,start=start,end=end,point=start,direction=direction,power=power});
+            parryFlights.Add(new ParryFlight{cue=cue,start=start,end=end,point=start,direction=direction,power=power,origin=transform.position});
+            if(cue==TrialCombatCue.SpiralSword)BeginSwordThrowGuard();
             EmitSwordCue(cue,start,direction,end,power);
         }
         void TickParryFlights(float dt)
@@ -139,7 +141,7 @@ namespace TomorinTrial
                 Vector3 step=to-flight.point;
                 float radius=flight.cue==TrialCombatCue.FireDragon?Mathf.Lerp(.8f,1.3f,flight.power):.52f;
                 bool wall=step.sqrMagnitude>.00001f && Physics.SphereCast(flight.point,radius,step.normalized,out _,step.magnitude,1,QueryTriggerInteraction.Ignore);
-                if(!wall)SwordSegment(flight.point,to,radius,flight.cue==TrialCombatCue.FireDragon?Mathf.Lerp(65,155,flight.power):85,65,flight.hits);
+                if(!wall)SwordSegment(flight.point,to,radius,flight.cue==TrialCombatCue.FireDragon?Mathf.Lerp(65,155,flight.power):85,65,flight.hits,flight.cue==TrialCombatCue.SpiralSword);
                 flight.point=to;
                 if(wall || flight.age>=duration)parryFlights.RemoveAt(i);
             }
@@ -187,7 +189,7 @@ namespace TomorinTrial
             EmitSwordCue(TrialCombatCue.SwordRecall,before+Vector3.up,swordHeading,transform.position+Vector3.up,1);
             EmitSwordCue(TrialCombatCue.ThrustTrace,blade,swordHeading,transform.position+Vector3.up,.65f);
         }
-        void ResetParryArts(){replicaSwordUntil=0;parryReadyUntil=parryDodgeUntil=dragonPower=0;dodgeDragonLanded=false;parryFlights.Clear();if(game && game.Effects)game.Effects.ClearSwordArts(this);}
+        void ResetParryArts(){swordReturnStart=swordReturnOrigin=Vector3.zero;swordThrowGuardAge=100;replicaSwordUntil=0;parryReadyUntil=parryDodgeUntil=dragonPower=0;dodgeDragonLanded=false;parryFlights.Clear();if(game && game.Effects)game.Effects.ClearSwordArts(this);}
     }
 
     public static class TrialParryFlight

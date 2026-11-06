@@ -1,0 +1,46 @@
+from pathlib import Path
+import json, shutil
+out=Path('output'); out.mkdir(exist_ok=True)
+verify=out/'verification';verify.mkdir(exist_ok=True)
+for n in ['level-selection-verified.png','manual-choice.png','mobile-upgrade-verified.png']:
+ p=Path('Assets')/n
+ if p.exists():shutil.copy2(p,verify/n)
+a=json.loads((out/'gpu-courtyard-comparison.json').read_text(encoding='utf-8-sig'))
+b=json.loads((out/'gpu-horde-comparison.json').read_text(encoding='utf-8-sig'))
+text='''2026-11-06 实现与验证记录
+
+新增两个单人关卡：无尽雾潮、百战之庭。场景已加入 Build Settings。
+无尽模式：持续分批刷怪，最多 12 个存活敌人；小怪复用，尸体定时回收；每 5 波追加精英 Boss。
+击杀经验升级，30 种属性/效果词条可叠加。升级次数先累计，T（可改键）/手柄下方向键/手机升级按钮手动打开。
+经验条位于左下耐力条下方，打开选择才暂停；选完恢复战斗。
+Boss 连战：8 位 Boss 分开逐个出现；开局 3 瓶，胜利回满血量耐力并保留剩余药瓶，整轮重开恢复初始 3 瓶。
+关卡列表改为滚动列表，标题与说明分区，保留键鼠、手柄和拖动浏览。
+
+性能改动
+- 默认均衡：2 级联、35 米阴影距离、中等软阴影、半分辨率 SSAO，去掉未使用的相机不透明颜色拷贝。
+- 流畅：80% 内部渲染分辨率（像素数为原生的 64%），1 级联 / 25 米阴影、1024 阴影图、FXAA，关闭场景 Bloom，减少装饰光晕、残影、粒子。
+- 精细保留原生分辨率和更远的 4 级联阴影。三档均可在设置切换。
+- 地面薄片、远山不投射阴影，静态几何按 12 米网格合并，让视野外区域能独立剔除。
+- 连锁伤害的装饰粒子增加每帧上限，残影烘焙限制频率；未改变技能警示、伤害判定。
+- 修复开启垂直同步时菜单 / 后台限帧失效；保留正在游玩时用户选择的帧率。
+- 经验显示和升级提示缓存，避免每帧刷新文本和格式化按键名称。
+
+测量方法与限制
+RTX 3050 Laptop；编辑器 Game View；固定相机、暂停模拟、60 FPS 上限；每档预热 45 帧、采样 120 帧。
+以下仅比较同一份优化后场景几何上的旧渲染设置（4 级联 / 50 米 / 全分辨率 SSAO）与均衡设置；不代表整个项目修改前后的完整基准。
+庭院：三角形 {at:.0f} → {ab:.0f}；batches {abt:.0f} → {abb:.0f}。
+12 小怪场景：三角形 {bt:.0f} → {bb:.0f}；batches {bbt:.0f} → {bbb:.0f}。
+FrameTimingManager 中位 GPU 毫秒：庭院 {ag:.3f} → {ag2:.3f}；12 小怪 {bg:.3f} → {bg2:.3f}。
+GPU 时间变化未呈现稳定改善，不能把提交量下降等同于相同幅度的占用率下降；没有独立播放器长时间、满战斗特效或手机真机基准。
+本机保存的是 144 FPS。若优先降低 GPU 占用，可在设置选 60 FPS + 流畅；保留了原有用户帧率偏好。
+
+验证
+- Unity 编译无错误。
+- 无尽前 10 波推进、第 5 / 10 波 Boss、经验连升排队、手动选择、词条重置、聚怪 / 雷击 / 灼烧、敌人数上限通过。
+- Boss 连战 8 个独立 Boss、药瓶可用与跨场保留、战后恢复、通关与重开通过。
+- 实际注入 T 键后选择界面打开且 timeScale=0；手机按钮回调同样通过。
+- 1280×720 画面检查：升级三选一、手机按钮 / 经验条、关卡列表标题说明间距。
+- 手机为编辑器强制触控界面验证，未在手机真机运行。
+'''.format(at=a['oldTriangles'],ab=a['balancedTriangles'],abt=a['oldBatches'],abb=a['balancedBatches'],bt=b['oldTriangles'],bb=b['balancedTriangles'],bbt=b['oldBatches'],bbb=b['balancedBatches'],ag=a['oldGpuMs'],ag2=a['balancedGpuMs'],bg=b['oldGpuMs'],bg2=b['balancedGpuMs'])
+(out/'run-and-performance-review.md').write_text(text,encoding='utf-8')
+print('Wrote output/run-and-performance-review.md')

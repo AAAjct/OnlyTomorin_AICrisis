@@ -6,6 +6,15 @@ namespace TomorinTrial
     public sealed partial class TrialPlayer
     {
         bool chainHeavy,airborneCombo,swordLanded;
+        bool swordGroundContact,landingSakuraFlow,replicaVolleyDescending;
+        float swordLandingAge,landingForwardSpeed;
+        public static bool IsAirVolleyFinisher(int move)=>move==AirFan || move==AerialCascade || move==AirBladeThird;
+        static bool IsSwordLandingSource(int move)=>IsDive(move) || IsAirVolleyFinisher(move);
+        bool AirVolleyComplete=>IsAirVolleyFinisher(Combo) && (Combo==AirBladeThird?swordEmissions>0:comboBladeEmissions>=3);
+        public bool AirVolleyDescending=>airborneCombo && AirVolleyComplete && (Action==FighterAction.Free || Progress>=.66f)
+            || replicaVolleyDescending && TrialNetworkManager.SessionActive && !Mirror.NetworkServer.active;
+        public float SwordLandingBlend=>swordLanded?Mathf.SmoothStep(0,1,swordLandingAge/.14f):0;
+        public bool LandingSakuraFlow=>landingSakuraFlow;
         float launchFloor,launchHeight=2.15f;
         Vector3 reboundDirection;
         int swordEmissions;
@@ -45,7 +54,9 @@ namespace TomorinTrial
         }
         void BeginSwordArt()
         {
+            ClearDodgeLink();
             swordStart=transform.position;swordHeading=transform.forward;swordMotionProgress=0;swordEmissions=0;swordLanded=false;swordMotionCues=0;comboBladeEmissions=0;
+            swordGroundContact=false;swordLandingAge=0;landingForwardSpeed=0;landingSakuraFlow=false;
             if(Combo==3 || Combo==AirStep){launchFloor=transform.position.y;launchHeight=Combo==AirStep?1.25f:2.15f;airborneCombo=true;}
             if(Combo==AerialCascade && !airborneCombo){launchFloor=transform.position.y;launchHeight=1.25f;airborneCombo=true;}
             if(Combo==AirPierce && transform.position.y>launchFloor+.35f)airborneCombo=true;
@@ -58,10 +69,11 @@ namespace TomorinTrial
             }
         }
         void ResetSwordArts()
-        {airborneCombo=false;swordLanded=false;swordEmissions=0;swordFlights.Clear();}
+        {airborneCombo=false;swordLanded=false;swordGroundContact=false;swordLandingAge=0;landingForwardSpeed=0;landingSakuraFlow=false;replicaVolleyDescending=false;swordEmissions=0;swordFlights.Clear();}
 
         protected override void TickGravity(float dt)
         {
+            if(swordLanded)swordLandingAge+=dt;
             if(TickMartialGravity())return;
             if(Action==FighterAction.Heavy && Combo==DodgeDragon && !dodgeDragonLanded)
             {
@@ -73,13 +85,21 @@ namespace TomorinTrial
                 return;
             }
             bool attacking=Action==FighterAction.Light || Action==FighterAction.Heavy;
-            if(airborneCombo && attacking && IsDive(Combo))
+            if(airborneCombo && (attacking && IsDive(Combo) || AirVolleyDescending))
             {
-                if(Progress>.12f)
+                // Start lowering during the last cast's follow-through; a queued dive
+                // inherits that descent instead of inserting another suspended windup.
+                float target=IsDive(Combo)?Combo==AirSandDive?-13:-26:-10;
+                verticalSpeed=Mathf.MoveTowards(verticalSpeed,target,(Combo==20?130:80)*dt);
+                landingForwardSpeed=Combo==AirSandDive?23*Mathf.Clamp01(-verticalSpeed/13):0;
+                var contact=motor.Move((Vector3.up*verticalSpeed+swordHeading*landingForwardSpeed)*dt);
+                if((contact&CollisionFlags.Above)!=0)verticalSpeed=Mathf.Min(0,verticalSpeed);
+                swordGroundContact=(contact&CollisionFlags.Below)!=0;
+                if(swordGroundContact && !IsDive(Combo))
                 {
-                    // The ranged-light finisher dives diagonally; the sword-down heavy stays planted.
-                    verticalSpeed=Combo==AirSandDive?-13:-26;
-                    motor.Move((Vector3.up*verticalSpeed+(Combo==AirSandDive?swordHeading*23:Vector3.zero))*dt);
+                    ConfirmSwordLanding();
+                    EmitSwordCue(TrialCombatCue.SwordLanding,transform.position,swordHeading,transform.position,1);
+                    if(Action==FighterAction.Free){chainCount=Combo;chainHeavy=false;chainUntil=Time.time+LandingSakuraGrace;attackInputAge=0;}
                 }
                 return;
             }
@@ -94,12 +114,24 @@ namespace TomorinTrial
             }
             airborneCombo=false;base.TickGravity(dt);
         }
+        void ConfirmSwordLanding()
+        {swordLanded=true;airborneCombo=false;verticalSpeed=-2;swordLandingAge=0;}
+        Vector3 LandingCarryVelocity=>swordHeading*landingForwardSpeed*Mathf.Exp(-swordLandingAge*20);
 
         // All displacement goes through CharacterController; walls still stop lunges and retreat.
         bool TickSwordMotion(float dt)
         {
+            if(TickSwordGuardReturn())return true;
             if(TickMartialMotion())return true;
             if(TickEmpoweredMotion(dt))return true;
+            if(IsSwordLandingSource(Combo) && swordLanded)
+            {
+                // Integrate the decaying landing momentum at any frame rate.
+                float before=Mathf.Max(0,swordLandingAge-dt);
+                float distance=landingForwardSpeed*(Mathf.Exp(-before*20)-Mathf.Exp(-swordLandingAge*20))/20;
+                if(distance>0)motor.Move(swordHeading*distance);
+                return true;
+            }
             if(IsLowAirMove(Combo))
             {
                 MoveSwordDistance(Combo==WallRebound?reboundDirection:swordHeading,Combo==AirPierce?3.4f:Combo==WallRebound?3.2f:Combo==AirStep?1.6f:Combo==AirFan?.6f:1.2f,.08f,.50f);return true;
@@ -107,7 +139,7 @@ namespace TomorinTrial
             if(IsExtendedMove(Combo))
             {
                 float distance=Combo==GatheredPierce || Combo==GuardNeedle?3.6f:Combo==RollThrust?4.8f:Combo==ThreadPierce?3.6f:Combo==RetreatDraw?2.6f:Combo==RollFlash?1.5f:Combo==WheelFinish || Combo==StormWheel?1.6f:.9f;
-                MoveSwordDistance(Combo==RetreatDraw?-swordHeading:swordHeading,distance,.08f,.48f);return true;
+                MoveSwordDistance(Combo==RetreatDraw?-swordHeading:swordHeading,distance,Combo==RollThrust?0:.08f,.48f);return true;
             }
             if(IsAerialMove(Combo))return true;
             if(Combo==MoonChase)
@@ -117,7 +149,7 @@ namespace TomorinTrial
             if(Combo==6)
             {MoveSwordDistance(-swordHeading,4.2f,.04f,.30f);return true;}
             if(Combo==5 || Combo==SakuraFollowup)
-            {MoveSwordDistance(swordHeading,Combo==5?6.0f:6.8f,.12f,.48f);return true;}
+            {MoveSwordDistance(swordHeading,Combo==5?6.0f:6.8f,landingSakuraFlow?0:.12f,landingSakuraFlow?.42f:.48f);return true;}
             if(Combo==2)
             {MoveSwordDistance(swordHeading,1.8f,.13f,.43f);return true;}
             return false;
@@ -202,9 +234,9 @@ namespace TomorinTrial
                 EmitSwordCue(TrialCombatCue.SakuraScatter,from,swordHeading,to,1);
                 SwordSegment(from,to,1.35f,24,20,new HashSet<TrialFighter>());
             }
-            if(IsDive(Combo) && !swordLanded && Progress>=.34f && motor.isGrounded)
+            if(IsDive(Combo) && !swordLanded && (swordGroundContact || motor.isGrounded) && verticalSpeed<=0)
             {
-                swordLanded=true;airborneCombo=false;verticalSpeed=-2;
+                ConfirmSwordLanding();
                 Vector3 centre=transform.position+Vector3.up*.12f;
                 EmitCombat(TrialCombatCue.SandImpact,centre);
                 SwordArea(centre,3.1f,Combo==20?72:60,60,true);
@@ -274,7 +306,7 @@ namespace TomorinTrial
             }
         }
 
-        void SwordSegment(Vector3 from,Vector3 to,float radius,float damage,float posture,HashSet<TrialFighter> hits)
+        void SwordSegment(Vector3 from,Vector3 to,float radius,float damage,float posture,HashSet<TrialFighter> hits,bool flowing=false)
         {
             Vector3 segment=to-from;
             foreach(var enemy in game.Opponents(this))
@@ -284,7 +316,7 @@ namespace TomorinTrial
                 float t=segment.sqrMagnitude>.0001f?Mathf.Clamp01(Vector3.Dot(torso-from,segment)/segment.sqrMagnitude):0;
                 float body=enemy is TrialEnemy foe?foe.BodyRadius:.28f;
                 if(Vector3.Distance(torso,from+segment*t)>radius+body+.24f || Physics.Linecast(from,torso,1,QueryTriggerInteraction.Ignore))continue;
-                hits.Add(enemy);SwordDamage(enemy,damage,posture,false);
+                hits.Add(enemy);SwordDamage(enemy,damage,posture,false,flowing);
             }
         }
 
@@ -331,13 +363,14 @@ namespace TomorinTrial
                 SwordDamage(enemy,damage,posture,finish);
             }
         }
-        void SwordDamage(TrialFighter enemy,float damage,float posture,bool finish)
+        void SwordDamage(TrialFighter enemy,float damage,float posture,bool finish,bool flowing=false)
         {
             if(!enemy.ReceiveHit(this,damage*(Boon==TrialBoon.Edge?1.12f:1),posture*(Boon==TrialBoon.Breaker?1.15f:1)))return;
             RestoreCombatStamina(enemy.Alive?HitStamina:KillStamina);
-            HoldCombat(finish?.12f:.065f);
+            flowing|=SwordGuardReturning;
+            if(!flowing)HoldCombat(finish?.12f:.065f);
             if(!(enemy is TrialEnemy boss && boss.ResolveActive))enemy.HoldCombat(finish?.13f:.075f);
-            EmitCombat(!enemy.Alive?TrialCombatCue.Kill:finish?TrialCombatCue.FinisherHit:TrialCombatCue.Hit,enemy.transform.position+Vector3.up);
+            EmitCombat(flowing?TrialCombatCue.SwordFlowHit:!enemy.Alive?TrialCombatCue.Kill:finish?TrialCombatCue.FinisherHit:TrialCombatCue.Hit,enemy.transform.position+Vector3.up);
         }
     }
 

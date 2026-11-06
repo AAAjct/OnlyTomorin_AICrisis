@@ -117,7 +117,7 @@ namespace TomorinTrial.Editor
                 var shell=Resources.Load<Material>("Trial/VFX/TideShell");var sigil=Resources.Load<Material>("Trial/VFX/TideSigil");
                 Check(shell && sigil && !UnityEditor.ShaderUtil.ShaderHasError(shell.shader) && !UnityEditor.ShaderUtil.ShaderHasError(sigil.shader),"Both authored VFX shaders compile without errors");
                 Check(Resources.Load<Mesh>("Trial/VFX/TideCrown").vertexCount>200 && Resources.Load<Mesh>("Trial/VFX/TidePearl").vertexCount>900,"Authored tidal crown and pearl meshes are available in Resources");
-                Check(Directory.GetFiles("Assets/Audio/Resources/Trial/Audio","*.wav").Length==54,"All 54 original sound variations are imported");
+                Check(Directory.GetFiles("Assets/Audio/Resources/Trial/Audio","*.wav").Length>=54,"Original sound library remains available alongside new combo variations");
                 game.StartBossChallenge();player.ResetRunBoon();player.Restore(new Vector3(7,0,19));var boss=game.Enemies.Last();game.SetCombatTarget(player);boss.ReceiveHit(player,1,0);boss.Boss.StartSkill(DeepFishSkill.Maelstrom);
                 boss.Boss.Tick(.2f);yield return .08f;
                 Check(boss.Boss.GetComponentsInChildren<TrialSkillSurface>().Any(s=>s.GetComponentInChildren<MeshRenderer>().enabled),"Boss windup renders layered warning geometry");
