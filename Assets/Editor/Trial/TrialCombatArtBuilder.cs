@@ -6,11 +6,12 @@ namespace TomorinTrial.Editor
 {
     public static class TrialCombatArtBuilder
     {
-        const string Root="Assets/Resources/Trial/VFX/";
+        const string Root="Assets/Art/Materials/Resources/Trial/VFX/";
+        const string MeshRoot="Assets/Art/Models/Resources/Trial/VFX/";
         [MenuItem("Tools/Tomorin/Build original combat VFX assets")]
         public static void Build()
         {
-            System.IO.Directory.CreateDirectory(Root);AssetDatabase.Refresh();
+            System.IO.Directory.CreateDirectory(Root);System.IO.Directory.CreateDirectory(MeshRoot);AssetDatabase.Refresh();
             Material("TideSigil","Tomorin/Tide Sigil",Color.white,0);
             Material("TideRibbon","Tomorin/Tide Energy",Color.white,0);
             Material("TideShell","Tomorin/Tide Energy",new Color(.08f,.64f,1,.85f),1);
@@ -33,9 +34,9 @@ namespace TomorinTrial.Editor
         }
         static void Save(Mesh mesh,string name)
         {
-            mesh.name=name;var old=AssetDatabase.LoadAssetAtPath<Mesh>(Root+name+".asset");
+            mesh.name=name;var old=AssetDatabase.LoadAssetAtPath<Mesh>(MeshRoot+name+".asset");
             if(old){EditorUtility.CopySerialized(mesh,old);Object.DestroyImmediate(mesh);EditorUtility.SetDirty(old);}
-            else AssetDatabase.CreateAsset(mesh,Root+name+".asset");
+            else AssetDatabase.CreateAsset(mesh,MeshRoot+name+".asset");
         }
         static Mesh Shell()
         {

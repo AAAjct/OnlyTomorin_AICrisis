@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace TomorinTrial
@@ -24,7 +24,7 @@ namespace TomorinTrial
         }
 
         public static bool IsAerialMove(int move)=>IsLowAirMove(move) || move==3 || IsAirBlade(move) || IsDive(move);
-        static float LightLinkProgress(int move)=>move==AerialCascade?.80f:move==FallingDraw?.72f:move==ScissorKick || move==CloudRake?.66f:move==AirFan?.78f:move==DoubleFang?.74f:move==WheelFinish?.66f:move==ParryTriple?.70f:move==3 || move==AirStep?.50f:IsAirBlade(move)?.60f:move==AirSandDive?.75f:.55f;
+        static float LightLinkProgress(int move)=>move==ParryMirror?.76f:move==AerialCascade?.80f:move==FallingDraw?.72f:move==ScissorKick || move==CloudRake?.66f:move==AirFan?.78f:move==DoubleFang?.74f:move==WheelFinish?.66f:move==ParryTriple?.70f:move==3 || move==AirStep?.50f:IsAirBlade(move)?.60f:move==AirSandDive?.75f:.55f;
         bool TryJump(TrialInput input)
         {
             // A direct entry to the existing aerial tree, with the same cost and rig.
@@ -37,7 +37,7 @@ namespace TomorinTrial
             var direction=MoveDirection(input);
             if(Locked)direction=LockTarget.transform.position-transform.position;
             if(direction.sqrMagnitude>.01f)Turn(direction,36000,.02f);
-            bufferedJump=bufferedHeal=-10;protectedUntil=0;weaveUntil=0;chainUntil=0;chainCount=0;
+            bufferedJump=bufferedHeal=-10;protectedUntil=0;weaveUntil=0;weavePending=false;chainUntil=0;chainCount=0;
             PlanarVelocity=Vector3.zero;Sprinting=false;struck.Clear();attackAccent=false;
             chaseTarget=null;chaseRemaining=0;Combo=AirStep;
             BeginSwordArt();Begin(FighterAction.Light,.56f);
@@ -86,7 +86,7 @@ namespace TomorinTrial
             bool hold=airborneCombo && (attacking && (Combo==3 || IsAirBlade(Combo) || IsLowAirMove(Combo)) || Action==FighterAction.Free && Time.time<chainUntil);
             if(hold)
             {
-                float rise=(Combo==LoftingDraw || Combo==LowVault || Combo==CloudRake || Combo==3 || Combo==AirStep) && attacking?Mathf.SmoothStep(0,1,Mathf.InverseLerp(.08f,.50f,Progress)):1;
+                float rise=(Combo==SwordRecallRise || Combo==ParryAscend || Combo==LoftingDraw || Combo==LowVault || Combo==CloudRake || Combo==3 || Combo==AirStep) && attacking?Mathf.SmoothStep(0,1,Mathf.InverseLerp(.08f,.50f,Progress)):1;
                 float targetY=launchFloor+launchHeight*rise;
                 if(Combo==VaultSweep || Combo==ScissorKick)targetY+=Mathf.Sin(Progress*Mathf.PI)*.22f;
                 if(Combo==WallRebound && attacking)targetY+=Mathf.Sin(Progress*Mathf.PI)*.48f;

@@ -8,7 +8,7 @@ import random
 import struct
 import wave
 
-ROOT = Path(__file__).resolve().parents[1] / 'Assets/Resources/Trial/Audio'
+ROOT = Path(__file__).resolve().parents[1] / 'Assets/Audio/Resources/Trial/Audio'
 ROOT.mkdir(parents=True, exist_ok=True)
 RATE = 44100
 SPECS = {

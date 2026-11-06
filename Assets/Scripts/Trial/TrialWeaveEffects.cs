@@ -29,18 +29,20 @@ namespace TomorinTrial
             float t=Mathf.Clamp01(art.age/art.duration),fade=1-t;
             Vector3 forward=art.cue.forward.normalized,right=Vector3.Cross(Vector3.up,forward).normalized;
             Color tint=StyleColor(art.cue.style);
+            bool transition=art.cue.amount==5;
             for(int i=0;i<65;i++)
             {
                 float u=i/64f,a=u*Mathf.PI*2+art.age*3;
                 float petals=art.cue.amount==3?6:art.cue.amount==2?3:8;
-                float r=(.6f+t*1.9f)*(1+.20f*Mathf.Cos(a*petals));
+                float r=(transition?.38f+t*.3f:.6f+t*1.9f)*(1+.20f*Mathf.Cos(a*petals));
                 Vector3 radial=right*Mathf.Cos(a)+forward*Mathf.Sin(a);
                 Vector3 point=art.cue.position+radial*r+Vector3.up*(.18f*Mathf.Sin(a*3));
                 art.points[i]=point;art.vertices[i*2]=point-radial*.18f;art.vertices[i*2+1]=point;
                 art.colors[i*2]=new Color(.003f,.004f,.008f,fade*.6f);art.colors[i*2+1]=new Color(tint.r*.16f,tint.g*.16f,tint.b*.16f,fade*.35f);
             }
             if(!UploadSwordMesh(art))return;
-            PaintLine(art.core,art.points,Color.white,.028f,fade);PaintLine(art.glow,art.points,new Color(1,1,1,.3f),.19f,fade);
+            PaintLine(art.core,art.points,Color.white,transition?.012f:.028f,fade);PaintLine(art.glow,art.points,new Color(1,1,1,.3f),transition?.05f:.19f,fade);
+            if(transition){art.filament.enabled=false;art.detail.enabled=false;return;}
             for(int i=0;i<65;i++){float a=i/64f*Mathf.PI*4;art.points[i]=art.cue.position+right*Mathf.Cos(a)*(.25f+t)+Vector3.up*Mathf.Sin(a)*(.25f+t)+forward*(i/64f-.5f);}
             PaintLine(art.filament,art.points,Color.white,.018f,fade);art.detail.enabled=false;
         }

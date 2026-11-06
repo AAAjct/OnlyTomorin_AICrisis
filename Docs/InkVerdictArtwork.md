@@ -3,8 +3,8 @@
 生成方式：内置 ImageGen，透明背景 PNG，原始透明度保留。颜色、晕染、劈开和动画由 Unity 的 InkVerdict.shader 与 TrialHudInkResult.cs 控制。
 
 素材路径：
-- Assets/Resources/UI/InkVerdictVictory.png（斩）
-- Assets/Resources/UI/InkVerdictDefeat.png（菜）
+- Assets/Art/UI/Resources/UI/InkVerdictVictory.png（斩）
+- Assets/Art/UI/Resources/UI/InkVerdictDefeat.png（菜）
 
 最终生成提示词：
 

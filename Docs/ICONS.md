@@ -2,7 +2,7 @@
 
 生成方式：内置 image_gen。风格：极简扁平图形，深墨底、米白主体，少量青绿和暗金。游戏图标参考用户提供的「高松灯企鹅2.png」，保留棕色短发、企鹅身体与橙色脚。
 
-运行时路径：`Assets/Resources/Trial/Icons/`。`GameIcon` 用于应用图标和游戏标题；其余六张用于战斗 HUD。导入与应用图标设置可通过 `Tools > Tomorin > Configure icons` 重做。
+运行时路径：`Assets/Art/UI/Resources/Trial/Icons/`。`GameIcon` 用于应用图标和游戏标题；其余六张用于战斗 HUD。导入与应用图标设置可通过 `Tools > Tomorin > Configure icons` 重做。
 
 ## 最终生成提示词
 

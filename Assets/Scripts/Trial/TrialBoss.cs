@@ -230,6 +230,10 @@ namespace TomorinTrial
                     default:weight=distance>5?2:1;break;
                 }
                 if(skill==previousChoice)weight*=.15f;
+                if(game.CombatTarget.transform.position.y>transform.position.y+1.2f)
+                    weight*=skill==DeepFishSkill.BubbleBarrage?6:skill==DeepFishSkill.AbyssRain?2:.3f;
+                if(game.CombatTarget.Action==FighterAction.Dodge)
+                    weight*=skill==DeepFishSkill.ReverseTail || skill==DeepFishSkill.RiptideRush?2:1;
                 if(game.CombatTarget.Guarding && (skill==DeepFishSkill.AbyssRain || skill==DeepFishSkill.Maelstrom))weight*=1.8f;
                 attackWeights[i]=weight;total+=weight;
             }
@@ -323,7 +327,7 @@ namespace TomorinTrial
             if(Skill!=DeepFishSkill.None && age>=duration)
             {
                 var previous=Skill;Skill=DeepFishSkill.None;fighter.BossBegin(FighterAction.Free,0);HideWarnings();
-                if(Enraged && comboDepth<1 && previous!=DeepFishSkill.Enrage && previous!=DeepFishSkill.AbyssRain)
+                if(Enraged && comboDepth<(Frenzied?2:1) && previous!=DeepFishSkill.Enrage && previous!=DeepFishSkill.AbyssRain && ActiveHazards<12)
                 {comboDepth++;StartSkill(ChooseAttack(Vector3.ProjectOnPlane(game.CombatTarget.transform.position-transform.position,Vector3.up).magnitude));return;}
                 comboDepth=0;regroupTime=Frenzied?.65f:Enraged?.8f:1.05f;cooldown=regroupTime;pursuitTime=0;orbitSide=-orbitSide;
             }
@@ -412,7 +416,7 @@ namespace TomorinTrial
 
         void ShootFan(int wave)
         {
-            var delta=Vector3.ProjectOnPlane(game.CombatTarget.transform.position-transform.position,Vector3.up).normalized;
+            var delta=(game.CombatTarget.transform.position-transform.position).normalized;
             int count=(Enraged?9:7)+Mathf.Min(4,game.PartySize-1);
             for(int i=0;i<count;i++)
             {

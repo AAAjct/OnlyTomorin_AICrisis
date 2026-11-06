@@ -68,7 +68,8 @@ namespace TomorinTrial
                     {
                         shownOfferA=p.OfferA;shownOfferB=p.OfferB;shownOfferC=p.OfferC;
                         for(int i=0;i<3;i++){var offer=i==0?p.OfferA:i==1?p.OfferB:p.OfferC;boonLabels[i].text=TrialRunBoons.Name(offer)+"\n\n"+TrialRunBoons.Description(offer);}
-                        var fish=game.Enemies[game.Enemies.Count-1].Boss;
+                        var lastEnemy=game.Enemies.Count>0?game.Enemies[game.Enemies.Count-1]:null;
+                        var fish=lastEnemy?lastEnemy.Boss:null;
                         boonDescription.text=game.IsChampionStage?TrialChampionCatalog.Lesson(game.Level):"本局 Boss 增益："+TrialRunBoons.BossName(fish?fish.Boon:TrialBossBoon.None)+"\n增益仅作用于本次挑战，竞技场不启用。";
                     }
                     if(!boonWasOpen && EventSystem.current)boonButtons[0].Select();

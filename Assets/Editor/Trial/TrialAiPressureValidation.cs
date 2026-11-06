@@ -129,6 +129,7 @@ namespace TomorinTrial.Editor
                                 brain.StartSkill(DeepFishSkill.ReverseTail);enemy.Parried();
                                 Check(brain.Skill==DeepFishSkill.None && enemy.Vulnerable,name+" deflection still cancels into stagger");
                             }
+                            ValidateEscalation(game,enemy);
                         }
                     }
                     finally{if(game){game.enabled=true;game.Input.enabled=true;}}
@@ -138,6 +139,103 @@ namespace TomorinTrial.Editor
                 ValidateDisplaySettings(UnityEngine.Object.FindFirstObjectByType<TrialSettingsPanel>(FindObjectsInactive.Include));
             }
             finally{UnityEngine.Random.state=randomState;}
+        }
+        static void Advance(TrialEnemy enemy,float seconds)
+        {for(float t=0;t<seconds;t+=.02f)enemy.Tick(Mathf.Min(.02f,seconds-t));}
+
+        static void ValidateEscalation(TrialGame game,TrialEnemy enemy)
+        {
+            string label=enemy.DisplayName;
+            Prepare(game,enemy);
+            for(int i=0;i<8;i++)
+            {
+                if(i>0)Advance(enemy,.08f);
+                enemy.ReceiveHit(game.Player,.01f,0);
+                if(i<7)Check(!enemy.ResolveActive,label+" rapid string keeps opening hit "+(i+1));
+            }
+            enemy.Tick(0);
+            Check(enemy.ResolveActive && enemy.BreakoutInvulnerable,label+" eight fast contacts trigger protected breakout");
+            float health=enemy.Health;
+            Check(!enemy.ReceiveHit(game.Player,10,999) && enemy.Health==health,label+" breakout rejects opening damage");
+            Advance(enemy,.8f);health=enemy.Health;enemy.ReceiveHit(game.Player,1,999);
+            Check(enemy.Health<health && !enemy.Vulnerable,label+" breakout armor still takes damage after opening");
+            enemy.Parried();Check(!enemy.ResolveActive,label+" parry ends rapid-pressure armor");
+
+            Prepare(game,enemy);enemy.ReceiveHit(game.Player,.01f,999);
+            float execution=enemy.ActionDuration;
+            for(int i=0;i<8;i++){if(i>0)Advance(enemy,.08f);enemy.ReceiveHit(game.Player,.01f,0);}
+            enemy.Tick(0);
+            Check(enemy.Vulnerable && !enemy.ResolveActive && Mathf.Approximately(enemy.ActionDuration,execution),label+" rapid hits preserve full posture-break execution window");
+            Advance(enemy,execution-.56f+.06f);
+            Check(enemy.ResolveActive,label+" rapid-pressure breakout waits for execution window to end");
+            Prepare(game,enemy);
+
+            if(enemy.Champion)
+            {
+                var brain=enemy.Champion;
+                Field(brain,"<Phase>k__BackingField",3);Field(brain,"phaseAnnounced",3);
+                brain.BeginMove(brain.IsRemnant?2:0);var completed=brain.Move;int attacks=brain.AttacksStarted;
+                Field(brain,"beat",completed.beats);Field(brain,"<Age>k__BackingField",completed.Duration-.11f);
+                Call(brain,"TickAttack",.05f);
+                Check(brain.AttacksStarted==attacks,label+" follow-up waits for authored recovery");
+                Call(brain,"TickAttack",.07f);
+                bool twin=brain.Kind==ChampionKind.FeiBi || brain.Kind==ChampionKind.NuoNuo;
+                Check(twin?brain.Regrouping:brain.AttacksStarted==attacks+1 && brain.Age==0,label+(twin?" living twins pass initiative":" phase three chains with a fresh full windup"));
+                brain.CancelAttack(true);
+                Check(!(bool)Call(brain,"TryChainPressure",completed,2),label+" third move always ends normal string");
+                Field(brain,"<Phase>k__BackingField",2);Field(brain,"phaseAnnounced",2);
+                Check(!(bool)Call(brain,"TryChainPressure",completed,1),label+" phase two stops after two moves");
+                Field(brain,"<Phase>k__BackingField",1);Field(brain,"phaseAnnounced",1);
+                Check(!(bool)Call(brain,"TryChainPressure",completed,0),label+" phase one retains single-move rhythm");
+                Field(brain,"<Phase>k__BackingField",3);Field(brain,"phaseAnnounced",3);
+                var finisher=new ChampionMove("test","",ChampionShape.Cut,ChampionDefense.Deflect,.8f,.5f,1,4,0,90,1,5);
+                Check(!(bool)Call(brain,"TryChainPressure",finisher,0),label+" long finisher retains extra punish window");
+                Field(brain,"phaseAnnounced",2);
+                Check(!(bool)Call(brain,"TryChainPressure",completed,0),label+" pending phase transition interrupts chaining");
+                if(brain.Kind==ChampionKind.Anon)
+                {
+                    Field(brain,"phaseAnnounced",3);brain.BeginMove(4);Field(brain,"chainDepth",2);
+                    Call(brain,"SpawnHazard",enemy.transform.position,Vector3.zero,true);
+                    Field(brain,"beat",brain.Move.beats);Field(brain,"<Age>k__BackingField",brain.Move.Duration-.01f);
+                    Call(brain,"TickAttack",.02f);
+                    Check(brain.Regrouping && !brain.Attacking,label+" sword garden cannot bypass three-move limit");
+                }
+                Prepare(game,enemy);
+                if(brain.Kind==ChampionKind.Taffy)
+                {
+                    game.Player.Teleport(new Vector3(0,3,33));brain.BeginMove(1);
+                    Call(brain,"LockAim");
+                    // Move after aim commits: the shot must retain its locked direction.
+                    game.Player.Teleport(new Vector3(8,0,33));Call(brain,"Contact");
+                    var snapshot=brain.CaptureNetwork();bool upward=snapshot.hazards.Length>0;
+                    foreach(var hazard in snapshot.hazards)upward&=hazard.velocity.y>0 && Mathf.Abs(hazard.velocity.x)<.01f;
+                    Check(upward,label+" anti-air shot retains locked elevation and heading");
+                }
+            }
+            else
+            {
+                var brain=enemy.Boss;
+                Field(brain,"<Enraged>k__BackingField",true);Field(brain,"<Frenzied>k__BackingField",true);
+                for(int depth=0;depth<3;depth++)
+                {
+                    brain.StartSkill(DeepFishSkill.TailSweep);Field(brain,"comboDepth",depth);
+                    var snapshot=brain.CaptureNetwork();Field(brain,"age",snapshot.duration-.01f);
+                    Call(brain,"TickSkill",.02f);
+                    Check(depth<2?brain.Skill!=DeepFishSkill.None:brain.Skill==DeepFishSkill.None && brain.Regrouping,label+" frenzy string boundary "+(depth+1));
+                }
+                brain.CancelAttack();game.Player.Teleport(new Vector3(0,3,33));brain.StartSkill(DeepFishSkill.BubbleBarrage);Call(brain,"ShootFan",0);
+                var hazards=brain.GetType().GetField("hazards",Private).GetValue(brain) as Array;
+                bool upward=false;
+                foreach(var hazard in hazards)
+                {
+                    var type=hazard.GetType();
+                    if((bool)type.GetField("active").GetValue(hazard) && !(bool)type.GetField("shockwave").GetValue(hazard))
+                        upward|=((Vector3)type.GetField("velocity").GetValue(hazard)).y>0;
+                }
+                Check(upward,label+" bubble fan can reach airborne player");
+            }
+            Prepare(game,enemy);
+            Check(!enemy.ResolveActive && !enemy.Flinching,label+" retry clears escalation state");
         }
         static void ValidateMeshes()
         {

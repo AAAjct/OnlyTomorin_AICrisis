@@ -8,7 +8,7 @@ import bpy
 from mathutils import Vector
 
 ROOT=Path(__file__).resolve().parents[1]
-OUT=ROOT/'Assets/Resources/Trial/Models'
+OUT=ROOT/'Assets/Art/Models/Resources/Trial/Models'
 OUT.mkdir(parents=True,exist_ok=True)
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.delete(use_global=False)

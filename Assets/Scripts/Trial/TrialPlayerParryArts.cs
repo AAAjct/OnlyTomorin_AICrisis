@@ -41,12 +41,13 @@ namespace TomorinTrial
         {
             if(!ParryEmpowered || !input.HeavyHeld)return false;
             if(!Spend(8))return false;
-            parryReadyUntil=0;blinkReadyUntil=0;ClearAttackInputs();
+            parryReadyUntil=0;blinkReadyUntil=0;ClearAttackInputs(false);
             protectedUntil=0;dragonPower=0;chargeReady=false;chargeTime=0;Combo=FireDragon;
             Begin(FighterAction.Charge,DragonChargeLimit);return true;
         }
         void PrepareEmpoweredArt()
         {
+            if(Combo==SwordRecallCut || Combo==SwordRecallRise)RecallSwordAndStep();
             if(Combo!=FireDragon)dragonPower=Combo==DodgeDragon?.5f:0;
             if(Combo==DodgeDragon){dodgeDragonLanded=false;verticalSpeed=9.6f;airborneCombo=false;}
             if(Combo==BehindThrust)
@@ -113,12 +114,13 @@ namespace TomorinTrial
         }
         void LaunchParryFlight(TrialCombatCue cue,float power)
         {
+            if(cue==TrialCombatCue.SpiralSword)parryFlights.RemoveAll(f=>f.cue==TrialCombatCue.SpiralSword);
             if(parryFlights.Count>=8)return;
             Vector3 start=transform.position+Vector3.up;
             var target=Locked?LockTarget:game.NearestOpponent(this,22);
-            Vector3 direction=target?Vector3.ProjectOnPlane(target.transform.position-transform.position,Vector3.up).normalized:transform.forward;
+            Vector3 direction=cue==TrialCombatCue.SpiralSword?transform.forward:target?Vector3.ProjectOnPlane(target.transform.position-transform.position,Vector3.up).normalized:transform.forward;
             if(direction.sqrMagnitude<.01f)direction=transform.forward;
-            Vector3 end=cue==TrialCombatCue.SpiralSword && target?target.transform.position+Vector3.up:start+direction*(cue==TrialCombatCue.SpiralSword?12:Mathf.Lerp(9,24,power));
+            Vector3 end=start+direction*(cue==TrialCombatCue.SpiralSword?12:Mathf.Lerp(9,24,power));
             parryFlights.Add(new ParryFlight{cue=cue,start=start,end=end,point=start,direction=direction,power=power});
             EmitSwordCue(cue,start,direction,end,power);
         }
@@ -147,7 +149,45 @@ namespace TomorinTrial
             if(Mirror.NetworkServer.active)TrialNetworkManager.Current.BroadcastSwordCombat(this,cue,from,direction,end,amount,SwordStyle);
             else game.Effects.PlayCombat(new TrialCombatEvent{cue=cue,position=from,forward=direction,end=end,amount=amount,style=SwordStyle},this==game.Player);
         }
-        void ResetParryArts(){parryReadyUntil=parryDodgeUntil=dragonPower=0;dodgeDragonLanded=false;parryFlights.Clear();if(game && game.Effects)game.Effects.ClearSwordArts(this);}
+        float replicaSwordUntil;
+        Vector3 replicaSwordPosition;
+        ParryFlight RecallFlight
+        {
+            get
+            {
+                for(int i=parryFlights.Count-1;i>=0;i--)
+                {
+                    var flight=parryFlights[i];
+                    if(flight.cue==TrialCombatCue.SpiralSword && flight.age>=.1f && flight.age<1.08f)return flight;
+                }
+                return null;
+            }
+        }
+        public bool SwordRecallReady=>RecallFlight!=null || Time.time<replicaSwordUntil;
+        public Vector3 OrbitSwordPosition=>RecallFlight!=null?RecallFlight.point:replicaSwordPosition;
+        void RecallSwordAndStep()
+        {
+            var flight=RecallFlight;
+            if(flight==null)return;
+            Vector3 before=transform.position,blade=flight.point;
+            Vector3 destination=blade-Vector3.up;
+            if(Physics.Raycast(destination+Vector3.up*2,Vector3.down,out var floor,6,1,QueryTriggerInteraction.Ignore))destination.y=floor.point.y;
+            else destination.y=before.y;
+            Vector3 offset=destination-before;float distance=offset.magnitude;
+            if(distance>.001f && Physics.CapsuleCast(before+Vector3.up*(motor.radius+.05f),before+Vector3.up*(motor.height-motor.radius),motor.radius,offset.normalized,out var wall,distance,1,QueryTriggerInteraction.Ignore))
+                destination=before+offset.normalized*Mathf.Max(0,wall.distance-.05f);
+            game.Effects.Afterimage(this);
+            Teleport(destination);airborneCombo=Combo==SwordRecallRise;replicaSwordUntil=0;
+            if(airborneCombo){launchFloor=martialFloor=destination.y;launchHeight=2.2f;swordStart=destination;}
+            parryFlights.RemoveAll(f=>f.cue==TrialCombatCue.SpiralSword);
+            var target=Locked?LockTarget:game.NearestOpponent(this,8);
+            if(target)Turn(target.transform.position-transform.position,36000,.02f);
+            swordHeading=transform.forward;
+            if(Weapon)Weapon.gameObject.SetActive(true);
+            EmitSwordCue(TrialCombatCue.SwordRecall,before+Vector3.up,swordHeading,transform.position+Vector3.up,1);
+            EmitSwordCue(TrialCombatCue.ThrustTrace,blade,swordHeading,transform.position+Vector3.up,.65f);
+        }
+        void ResetParryArts(){replicaSwordUntil=0;parryReadyUntil=parryDodgeUntil=dragonPower=0;dodgeDragonLanded=false;parryFlights.Clear();if(game && game.Effects)game.Effects.ClearSwordArts(this);}
     }
 
     public static class TrialParryFlight

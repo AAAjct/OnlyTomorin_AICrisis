@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -42,7 +42,7 @@ namespace TomorinTrial
         readonly Dictionary<int, TrialPlayer> actors = new Dictionary<int, TrialPlayer>();
         readonly Dictionary<int, TrialInput> inputs = new Dictionary<int, TrialInput>();
         readonly Dictionary<int, TrialControls> controls = new Dictionary<int, TrialControls>();
-        readonly Dictionary<int, Queue<byte>> controlEdges = new Dictionary<int, Queue<byte>>();
+        readonly Dictionary<int, Queue<TrialControls>> controlEdges = new Dictionary<int, Queue<TrialControls>>();
         readonly Dictionary<int, float> lastInput = new Dictionary<int, float>();
         readonly Dictionary<int, float> reviveAt = new Dictionary<int, float>();
         readonly HashSet<int> liveActors = new HashSet<int>();
@@ -258,10 +258,11 @@ namespace TomorinTrial
             // loses repeated light taps and reverses L,L,H; retain packet order.
             lastInput[id] = Time.unscaledTime;
             value.move = Vector2.ClampMagnitude(value.move, 1);
-            if(value.pressed!=0)
+            controls.TryGetValue(id,out var previous);
+            if(value.pressed!=0 || value.held!=previous.held)
             {
-                if(!controlEdges.TryGetValue(id,out var edges))controlEdges[id]=edges=new Queue<byte>();
-                if(edges.Count<8)edges.Enqueue(value.pressed);
+                if(!controlEdges.TryGetValue(id,out var edges))controlEdges[id]=edges=new Queue<TrialControls>();
+                if(edges.Count<8)edges.Enqueue(value);
             }
             value.pressed=0;
             controls[id] = value;
@@ -351,8 +352,8 @@ namespace TomorinTrial
                     var state = controls.TryGetValue(id, out var received) ? received : default;
                     if (!lastInput.TryGetValue(id, out var at) || Time.unscaledTime - at > .5f)
                     {state=default;if(controlEdges.TryGetValue(id,out var stale))stale.Clear();}
-                    else if(controlEdges.TryGetValue(id,out var edges) && edges.Count>0)state.pressed=edges.Dequeue();
-                    input = inputs[id]; input.ApplyNetwork(state); state.pressed = 0; controls[id] = state;
+                    else if(controlEdges.TryGetValue(id,out var edges) && edges.Count>0)state=edges.Dequeue();
+                    input = inputs[id]; input.ApplyNetwork(state);
                 }
                 if (game.Mode == TrialMode.Victory || game.Mode == TrialMode.Dead) continue;
                 if(waiting || actor.ChoosingBoon)continue;

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace TomorinTrial
@@ -97,6 +97,18 @@ namespace TomorinTrial
         }
         bool PlaySwordArtCue(TrialCombatEvent cue,bool local)
         {
+            if(cue.cue==TrialCombatCue.SwordRecall || cue.cue==TrialCombatCue.SpiralSword)
+            {
+                var owner=TrialNetworkManager.SessionActive?TrialNetworkManager.Current.PlayerById(cue.player):game.Player;
+                foreach(var old in swordArts)
+                    if(old!=null && old.owner==owner && old.cue.cue==TrialCombatCue.SpiralSword)old.root.gameObject.SetActive(false);
+                if(owner && owner.Weapon)owner.Weapon.gameObject.SetActive(true);
+                if(cue.cue==TrialCombatCue.SwordRecall)
+                {
+                    cue.cue=TrialCombatCue.EmpoweredStep;Art(cue,.22f);Sound("swing",cue.end,.9f);
+                    return true;
+                }
+            }
             if(PlayMartialCue(cue,local))return true;
             if(PlaySwordMotionCue(cue,local))return true;
             if(cue.cue==TrialCombatCue.WeaveSigil){Art(cue,.42f);Burst(cue.position,StyleColor(cue.style),18);return true;}

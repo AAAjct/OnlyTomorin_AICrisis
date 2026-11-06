@@ -10,6 +10,9 @@ namespace TomorinTrial
 
         public static float SwordStaminaCost(bool heavy,int move)
         {
+            if(move==SwordRecallRise)return 14;
+            if(move==ParryMirror || move==SwordRecallCut)return 12;
+            if(move==ParryAscend)return 8;
             if(move==LoftingDraw || move==3 || move==AirStep || move==LowVault)return 5;
             if(move==AerialCascade)return 9;
             if(move==WallRebound)return 6;
@@ -17,16 +20,16 @@ namespace TomorinTrial
             if(IsMartialMove(move))return IsBodyStrike(move)?6:heavy?14:9;
             return move==14?32:heavy?22:12;
         }
-        static float MartialDuration(int move)=>move==HiltStrike?.38f:move==HeelTurn?.55f:move==LowVault?.58f:move==VaultSweep?.66f:move==OrbitCut?.70f:move==FallingDraw?.72f:move==ElbowBreak?.42f:move==ScissorKick?.68f:move==SheathTurn?.62f:.72f;
+        static float MartialDuration(int move)=>move==SwordRecallRise?.78f:move==SwordRecallCut?.64f:move==ParryMirror?.82f:move==ParryAscend?.76f:move==HiltStrike?.38f:move==HeelTurn?.55f:move==LowVault?.58f:move==VaultSweep?.66f:move==OrbitCut?.70f:move==FallingDraw?.72f:move==ElbowBreak?.42f:move==ScissorKick?.68f:move==SheathTurn?.62f:.72f;
 
         void BeginMartialArt()
         {
             martialRight=Vector3.Cross(Vector3.up,swordHeading);martialFloor=launchFloor;martialFinished=false;
             // Launch from the current floor, or carry the current suspended height into another jump.
-            if(Combo==LoftingDraw || Combo==LowVault || Combo==CloudRake)
+            if(Combo==SwordRecallRise || Combo==ParryAscend || Combo==LoftingDraw || Combo==LowVault || Combo==CloudRake)
             {
                 if(!airborneCombo || transform.position.y<launchFloor+.2f)launchFloor=transform.position.y;
-                launchHeight=Combo==LowVault?1.05f:1.7f;airborneCombo=true;
+                launchHeight=Combo==SwordRecallRise || Combo==ParryAscend?2.2f:Combo==LowVault?1.05f:1.7f;airborneCombo=true;
             }
             if(Combo==VaultSweep || Combo==ScissorKick)
             {
@@ -41,7 +44,13 @@ namespace TomorinTrial
             float t=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.06f,.58f,Progress));
             float old=swordMotionProgress;swordMotionProgress=t;
             // A visible crescent step around the target replaces another straight blink/lunge.
-            if(Combo==OrbitCut || Combo==SheathTurn)
+            if(Combo==SwordRecallCut)return true;
+            if(Combo==ParryMirror)
+            {
+                Vector3 Before(float p)=>martialRight*(Mathf.Sin(p*Mathf.PI*2)*1.25f)+swordHeading*(p*1.2f);
+                motor.Move(Before(t)-Before(old));
+            }
+            else if(Combo==OrbitCut || Combo==SheathTurn)
             {
                 float side=Combo==OrbitCut?1:-1;
                 Vector3 Before(float p)=>martialRight*(side*Mathf.Sin(p*Mathf.PI*.85f)*1.5f)+swordHeading*(p*.7f);
@@ -70,7 +79,7 @@ namespace TomorinTrial
         void TickMartialArts()
         {
             if(!IsMartialMove(Combo))return;
-            if(Combo==LoftingDraw && Progress>=.08f && (swordMotionCues&1)==0)
+            if((Combo==SwordRecallRise || Combo==ParryAscend || Combo==LoftingDraw) && Progress>=.08f && (swordMotionCues&1)==0)
             {swordMotionCues|=1;EmitSwordCue(TrialCombatCue.SwordLeap,swordStart,swordHeading,transform.position,1);}
             if(Combo==LowVault)
             {
@@ -78,7 +87,7 @@ namespace TomorinTrial
                 {swordEmissions++;EmitSwordCue(TrialCombatCue.MartialStroke,transform.position,swordHeading,transform.position,Combo);}
                 return;
             }
-            int beats=Combo==ScissorKick || Combo==CloudRake?2:1;
+            int beats=Combo==ParryMirror || Combo==ScissorKick || Combo==CloudRake?2:1;
             while(swordEmissions<beats && Progress>=.26f+swordEmissions*.28f)
             {
                 swordEmissions++;
@@ -91,10 +100,11 @@ namespace TomorinTrial
                     float reach=Combo==HiltStrike || Combo==ElbowBreak?2.0f:Combo==HeelTurn?2.7f:3.3f;
                     if(height>2.5f || delta.magnitude>reach+body || Vector3.Angle(transform.forward,delta)>(Combo==OrbitCut || Combo==VaultSweep?145:85))continue;
                     if(Physics.Linecast(transform.position+Vector3.up,enemy.transform.position+Vector3.up,1,QueryTriggerInteraction.Ignore))continue;
-                    float damage=Combo==HiltStrike?16:Combo==HeelTurn?20:Combo==ElbowBreak?24:Combo==ScissorKick?18:Combo==CloudRake?24:Combo==FallingDraw?48:36;
-                    SwordDamage(enemy,damage,IsBodyStrike(Combo)?36:28,Combo==FallingDraw);
+                    float damage=Combo==SwordRecallCut?48:Combo==ParryMirror?32:Combo==SwordRecallRise || Combo==ParryAscend?52:Combo==HiltStrike?16:Combo==HeelTurn?20:Combo==ElbowBreak?24:Combo==ScissorKick?18:Combo==CloudRake?24:Combo==FallingDraw?48:36;
+                    SwordDamage(enemy,damage,Combo==SwordRecallRise || Combo==ParryAscend?45:IsBodyStrike(Combo)?36:28,Combo==FallingDraw);
                 }
-                EmitSwordCue(TrialCombatCue.MartialStroke,transform.position,swordHeading,transform.position+transform.forward*2,Combo);
+                EmitSwordCue(TrialCombatCue.MartialStroke,transform.position,swordHeading,transform.position+transform.forward*2+(Combo==ParryMirror?Vector3.up*(swordEmissions==1?1:-1):Vector3.zero),Combo);
+                if(Combo==ParryMirror || Combo==ParryAscend)game.Effects.Afterimage(this);
             }
             if(Combo==FallingDraw && Progress>=.67f && !martialFinished)
             {

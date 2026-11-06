@@ -237,7 +237,9 @@ namespace TomorinTrial.Editor
                 for(int i=0;i<names.Length;i++)BakeClip(actor,rig,targets,controller,folder,names[i],ids[i],i==1?.55f:i==2?1:0,i==0?2:i==1?1:i==2?.7f:1.5f,i<3);
                 for(int i=0;i<TrialChampionCatalog.SkillCount;i++)BakeClip(actor,rig,targets,controller,folder,"Skill"+(i+1).ToString("00"),i,0,TrialChampionCatalog.Move(kind,i).Duration,false);
                 rig.ResetPose();actor.AddComponent<Animator>().runtimeAnimatorController=controller;
-                PrefabUtility.SaveAsPrefabAsset(actor,folder+"/"+kind+"_AnimationPreview.prefab");
+                const string previewFolder="Assets/Prefabs/AnimationPreviews";
+                Directory.CreateDirectory(previewFolder);AssetDatabase.Refresh();
+                PrefabUtility.SaveAsPrefabAsset(actor,previewFolder+"/"+kind+"_AnimationPreview.prefab");
             }
             finally{UnityEngine.Object.DestroyImmediate(actor);}
         }

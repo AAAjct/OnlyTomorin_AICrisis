@@ -10,13 +10,13 @@ namespace TomorinTrial.Editor
 {
     public static class TrialRemnantBuilder
     {
-        public const string PrefabPath="Assets/Resources/Trial/Models/Remnant_Champion.prefab";
+        public const string PrefabPath="Assets/Prefabs/Resources/Trial/Models/Remnant_Champion.prefab";
         [MenuItem("Tools/Tomorin/Build Penguin Remnant boss")]
         public static void Build()
         {
             if(EditorApplication.isPlaying)throw new InvalidOperationException("Leave Play Mode before building assets.");
             const string folder="Assets/Art/Champions/Remnant";
-            Directory.CreateDirectory(folder);AssetDatabase.Refresh();
+            Directory.CreateDirectory(folder);Directory.CreateDirectory(Path.GetDirectoryName(PrefabPath));AssetDatabase.Refresh();
             var source=AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Models/Remnant/Remnant.fbx");
             if(!source)throw new FileNotFoundException("Blender Remnant.fbx export missing");
             var original=AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Models/Tomorin/Tomorin.fbx");

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace TomorinTrial
 {
@@ -6,6 +6,7 @@ namespace TomorinTrial
     {
         public byte SwordStyle=>Combo switch
         {
+            ParryMirror or SwordRecallCut or SwordRecallRise=>3,ParryAscend=>0,
             HiltStrike or ElbowBreak or SheathTurn=>3,
             LoftingDraw or HeelTurn or LowVault or VaultSweep=>2,
             AerialCascade or ScissorKick or CloudRake=>1,OrbitCut=>4,FallingDraw=>5,
@@ -17,50 +18,59 @@ namespace TomorinTrial
             StormWheel or RetreatDraw or ThreadPierce or DoubleFang=>5,
             _=>1
         };
-        float lightHeldAge,heavyHeldAge,weaveUntil;
-        bool lightHoldSpent,heavyHoldSpent,attackGuardLatch;
+        const float GuardComboWindup=.14f;
+        float weaveUntil,weaveAge;
+        bool attackGuardLatch,weavePending,weaveHeavy,startingGuardCombo;
         int weaveFrom;
-        void CollectHeldAttack(float dt,TrialInput input)
+        // G is a complete command. Different sword positions select distinct
+        // physical follow-ups; no extra attack press is required to activate one.
+        public static int GuardComboMove(bool heavy,int from,bool air)
         {
-            if(!input.AttackHeld){lightHeldAge=0;lightHoldSpent=false;}
-            if(!input.HeavyHeld){heavyHeldAge=0;heavyHoldSpent=false;}
-            if(CombatFrozen || Action!=FighterAction.Light && Action!=FighterAction.Heavy)return;
-            if(input.AttackHeld)lightHeldAge+=dt;
-            if(input.HeavyHeld)heavyHeldAge+=dt;
-            // Each physical hold creates one alternate follow-up, never an automatic loop.
-            if(lightHeldAge>=.26f && !lightHoldSpent && attackInputs.Count<2){QueueAttack(false,true);lightHoldSpent=true;}
-            if(heavyHeldAge>=.30f && !heavyHoldSpent && attackInputs.Count<2){QueueAttack(true,true);heavyHoldSpent=true;}
+            if(air)return from==AirFan || from==AerialCascade || IsAirBlade(from)?AirPierce:WallRebound;
+            if(!heavy && from==1 || from==CrossDraw || from==DoubleFang || from==OrbitCut || from==FlowingSweep)return SpiralSword;
+            if(from==SpiralSword)return ThreadPierce;
+            if(from==WheelFinish || from==19 || from==FallingDraw)return LowVault;
+            if(from==17)return SakuraFollowup;
+            if(heavy && from==18)return 17;
+            if(heavy && (from==0 || from==18) || from==HeelTurn)return LoftingDraw;
+            if(from==2 || from==5 || from==RollThrust || from==ThreadPierce || from==MoonChase)return MoonChase;
+            if(IsBodyStrike(from))return ElbowBreak;
+            if(from==OrbitCut || from==SheathTurn)return FlowingSweep;
+            return CrossDraw;
         }
+        static bool GuardComboHeavy(int move)=>move==SpiralSword || move==LoftingDraw || move==SakuraFollowup || move==17;
+        public int GuardFollowupMove=>GuardComboMove(weaveHeavy,weaveFrom,IsAerialMove(weaveFrom) && transform.position.y>launchFloor+.35f);
         void BeginWeaveGuard()
         {
-            weaveFrom=Combo;weaveUntil=Time.time+.85f;
-            ClearAttackInputs();chainUntil=0;Begin(FighterAction.Free,0);Guarding=true;GuardAge=0;
+            weaveFrom=Combo;weaveHeavy=Action==FighterAction.Heavy || Action==FighterAction.Free && chainHeavy;
+            // Recognize rapidly buffered L,L,G / L,L,L,G as the same gesture as
+            // spaced taps, while letting G defend immediately instead of waiting.
+            if(!weaveHeavy && weaveFrom<=2)
+                foreach(var press in attackInputs)
+                {if(press.heavy || weaveFrom>=2)break;weaveFrom++;}
+            ClearAttackInputs(false);chainUntil=0;weaveUntil=Time.time+.85f;weaveAge=0;weavePending=true;
+            attackGuardLatch=true;PlanarVelocity=Vector3.zero;
+            Begin(FighterAction.Free,0);Guarding=true;GuardAge=0;
             EmitSwordCue(TrialCombatCue.WeaveSigil,transform.position+Vector3.up,transform.forward,transform.position,5);
         }
-        int ResolveWeaveAttack(bool heavy,int requested)
+        bool TickGuardCombo(float dt,TrialInput input)
         {
-            if(ParryEmpowered || ParryDodgeFollowup || Time.time<blinkReadyUntil)return requested;
-            bool air=(airborneCombo || Time.time<weaveUntil && IsAerialMove(weaveFrom)) && transform.position.y>launchFloor+.35f;
-            if(attackInputs.Count>0 && attackInputs.Peek().held)return air?(heavy?AirFan:AirPierce):heavy?StormWheel:GatheredPierce;
-            if(Time.time<weaveUntil)
-            {
-                bool wasAir=IsAerialMove(weaveFrom);
-                return air && wasAir?(heavy?AirWheel:AirPierce):heavy?GuardBloom:GuardNeedle;
-            }
-            // Up close, the ordinary air route turns into physical choreography;
-            // the original three-blade cast remains available against distant opponents.
-            if(air && requested==AirBladeFirst)
-            {
-                var nearby=Locked?LockTarget:game.NearestOpponent(this,6);
-                if(nearby && Vector3.ProjectOnPlane(nearby.transform.position-transform.position,Vector3.up).magnitude<5.5f)
-                    return VaultSweep;
-            }
-            return requested;
+            if(!weavePending)return false;
+            // A real perfect guard always wins over the ordinary scheduled art.
+            if(ParryEmpowered || ParryDodgeFollowup || input.Heal)
+            {weavePending=false;weaveUntil=0;return false;}
+            weaveAge+=dt;
+            if(weaveAge<GuardComboWindup)return true;
+            int move=GuardFollowupMove;
+            weavePending=false;weaveUntil=0;startingGuardCombo=true;
+            try{StartAttack(GuardComboHeavy(move),move);}
+            finally{startingGuardCombo=false;}
+            return true;
         }
         void TrackSwordTarget(float dt)
         {
             bool attacking=Action==FighterAction.Light || Action==FighterAction.Heavy;
-            if(!attacking || Combo==FireDragon || IsDive(Combo))return;
+            if(!attacking || Combo==FireDragon || Combo==SpiralSword || IsDive(Combo))return;
             if(Locked && LockTarget.Alive)chaseTarget=LockTarget;
             else if(!chaseTarget || !chaseTarget.Alive)chaseTarget=FindChaseTarget();
             if(!chaseTarget)return;

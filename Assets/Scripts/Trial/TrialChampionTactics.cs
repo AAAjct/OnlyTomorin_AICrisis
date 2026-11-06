@@ -12,6 +12,7 @@ namespace TomorinTrial
         public float KillPostureScale=>1+KillStacks*.10f;
         public bool Evading=>Mobility==ChampionMobility.SideSlip && mobilityAge>=.035f && mobilityAge<=.23f && Planar(transform.position-evasionOrigin).sqrMagnitude>.035f;
         float respite,pursuitAge,guardTime,guardCooldown;
+        int chainDepth;
         bool guardCounter;
         Vector3 evasionOrigin;
         public float RespiteRemaining=>respite;
@@ -31,10 +32,41 @@ namespace TomorinTrial
         }
 
         void ResetTactics()
-        {respite=pursuitAge=guardTime=guardCooldown=0;guardCounter=false;KillStacks=0;fighter.BossGuard(false);}
+        {respite=pursuitAge=guardTime=guardCooldown=0;chainDepth=0;guardCounter=false;KillStacks=0;fighter.BossGuard(false);}
+
+        float CommitmentWeight(ChampionMove move,TrialPlayer target)
+        {
+            float weight=1;
+            if(target.Action==FighterAction.Dodge)
+                weight*=move.windup>=.95f?2.4f:.65f;
+            if(target.Action==FighterAction.Heavy || target.Action==FighterAction.Charge)
+                weight*=move.shape==ChampionShape.Thrust || move.shape==ChampionShape.DashCut || move.shape==ChampionShape.Snipe?2:1;
+            if(target.transform.position.y>transform.position.y+1.2f)
+            {
+                bool projectile=move.shape==ChampionShape.Bullets || move.shape==ChampionShape.Snipe || move.shape==ChampionShape.Flight;
+                bool landing=move.shape==ChampionShape.Leap || move.shape==ChampionShape.Dive || move.shape==ChampionShape.Mark;
+                weight*=projectile?4:landing?2:.35f;
+            }
+            return weight;
+        }
+
+        bool TryChainPressure(ChampionMove completed,int depth)
+        {
+            // Every move keeps its entire recovery and the next move's full warning.
+            // Twins pass initiative to each other; long finishers always end the string.
+            var partner=Partner();
+            if(Phase<2 || Phase>phaseAnnounced || depth>=(Phase==3?2:1) || completed.beats>=5 ||
+               ActiveHazards>12 || fighter.ResolveActive || partner && partner.Alive)return false;
+            float distance=Planar(game.CombatTarget.transform.position-transform.position).magnitude;
+            if(distance>(Kind==ChampionKind.Taffy?32:Kind==ChampionKind.YaYa?14:13))return false;
+            int next=ChooseMove(distance);
+            if(next<0 || next==previous)return false;
+            chainDepth=depth+1;BeginMove(next);return true;
+        }
 
         void BeginRespite()
         {
+            chainDepth=0;
             // Move.recovery already supplies the punish window. This is a short
             // reposition, with a finite clock even while independent hazards live.
             respite=IsRemnant?.7f:Kind==ChampionKind.Taffy?1.15f:.85f;

@@ -30,7 +30,25 @@ namespace TomorinTrial
             {
                 float u=i/64f,a=Mathf.Lerp(-1.6f,1.6f,u),e=Mathf.Sin(u*Mathf.PI);
                 Vector3 p,across;
-                if(move==TrialPlayer.HiltStrike || move==TrialPlayer.ElbowBreak)
+                if(move==TrialPlayer.SwordRecallCut)
+                {
+                    a=Mathf.Lerp(-1.9f,1.9f,u);
+                    Vector3 radial=r*Mathf.Sin(a)+f*Mathf.Cos(a);
+                    p=feet+Vector3.up*(1.2f-u*.45f)+radial*1.6f;across=radial*.09f*e;
+                }
+                else if(move==TrialPlayer.ParryMirror)
+                {
+                    float side=art.cue.end.y>=art.cue.position.y?1:-1;
+                    p=feet+f*(.85f+Mathf.Sin(u*Mathf.PI)*.7f)+r*Mathf.Lerp(-1.4f,1.4f,u)+Vector3.up*(1+side*Mathf.Lerp(-.8f,.8f,u));
+                    across=(Vector3.up-r*side)*.065f*e;
+                }
+                else if(move==TrialPlayer.SwordRecallRise || move==TrialPlayer.ParryAscend)
+                {
+                    a=Mathf.Lerp(-2.5f,2.5f,u)+t*.6f;
+                    Vector3 radial=r*Mathf.Sin(a)+f*Mathf.Cos(a);
+                    p=feet+radial*1.7f+Vector3.up*Mathf.Lerp(.2f,2.1f,u);across=radial*.13f*e;
+                }
+                else if(move==TrialPlayer.HiltStrike || move==TrialPlayer.ElbowBreak)
                 {
                     float spoke=Mathf.Floor(u*8),radial=(u*8-spoke)*(.12f+t*.30f);
                     float angle=spoke*Mathf.PI*.25f;
@@ -75,8 +93,9 @@ namespace TomorinTrial
                 art.colors[i*2]=new Color(.004f,.005f,.007f,fade*.50f*e);art.colors[i*2+1]=new Color(.018f,.025f,.03f,fade*.6f*e);
             }
             if(!UploadSwordMesh(art))return;
-            PaintLine(art.core,art.points,new Color(1,1,1,body?.32f:.65f),body?.012f:.022f,fade);
-            PaintLine(art.glow,art.points,new Color(1,1,1,.12f),body?.04f:.085f,fade);
+            bool perfect=move==TrialPlayer.SwordRecallRise || move==TrialPlayer.SwordRecallCut || move==TrialPlayer.ParryMirror || move==TrialPlayer.ParryAscend;
+            PaintLine(art.core,art.points,perfect?new Color(1,.8f,.3f,.88f):new Color(1,1,1,body?.32f:.65f),perfect?.03f:body?.012f:.022f,fade);
+            PaintLine(art.glow,art.points,perfect?new Color(1,.12f,.055f,.26f):new Color(1,1,1,.12f),perfect?.13f:body?.04f:.085f,fade);
             art.filament.enabled=false;art.detail.enabled=move==TrialPlayer.ScissorKick;
             if(art.detail.enabled)
             {

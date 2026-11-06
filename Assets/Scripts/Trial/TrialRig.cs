@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace TomorinTrial
@@ -116,6 +116,7 @@ namespace TomorinTrial
                 float recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(heavy?.69f:.55f,1,p));
                 if(combo==TrialPlayer.ParryTriple){float beat=Mathf.Repeat(Mathf.Max(0,p-.08f),.22f)/.22f;swing=Mathf.Sin(Mathf.Clamp01(beat)*Mathf.PI);recover=0;}
                 if(combo==TrialPlayer.DoubleFang){float beat=Mathf.Clamp01((p-(p<.48f?.08f:.48f))/.27f);swing=Mathf.SmoothStep(0,1,beat);recover=p>.85f?(p-.85f)/.15f:0;}
+                if(combo==TrialPlayer.ParryMirror){float beat=Mathf.Clamp01((p-(p<.42f?.08f:.42f))/.27f);swing=Mathf.SmoothStep(0,1,beat);recover=p>.82f?(p-.82f)/.18f:0;}
                 if(combo==TrialPlayer.RollFlash){swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.12f,.40f,p));recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.62f,1,p));}
                 if(combo==TrialPlayer.AirFan || combo==TrialPlayer.AerialCascade){swing=Mathf.Sin(Mathf.Clamp01(Mathf.Repeat(Mathf.Max(0,p-.08f),.22f)/.22f)*Mathf.PI);recover=0;}
                 if(combo==TrialPlayer.DodgeDragon){swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.64f,.82f,p));recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.86f,1,p));}
@@ -123,6 +124,18 @@ namespace TomorinTrial
                 Vector3 startAngles,endAngles;
                 switch(combo)
                 {
+                    case TrialPlayer.SwordRecallCut:
+                        windup=new Vector3(.28f,1.18f,.92f);finish=new Vector3(-.48f,.65f,.65f);
+                        startAngles=new Vector3(75,80,-25);endAngles=new Vector3(135,-95,25);break;
+                    case TrialPlayer.ParryMirror:
+                        windup=p<.42f?new Vector3(-.54f,.52f,.16f):new Vector3(.54f,1.48f,.38f);
+                        finish=p<.42f?new Vector3(.54f,1.48f,.65f):new Vector3(-.50f,.48f,.68f);
+                        startAngles=p<.42f?new Vector3(145,-80,35):new Vector3(20,85,-35);
+                        endAngles=p<.42f?new Vector3(20,85,-35):new Vector3(145,-80,35);break;
+                    case TrialPlayer.SwordRecallRise:
+                    case TrialPlayer.ParryAscend:
+                        windup=new Vector3(-.48f,.38f,.16f);finish=new Vector3(.38f,1.70f,.58f);
+                        startAngles=new Vector3(155,-100,25);endAngles=new Vector3(-30,80,-30);break;
                     case TrialPlayer.HiltStrike:
                         windup=new Vector3(.18f,1.13f,.42f);finish=new Vector3(.04f,1.20f,.88f);
                         startAngles=new Vector3(-15,0,15);endAngles=new Vector3(-25,0,5);break;
@@ -350,6 +363,9 @@ namespace TomorinTrial
                 if(TrialPlayer.IsMartialMove(combo))
                 {
                     float beat=Mathf.Sin(Mathf.Clamp01((p-.08f)/.68f)*Mathf.PI);
+                    if(combo==TrialPlayer.SwordRecallCut){twist=Mathf.Lerp(85,-105,swing)*(1-recover);lean=16*beat;bank=-12*beat;}
+                    if(combo==TrialPlayer.ParryMirror){twist=Mathf.Lerp(p<.42f?-70:70,p<.42f?95:-100,swing)*(1-recover);lean=18*beat;bank=Mathf.Sin(p*Mathf.PI*2)*-20;}
+                    if(combo==TrialPlayer.SwordRecallRise || combo==TrialPlayer.ParryAscend){twist=Mathf.Lerp(-90,270,swing)*(1-recover*.4f);lean=-14;bank=-28*beat;Leg(leftLeg,leftFoot,-72);Leg(rightLeg,rightFoot,42);}
                     if(combo==TrialPlayer.HiltStrike){lean=14*beat;twist=-18*beat;offhand=hand+new Vector3(-.10f,-.08f,-.1f);}
                     if(combo==TrialPlayer.ElbowBreak){lean=18*beat;twist=-55*beat;offhand=new Vector3(-.12f,1.18f,.82f);}
                     if(combo==TrialPlayer.HeelTurn)
@@ -373,6 +389,8 @@ namespace TomorinTrial
                     if(combo==TrialPlayer.CloudRake || combo==TrialPlayer.LoftingDraw){twist=Mathf.Lerp(0,320,swing)*(1-recover*.4f);bank=-24*beat;Leg(leftLeg,leftFoot,-62);Leg(rightLeg,rightFoot,45);}
                     // The compact character needs whole-body silhouette changes as well as limb IK.
                     Vector3 rootAngles=Vector3.zero;
+                    if(combo==TrialPlayer.ParryMirror)rootAngles=new Vector3(14*beat,Mathf.Sin(p*Mathf.PI*2)*65,-22*Mathf.Sin(p*Mathf.PI*2));
+                    if(combo==TrialPlayer.SwordRecallRise || combo==TrialPlayer.ParryAscend)rootAngles=new Vector3(-22*beat,300*swing,-28*beat);
                     if(combo==TrialPlayer.LowVault)rootAngles=new Vector3(-360*Mathf.SmoothStep(0,1,Mathf.InverseLerp(.10f,.88f,p)),0,-16*beat);
                     if(combo==TrialPlayer.VaultSweep)rootAngles=new Vector3(16*beat,-300*swing,38*beat);
                     if(combo==TrialPlayer.HeelTurn)rootAngles=new Vector3(22*beat,-155*swing,15*beat);

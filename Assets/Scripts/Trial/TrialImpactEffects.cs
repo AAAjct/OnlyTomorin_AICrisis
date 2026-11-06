@@ -159,7 +159,7 @@ namespace TomorinTrial
             if(rumbleUntil>0 && Time.unscaledTime>=rumbleUntil){Gamepad.current?.ResetHaptics();rumbleUntil=0;}
             if(courtMusic && bossMusic)
             {
-                bool battle=game.IsArena || game.Enemies[game.Enemies.Count-1].Awakened;
+                bool battle=game.IsArena || (game.Enemies.Count>0 && game.Enemies[game.Enemies.Count-1] && game.Enemies[game.Enemies.Count-1].Awakened);
                 courtMusic.volume=Mathf.MoveTowards(courtMusic.volume,battle?.055f:.13f,Time.unscaledDeltaTime*.1f);
                 bossMusic.volume=Mathf.MoveTowards(bossMusic.volume,battle?.20f:0,Time.unscaledDeltaTime*.13f);
             }

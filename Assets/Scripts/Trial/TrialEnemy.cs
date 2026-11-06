@@ -28,6 +28,9 @@ namespace TomorinTrial
         {
             if(!IsBoss || !Alive || Vulnerable || ResolveActive || flinchCooldown>0)return;
             FlinchRemaining=attacker && attacker.Action==FighterAction.Heavy?.22f:.13f;
+            // Later phases can finish their telegraphed strings under light pressure.
+            if(Champion && Champion.Attacking)FlinchRemaining*=Champion.Phase==3?.65f:Champion.Phase==2?.85f:1;
+            else if(Boss && Boss.Skill!=DeepFishSkill.None)FlinchRemaining*=Boss.Frenzied?.65f:Boss.Enraged?.85f:1;
             flinchCooldown=.38f;MoveBlend=0;
         }
         Vector3 recoilVelocity;
@@ -64,7 +67,8 @@ namespace TomorinTrial
             if(!IsBoss || !(attacker is TrialPlayer) || resolveCooldown>0 || !Alive)return;
             if(pressureClock-lastPressureHit>1.1f){pressureHits=0;pressureStarted=pressureClock;}
             lastPressureHit=pressureClock;pressureHits++;
-            if(pressureHits>=4 && pressureClock-pressureStarted>=1.2f)resolvePending=true;
+            float sustained=pressureClock-pressureStarted;
+            if(pressureHits>=4 && sustained>=1.2f || pressureHits>=8 && sustained>=.45f)resolvePending=true;
         }
 
         public void InitializeChampion(TrialGame owner,Vector3 point,ChampionKind kind,GameObject model)

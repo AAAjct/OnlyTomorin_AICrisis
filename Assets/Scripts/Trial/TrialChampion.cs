@@ -47,6 +47,7 @@ namespace TomorinTrial
         float cooldown=1.0f,phaseAge,aimLockedAt,mobilityAge,mobilityDuration,mobilityCooldown,evasionCooldown,decisionClock,pressureAge;
         Vector3 mobilityDirection,steering;
         float mobilitySpeed;
+        float projectileAimHeight;
         float mobilityGroundY;
         int queuedMove=-1,orbitSide=1;
         readonly float[] moveWeights=new float[TrialChampionCatalog.SkillCount];
@@ -104,6 +105,7 @@ namespace TomorinTrial
         {CancelAttack(true);ResetTactics();ResetSignature();Phase=phaseAnnounced=1;sequence=0;previous=-1;usedMoves=0;phaseAge=0;cooldown=Kind==ChampionKind.NuoNuo?1.1f:.65f;mobilityCooldown=.2f;evasionCooldown=1;pressureAge=decisionClock=0;Mobility=ChampionMobility.Grounded;mobilityAge=mobilityDuration=0;queuedMove=-1;orbitSide=Kind==ChampionKind.NuoNuo?-1:1;AttacksStarted=0;Rig.ResetPose();}
         public void CancelAttack(bool clearHazards=false)
         {
+            chainDepth=0;
             guardTime=0;guardCounter=false;fighter.BossGuard(false);
             MoveIndex=-1;Age=0;beat=0;cooldown=Mathf.Max(cooldown,.75f);HideWarnings();
             if(clearHazards){Mobility=ChampionMobility.Grounded;queuedMove=-1;foreach(var h in hazards){h.active=false;h.hit.Clear();h.line.enabled=false;if(h.art)h.art.Hide();if(h.prop)h.prop.gameObject.SetActive(false);}}
@@ -196,6 +198,7 @@ namespace TomorinTrial
                 if(distance>6 && (m.shape==ChampionShape.Thrust || m.shape==ChampionShape.Leap || m.shape==ChampionShape.Lash))score*=3;
                 if(player.Guarding && player.GuardAge>.3f && m.Unblockable)score*=2.5f;
                 if(player.Action==FighterAction.Heal && (m.shape==ChampionShape.Thrust || m.shape==ChampionShape.Snipe || m.shape==ChampionShape.Mark))score*=3;
+                score*=CommitmentWeight(m,player);
                 if(Kind==ChampionKind.Taffy && distance<4.5f)score*=i==3?8:.2f;
                 if(Kind==ChampionKind.YaYa && distance<3.5f)score*=i==2?4:i==1?.2f:1;
                 if(i>=8)score*=1.4f;
@@ -279,6 +282,7 @@ namespace TomorinTrial
         }
         void LockAim()
         {
+            projectileAimHeight=game.CombatTarget.transform.position.y+1.05f;
             aim=game.CombatTarget.transform.position;aim.y=.045f;
             if(IsRemnant && Move.shape!=ChampionShape.Counter)aim+=Vector3.ClampMagnitude(Planar(game.CombatTarget.PlanarVelocity)*.14f,1.8f);
             if(Move.shape==ChampionShape.Annulus || Move.shape==ChampionShape.Ring || Move.shape==ChampionShape.Stomp || Move.shape==ChampionShape.Vacuum || Move.shape==ChampionShape.OrbitWhip || Move.shape==ChampionShape.Mark && Move.defense==ChampionDefense.Retreat)aim=Planar(transform.position)+Vector3.up*.045f;
@@ -311,9 +315,11 @@ namespace TomorinTrial
             }
             if(Age>=Move.Duration)
             {
-                bool keepPressure=Kind==ChampionKind.Anon && MoveIndex==4 && ActiveHazards>0;
+                var completed=Move;int completedDepth=chainDepth;
+                bool keepPressure=Kind==ChampionKind.Anon && MoveIndex==4 && ActiveHazards>0 && completedDepth<(Phase==3?2:1);
                 CancelAttack();fighter.BossBegin(FighterAction.Free,0);
-                if(keepPressure){BeginMove(10);return;}
+                if(keepPressure){chainDepth=completedDepth+1;BeginMove(10);return;}
+                if(TryChainPressure(completed,completedDepth))return;
                 BeginRespite();
             }
             DrawWarnings();
@@ -332,7 +338,9 @@ namespace TomorinTrial
                 {
                     float angle=count==1?0:Mathf.Lerp(-spread*.5f,spread*.5f,(float)i/(count-1));
                     if(beat%2==1 && count>1)angle+=spread/(count-1)*.35f;
-                    Vector3 direction=shape==ChampionShape.Flight?(aim+Vector3.up*1.05f-(transform.position+Vector3.up*1.15f)).normalized:heading;
+                    Vector3 direction=heading;
+                    if(shape==ChampionShape.Flight || projectileAimHeight>transform.position.y+2.25f)
+                        direction=(new Vector3(aim.x,projectileAimHeight,aim.z)-(transform.position+Vector3.up*1.15f)).normalized;
                     SpawnHazard(transform.position+Vector3.up*1.15f,Quaternion.AngleAxis(angle,Vector3.up)*direction*(shape==ChampionShape.Snipe?38:20+Phase*2),false);
                 }
                 game.Effects.Burst(transform.position+heading*.7f+Vector3.up*1.2f,TrialChampionCatalog.Color(Kind),8);game.Effects.Sound("hit",transform.position,.7f);return;

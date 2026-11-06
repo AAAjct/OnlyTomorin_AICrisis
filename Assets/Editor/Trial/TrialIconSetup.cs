@@ -7,7 +7,7 @@ namespace TomorinTrial.Editor
 {
     public static class TrialIconSetup
     {
-        const string Folder="Assets/Resources/Trial/Icons/";
+        const string Folder="Assets/Art/UI/Resources/Trial/Icons/";
         static readonly string[] Names={"GameIcon","LightSlash","HeavySlash","Parry","Dodge","SpiritDew","TargetLock"};
 
         [MenuItem("Tools/Tomorin/Configure icons")]
