@@ -15,6 +15,7 @@ namespace TomorinTrial
     public struct TrialHello : NetworkMessage { public string name; }
     public struct TrialRetryChallenge : NetworkMessage { }
     public struct TrialReturnToRoom : NetworkMessage { }
+    public struct TrialRunUpgrade : NetworkMessage { public int slot; } // -1 opens the offers; 0..2 selects one.
     public struct TrialChooseBoon : NetworkMessage { public TrialBoon boon; }
     public struct TrialLobby : NetworkMessage { public int self; public int[] ids; public string[] names; public TrialLevel level; public TrialDifficulty difficulty; }
     public struct TrialControls : NetworkMessage
@@ -38,6 +39,11 @@ namespace TomorinTrial
     public struct TrialActorState
     {
         public int id;
+        public byte enemyKind;
+        public int runLevel,runExperience,pendingRunChoices;
+        public bool runChoiceOpen;
+        public TrialAffix[] runOffers;
+        public int[] runAffixes;
         public Vector3 position;
         public Vector3 dodgeDirection;
         public Vector3 recoil;
@@ -73,6 +79,8 @@ namespace TomorinTrial
     {
         public TrialActorState[] players, enemies;
         public TrialBossState boss;
+        public TrialBossState[] runBosses;
+        public int runWave,runKills,runBossesDefeated;
         public TrialChampionState[] champions;
         public bool gate, victory, arena, defeat, waitingForBoons;
         public int guards;

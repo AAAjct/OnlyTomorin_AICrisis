@@ -81,12 +81,12 @@ namespace TomorinTrial
                 bossRushRow=CreateLevelRow(TrialLevel.BossRush,"8 位 Boss 逐个挑战 · 初始 3 瓶药不补充 · 战后回满血量与耐力");
             }
             selectionReturn=EventSystem.current?EventSystem.current.currentSelectedGameObject:null;
-            endlessRow.gameObject.SetActive(!multiplayerList);bossRushRow.gameObject.SetActive(!multiplayerList);
+            endlessRow.gameObject.SetActive(true);bossRushRow.gameObject.SetActive(true);
             listForNetwork=multiplayerList;arenaRow.gameObject.SetActive(multiplayerList);
             var rows=new System.Collections.Generic.List<UnityEngine.UI.Button>();
             if(multiplayerList)rows.Add(arenaRow);
             rows.Add(courtyardRow);rows.AddRange(challengeRows);
-            if(!multiplayerList){rows.Add(endlessRow);rows.Add(bossRushRow);}
+            rows.Add(endlessRow);rows.Add(bossRushRow);
             for(int i=0;i<rows.Count;i++)
             {
                 rows[i].GetComponent<RectTransform>().anchoredPosition=new Vector2(0,-i*106);

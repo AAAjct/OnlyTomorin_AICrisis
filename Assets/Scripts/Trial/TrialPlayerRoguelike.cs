@@ -15,8 +15,13 @@ namespace TomorinTrial
         int momentum;
         bool affixDamage,runChoiceOpen;
         public int AffixStacks(TrialAffix affix)=>game.IsEndless?affixes[(int)affix]:0;
-        public void RestoreForBossRound(Vector3 checkpoint)
-        {int remaining=Flasks;Restore(checkpoint);Flasks=remaining;}
+        public void RestoreForBossRound(Vector3 respawnPoint)
+        {
+            int remaining=Flasks;var rotation=transform.rotation;
+            // Survivors recover where they won; only fallen teammates need a respawn.
+            var point=Alive?transform.position:respawnPoint;
+            Restore(point);transform.rotation=rotation;Flasks=remaining;
+        }
         public void ResetRoguelike()
         {System.Array.Clear(affixes,0,affixes.Length);RunLevel=1;RunExperience=PendingRunChoices=momentum=0;leechAt=vacuumAt=waveAt=lightningAt=thornsAt=dodgeNovaAt=momentumUntil=0;affixDamage=runChoiceOpen=false;}
         public void AwardRunExperience(int amount)
@@ -27,10 +32,26 @@ namespace TomorinTrial
             {RunExperience-=ExperienceRequired;RunLevel++;PendingRunChoices++;}
 
         }
+        public void RequestRunUpgrade()
+        {if(TrialNetworkManager.SessionActive)TrialNetworkManager.Current.RunUpgrade(-1);else OpenRunUpgrade();}
+        public void RequestRunAffix(int slot)
+        {if(TrialNetworkManager.SessionActive)TrialNetworkManager.Current.RunUpgrade(slot);else ChooseRunAffix(slot);}
+        void CaptureRoguelike(ref TrialActorState state)
+        {if(!game.IsEndless)return;state.runLevel=RunLevel;state.runExperience=RunExperience;state.pendingRunChoices=PendingRunChoices;state.runChoiceOpen=runChoiceOpen;state.runOffers=(TrialAffix[])RunOffers.Clone();state.runAffixes=(int[])affixes.Clone();}
+        void ApplyRoguelike(TrialActorState state)
+        {
+            if(!game.IsEndless)return;
+            bool wasOpen=ChoosingRunAffix;RunLevel=Mathf.Max(1,state.runLevel);RunExperience=state.runExperience;PendingRunChoices=state.pendingRunChoices;runChoiceOpen=state.runChoiceOpen;
+            if(state.runOffers!=null)System.Array.Copy(state.runOffers,RunOffers,Mathf.Min(3,state.runOffers.Length));
+            if(state.runAffixes!=null)System.Array.Copy(state.runAffixes,affixes,Mathf.Min(affixes.Length,state.runAffixes.Length));
+            if(this==game.Player && wasOpen!=ChoosingRunAffix){game.Input.SuppressCombat();Cursor.lockState=ChoosingRunAffix?CursorLockMode.None:CursorLockMode.Locked;Cursor.visible=ChoosingRunAffix;}
+        }
         public bool OpenRunUpgrade()
         {
             if(!game.IsEndless || !Alive || game.Mode!=TrialMode.Playing || PendingRunChoices<=0 || runChoiceOpen)return false;
-            runChoiceOpen=true;RollAffixes();Time.timeScale=0;game.Input.ResetSprint();game.Input.SuppressCombat();
+            runChoiceOpen=true;RollAffixes();
+            if(this!=game.Player)return true;
+            if(!TrialNetworkManager.SessionActive)Time.timeScale=0;game.Input.ResetSprint();game.Input.SuppressCombat();
             Cursor.lockState=CursorLockMode.None;Cursor.visible=true;return true;
         }
         void RollAffixes()
@@ -56,9 +77,10 @@ namespace TomorinTrial
             if(affix==TrialAffix.Stamina){MaxStamina+=50;Stamina=Mathf.Min(MaxStamina,Stamina+50);}
             PendingRunChoices--;
             if(PendingRunChoices>0)RollAffixes();else runChoiceOpen=false;
+            if(this!=game.Player)return true;
             game.Input.ResetSprint();game.Input.SuppressCombat();
             Cursor.lockState=ChoosingRunAffix?CursorLockMode.None:CursorLockMode.Locked;Cursor.visible=ChoosingRunAffix;
-            Time.timeScale=ChoosingRunAffix?0:1;
+            if(!TrialNetworkManager.SessionActive)Time.timeScale=ChoosingRunAffix?0:1;
             game.Hud.Notify("获得词条 · "+TrialAffixCatalog.Name(affix),2);return true;
         }
         public float ModifyRunDamage(TrialEnemy target,float damage,ref float posture)

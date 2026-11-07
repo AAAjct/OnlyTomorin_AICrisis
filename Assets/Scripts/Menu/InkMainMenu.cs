@@ -131,7 +131,7 @@ namespace TomorinTrial
                 bool select=!busy || manager.IsHost;
                 levelDropdown.interactable=select;
                 levelDropdown.GetComponentInChildren<UnityEngine.UI.Text>().text=manager.LevelName+(manager.SelectedLevel==TrialLevel.Arena?"":" · "+TrialDifficultySettings.Label(manager.SelectedDifficulty))+"   ▾";
-                levelHint.text=manager.SelectedLevel==TrialLevel.Arena?"玩家自由决斗 · 至少 2 人 · 击杀计分 / 3 秒重生":TrialChampionCatalog.IsChampion(manager.SelectedLevel)?TrialChampionCatalog.Lesson(manager.SelectedLevel):"从庭院入口开始 · 先清小怪，再挑战大肥鱼";
+                levelHint.text=manager.SelectedLevel==TrialLevel.Arena?"玩家自由决斗 · 至少 2 人 · 击杀计分 / 3 秒重生":manager.SelectedLevel==TrialLevel.Endless?"组队抵御雾潮 · 经验各自获取 · 词条独立选择，战斗继续":manager.SelectedLevel==TrialLevel.BossRush?"组队连战 8 位 Boss · 每人初始 3 瓶药 · 战后回满血量与耐力":TrialChampionCatalog.IsChampion(manager.SelectedLevel)?TrialChampionCatalog.Lesson(manager.SelectedLevel):"从庭院入口开始 · 先清小怪，再挑战大肥鱼";
                 begin.interactable=manager.SelectedLevel!=TrialLevel.Arena || manager.Members.Length>=2;
             }
             var visibleMembers=new string[System.Math.Min(3,manager.Members.Length)];System.Array.Copy(manager.Members,visibleMembers,visibleMembers.Length);

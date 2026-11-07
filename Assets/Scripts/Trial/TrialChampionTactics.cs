@@ -25,21 +25,21 @@ namespace TomorinTrial
                 if(!player || !player.Alive || player.ChoosingBoon)continue;
                 float score=12-Planar(player.transform.position-transform.position).magnitude*.5f;
                 score+=(1-player.Health/player.MaxHealth)*7+(1-player.Stamina/player.MaxStamina)*3;
-                if(player.CommandHeal || player.Action==FighterAction.Heal)score+=8;
+                if(player.Action==FighterAction.Heal)score+=8;
                 if(score>highest){highest=score;best=player;}
             }
             if(best)game.SetCombatTarget(best);
         }
 
         void ResetTactics()
-        {respite=pursuitAge=guardTime=guardCooldown=0;chainDepth=0;guardCounter=false;KillStacks=0;fighter.BossGuard(false);}
+        {duel.Reset();duelDeflected=false;respite=pursuitAge=guardTime=guardCooldown=0;chainDepth=0;guardCounter=false;KillStacks=0;fighter.BossGuard(false);}
 
         float CommitmentWeight(ChampionMove move,TrialPlayer target)
         {
             float weight=1;
-            if(target.Action==FighterAction.Dodge)
+            if(duel.EarlyDodge)
                 weight*=move.windup>=.95f?2.4f:.65f;
-            if(target.Action==FighterAction.Heavy || target.Action==FighterAction.Charge)
+            if(duel.Charging)
                 weight*=move.shape==ChampionShape.Thrust || move.shape==ChampionShape.DashCut || move.shape==ChampionShape.Snipe?2:1;
             if(target.transform.position.y>transform.position.y+1.2f)
             {
@@ -55,11 +55,11 @@ namespace TomorinTrial
             // Every move keeps its entire recovery and the next move's full warning.
             // Twins pass initiative to each other; long finishers always end the string.
             var partner=Partner();
-            if(Phase<2 || Phase>phaseAnnounced || depth>=(Phase==3?2:1) || completed.beats>=5 ||
+            if(duelDeflected || Phase<2 || Phase>phaseAnnounced || depth>=(Phase==3?2:1) || completed.beats>=5 ||
                ActiveHazards>12 || fighter.ResolveActive || partner && partner.Alive)return false;
             float distance=Planar(game.CombatTarget.transform.position-transform.position).magnitude;
             if(distance>(Kind==ChampionKind.Taffy?32:Kind==ChampionKind.YaYa?14:13))return false;
-            int next=ChooseMove(distance);
+            int next=ChooseDuelFollowup(distance);
             if(next<0 || next==previous)return false;
             chainDepth=depth+1;BeginMove(next);return true;
         }
@@ -112,8 +112,8 @@ namespace TomorinTrial
             }
             if(Kind!=ChampionKind.Anon && !IsRemnant)return false;
             if(guardCooldown>0 || distance>5.2f || target.Invulnerable)return false;
-            bool light=target.CommandLight || target.Action==FighterAction.Light && target.Progress<.32f;
-            if(!light || target.CommandHeavy || target.Action==FighterAction.Heavy || target.Action==FighterAction.Charge)return false;
+            bool light=duel.LightPressure;
+            if(!light || target.Action==FighterAction.Heavy || target.Action==FighterAction.Charge)return false;
             if(Vector3.Angle(transform.forward,target.transform.position-transform.position)>80)return false;
             guardTime=IsRemnant?.38f:.55f;guardCooldown=IsRemnant?1.1f:1.85f;guardCounter=false;
             fighter.BossGuard(true);fighter.BossMotion(0);return true;

@@ -194,7 +194,7 @@ namespace TomorinTrial
 
         public void ApplyReplica(TrialActorState state,float dt)
         {ApplyNetwork(state,dt);Awakened=state.awake;Recoil=state.recoil;resolveTime=state.bossResolve;FlinchRemaining=state.bossFlinch;}
-        public override TrialActorState CaptureNetwork(int id){var state=base.CaptureNetwork(id);state.recoil=Recoil;state.bossResolve=resolveTime;state.bossFlinch=FlinchRemaining;return state;}
+        public override TrialActorState CaptureNetwork(int id){var state=base.CaptureNetwork(id);state.enemyKind=(byte)(Champion?2+(int)Champion.Kind:IsBoss?1:0);state.recoil=Recoil;state.bossResolve=resolveTime;state.bossFlinch=FlinchRemaining;return state;}
 
         public override bool ReceiveHit(TrialFighter attacker,float damage,float postureDamage,bool unblockable=false)
         {
@@ -209,14 +209,14 @@ namespace TomorinTrial
                 bool swordGuard=!counterStance && !exposed && Champion.TryGuardHit(attacker,unblockable);
                 Impact(attacker,damage*(exposed?1.65f:countered?.15f:swordGuard?.18f:1));
                 if(attacker && !ResolveActive)Recoil=Vector3.ProjectOnPlane(transform.position-attacker.transform.position,Vector3.up).normalized*(attacker.Action==FighterAction.Heavy?1.0f:.65f);
-                if(!Alive){Champion.CancelAttack(true);game.OnEnemyDied(this);return true;}
+                if(!Alive){Champion.CancelAttack(true);game.OnEnemyDied(this,attacker as TrialPlayer);return true;}
                 Awakened=true;if(!ResolveActive)AddChampionPosture(postureDamage*(swordGuard?1.2f:.75f));
                 if(!countered && !swordGuard)HitFlinch(attacker);
                 RecordPressure(attacker);return true;
             }
             if(!IsBoss && attacker){Recoil=Vector3.ProjectOnPlane(transform.position-attacker.transform.position,Vector3.up).normalized*Mathf.Clamp(damage*.045f,1,4);recoilVelocity=Recoil;}
             Impact(attacker,damage*(exposed?1.65f:1)*(Boss && Boss.Boon==TrialBossBoon.IronScales?.92f:1));
-            if(!Alive) {game.OnEnemyDied(this);return true;}
+            if(!Alive) {game.OnEnemyDied(this,attacker as TrialPlayer);return true;}
             if(IsBoss && !Awakened)game.SealArena();
             Awakened=true;if(!ResolveActive)Posture+=postureDamage;
             if(!exposed && (Posture>=PostureLimit || (!IsBoss && Action==FighterAction.Free)))
@@ -236,7 +236,7 @@ namespace TomorinTrial
         {
             int extra=Mathf.Max(1,players)-1;
             float maximum=Champion?TrialChampionCatalog.Health(Champion.Kind)*(1f+extra):IsBoss?1400*(1f+extra):105*(1+Mathf.Min(3,extra)*.55f);
-            maximum*=TrialDifficultySettings.HealthScale(game.Difficulty)*(Champion?Champion.KillHealthScale:1);
+            maximum*=runHealthScale*TrialDifficultySettings.HealthScale(game.Difficulty)*(Champion?Champion.KillHealthScale:1);
             if(Mathf.Approximately(MaxHealth,maximum))return;
             float ratio=MaxHealth>0?Health/MaxHealth:1;
             MaxHealth=maximum;Health=maximum*ratio;

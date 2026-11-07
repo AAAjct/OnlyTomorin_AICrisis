@@ -35,6 +35,7 @@ namespace TomorinTrial
         public int AttacksStarted { get; private set; }
         public int ActiveHazards { get {int n=0;foreach(var h in hazards)if(h.active)n++;return n;} }
         float ImpactPoint => Skill==DeepFishSkill.DelayedSlam?.72f:Skill==DeepFishSkill.BellySlam?.54f:Skill==DeepFishSkill.Maelstrom?.42f:Skill==DeepFishSkill.BubbleBarrage?.30f:Skill==DeepFishSkill.Enrage?.55f:.36f;
+        readonly TrialDuelRead duel=new TrialDuelRead();
         TrialEnemy fighter;
         TrialGame game;
         float age,duration,cooldown=1.2f;
@@ -161,9 +162,10 @@ namespace TomorinTrial
             if(fighter.CombatFrozen)return;
             if(!game.CombatTarget.Alive){CancelAttack();fighter.BossMotion(0);return;}
             TickHazards(dt);
+            duel.Tick(game.CombatTarget,dt);
             reactiveCooldown=Mathf.Max(0,reactiveCooldown-dt);
             if(!fighter.Awakened){fighter.BossMotion(0);return;}
-            if(game.CombatTarget.transform.position.z<15 || Vector3.Distance(game.CombatTarget.transform.position,transform.position)>27)
+            if(!game.IsRunStage && (game.CombatTarget.transform.position.z<15 || Vector3.Distance(game.CombatTarget.transform.position,transform.position)>27))
             {fighter.ResetFighter();return;}
             if(fighter.Vulnerable)
             {if(Skill!=DeepFishSkill.None)CancelAttack();if(fighter.ActionTime>=fighter.ActionDuration)fighter.BossBegin(FighterAction.Free,0);return;}
@@ -182,7 +184,7 @@ namespace TomorinTrial
                 Vector3 radial=delta.normalized,tangent=Vector3.Cross(Vector3.up,radial)*orbitSide;
                 Vector3 step=(distance<4?-radial+tangent*.4f:distance<7?tangent:radial+tangent*.25f).normalized;
                 Vector3 next=transform.position+step*1.8f*dt;
-                if(next.x>-10 && next.x<10 && next.z>18 && next.z<33 && !Physics.SphereCast(transform.position+Vector3.up,.7f,step,out _,1,1,QueryTriggerInteraction.Ignore))
+                if((game.IsRunStage || next.x>-10 && next.x<10 && next.z>18 && next.z<33) && !Physics.SphereCast(transform.position+Vector3.up,.7f,step,out _,1,1,QueryTriggerInteraction.Ignore))
                     fighter.BossMove(step*1.8f,dt);
                 else{orbitSide=-orbitSide;step=Vector3.zero;}
                 fighter.BossMotion(step.sqrMagnitude>.01f?1:0);return;
@@ -198,7 +200,7 @@ namespace TomorinTrial
                 DeepFishSkill choice;
                 if(reactiveCooldown<=0 && distance<5.5f && Vector3.Angle(transform.forward,delta)>100)
                 {choice=DeepFishSkill.ReverseTail;reactiveCooldown=5;}
-                else if(reactiveCooldown<=0 && game.CombatTarget.Action==FighterAction.Heal)
+                else if(reactiveCooldown<=0 && duel.Healing)
                 {choice=DeepFishSkill.AbyssRain;reactiveCooldown=5;}
                 else choice=ChooseAttack(distance);
                 comboDepth=0;
@@ -232,9 +234,9 @@ namespace TomorinTrial
                 if(skill==previousChoice)weight*=.15f;
                 if(game.CombatTarget.transform.position.y>transform.position.y+1.2f)
                     weight*=skill==DeepFishSkill.BubbleBarrage?6:skill==DeepFishSkill.AbyssRain?2:.3f;
-                if(game.CombatTarget.Action==FighterAction.Dodge)
+                if(duel.EarlyDodge)
                     weight*=skill==DeepFishSkill.ReverseTail || skill==DeepFishSkill.RiptideRush?2:1;
-                if(game.CombatTarget.Guarding && (skill==DeepFishSkill.AbyssRain || skill==DeepFishSkill.Maelstrom))weight*=1.8f;
+                if(duel.HoldingGuard && (skill==DeepFishSkill.AbyssRain || skill==DeepFishSkill.Maelstrom))weight*=1.8f;
                 attackWeights[i]=weight;total+=weight;
             }
             float roll=Random.value*total;
@@ -249,8 +251,7 @@ namespace TomorinTrial
             if(next==DeepFishSkill.DelayedSlam)return;
             if(next==DeepFishSkill.BellySlam)next=DeepFishSkill.TailSweep;
             HideWarnings();Skill=next;previousChoice=next;regroupTime=0;age=0;waves=0;markCount=0;variant=AttacksStarted%2;landed=false;contacted.Clear();AttacksStarted++;
-            origin=transform.position;aim=game.CombatTarget.transform.position;
-            aim.x=Mathf.Clamp(aim.x,-10.5f,10.5f);aim.z=Mathf.Clamp(aim.z,18,32);aim.y=0;
+            origin=transform.position;aim=ClampArena(game.CombatTarget.transform.position);
             // The ordinary leap lands in place; its telegraph, damage and wave share this point.
             if(next==DeepFishSkill.BellySlam)aim=new Vector3(origin.x,0,origin.z);
             heading=Vector3.ProjectOnPlane(aim-origin,Vector3.up).normalized;
@@ -328,12 +329,24 @@ namespace TomorinTrial
             {
                 var previous=Skill;Skill=DeepFishSkill.None;fighter.BossBegin(FighterAction.Free,0);HideWarnings();
                 if(Enraged && comboDepth<(Frenzied?2:1) && previous!=DeepFishSkill.Enrage && previous!=DeepFishSkill.AbyssRain && ActiveHazards<12)
-                {comboDepth++;StartSkill(ChooseAttack(Vector3.ProjectOnPlane(game.CombatTarget.transform.position-transform.position,Vector3.up).magnitude));return;}
+                {
+                    float distance=Vector3.ProjectOnPlane(game.CombatTarget.transform.position-transform.position,Vector3.up).magnitude;
+                    DeepFishSkill follow=DeepFishSkill.None;
+                    if(duel.Healing && distance>5)follow=DeepFishSkill.AbyssRain;
+                    else if(duel.HoldingGuard && distance<9)follow=DeepFishSkill.Maelstrom;
+                    else if(duel.EarlyDodge && distance<5.3f)follow=DeepFishSkill.ReverseTail;
+                    else if(duel.Charging && distance>5)follow=DeepFishSkill.TidalCharge;
+                    if(follow!=DeepFishSkill.None && follow!=previous){comboDepth++;StartSkill(follow);return;}
+                }
                 comboDepth=0;regroupTime=Frenzied?.65f:Enraged?.8f:1.05f;cooldown=regroupTime;pursuitTime=0;orbitSide=-orbitSide;
             }
         }
 
-        static Vector3 ClampArena(Vector3 point){point.x=Mathf.Clamp(point.x,-10.5f,10.5f);point.z=Mathf.Clamp(point.z,18,32);point.y=0;return point;}
+        Vector3 ClampArena(Vector3 point)
+        {
+            point.x=Mathf.Clamp(point.x,game.IsRunStage?-22.5f:-10.5f,game.IsRunStage?22.5f:10.5f);
+            point.z=Mathf.Clamp(point.z,game.IsRunStage?2:18,game.IsRunStage?48:32);point.y=0;return point;
+        }
         void EnsureMarks(int capacity)
         {
             if(capacity<=marks.Length)return;
@@ -495,7 +508,7 @@ namespace TomorinTrial
         void HideWarnings(){if(warning)warning.enabled=false;if(fill)fill.enabled=false;if(sweep)sweep.enabled=false;foreach(var line in markWarnings)if(line)line.enabled=false;}
         public void CancelAttack()
         {Skill=DeepFishSkill.None;age=duration=0;markCount=comboDepth=0;cooldown=.9f;HideWarnings();foreach(var h in hazards)if(h!=null)Release(h);}
-        public void ResetBoss(){CancelAttack();Enraged=Frenzied=false;previousChoice=DeepFishSkill.None;reactiveCooldown=regroupTime=pursuitTime=0;waves=AttacksStarted=0;orbitSide=1;}
+        public void ResetBoss(){duel.Reset();CancelAttack();Enraged=Frenzied=false;previousChoice=DeepFishSkill.None;reactiveCooldown=regroupTime=pursuitTime=0;waves=AttacksStarted=0;orbitSide=1;}
         void OnDestroy(){if(water)Destroy(water);if(bubble)Destroy(bubble);}
     }
 }

@@ -41,7 +41,7 @@ namespace TomorinTrial.Editor
             cap=Application.targetFrameRate;sync=QualitySettings.vSyncCount;QualitySettings.vSyncCount=0;Application.targetFrameRate=60;
             result=new Result{scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene().path,gpu=SystemInfo.graphicsDeviceName,resolution=Screen.width+"x"+Screen.height};
             phase=frames=0;lastFrame=-1;lastTiming=0;gpuTimes.Clear();triangles=batches=0;Status="Running";
-            Apply(true);RenderPipelineManager.endFrameRendering+=Sample;EditorApplication.playModeStateChanged+=PlayChanged;
+            Apply(true);RenderPipelineManager.endContextRendering+=Sample;EditorApplication.playModeStateChanged+=PlayChanged;
         }
         static void Apply(bool old)
         {
@@ -49,7 +49,7 @@ namespace TomorinTrial.Editor
             var serialized=new SerializedObject(pipeline);serialized.FindProperty("m_SoftShadowQuality").intValue=old?3:2;serialized.ApplyModifiedPropertiesWithoutUndo();
             if(ao){var settings=new SerializedObject(ao);settings.FindProperty("m_Settings.Downsample").boolValue=!old;settings.ApplyModifiedPropertiesWithoutUndo();}
         }
-        static void Sample(ScriptableRenderContext context,Camera[] cameras)
+        static void Sample(ScriptableRenderContext context,List<Camera> cameras)
         {
             bool gameCamera=false;foreach(var camera in cameras)if(camera.CompareTag("MainCamera") && camera.cameraType==CameraType.Game)gameCamera=true;
             if(!gameCamera || Time.frameCount==lastFrame)return;lastFrame=Time.frameCount;frames++;FrameTimingManager.CaptureFrameTimings();
@@ -68,7 +68,7 @@ namespace TomorinTrial.Editor
         static void PlayChanged(PlayModeStateChange state){if(state==PlayModeStateChange.ExitingPlayMode){Status="Cancelled";Stop();}}
         static void Stop()
         {
-            RenderPipelineManager.endFrameRendering-=Sample;EditorApplication.playModeStateChanged-=PlayChanged;
+            RenderPipelineManager.endContextRendering-=Sample;EditorApplication.playModeStateChanged-=PlayChanged;
             if(pipeline && pipelineJson!=null)EditorJsonUtility.FromJsonOverwrite(pipelineJson,pipeline);
             if(ao && aoJson!=null)EditorJsonUtility.FromJsonOverwrite(aoJson,ao);
             if(budget)budget.enabled=previousBudget;Application.targetFrameRate=cap;QualitySettings.vSyncCount=sync;

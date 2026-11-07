@@ -92,10 +92,29 @@ namespace TomorinTrial.Editor
                 game.Run.Tick(4);TrialEnemy boss=null;int count=0;
                 foreach(var enemy in game.Enemies)if(enemy.Alive){boss=enemy;count++;}
                 Check(count==1 && boss.IsBoss,"Exactly one live boss in round "+(round+1));seen.Add(boss.DisplayName);
+                player.Teleport(new Vector3(20,0,5));boss.Teleport(new Vector3(0,0,38));Physics.SyncTransforms();
+                Set(boss,typeof(TrialFighter),"Health",boss.MaxHealth*.8f);
+                float bossHealth=boss.Health;
+                float distance=Vector3.ProjectOnPlane(boss.transform.position-player.transform.position,Vector3.up).magnitude;
+                for(int step=0;step<50;step++)boss.Tick(.1f);
+                Check(boss.Awakened && boss.Health==bossHealth,"Distant boss stays awake without resetting health in round "+(round+1));
+                Check(Vector3.ProjectOnPlane(boss.transform.position-player.transform.position,Vector3.up).magnitude<distance-.1f,"Boss pursues player across the arena in round "+(round+1));
+                player.transform.rotation=Quaternion.Euler(0,117,0);
+                var victoryPosition=player.transform.position;var victoryRotation=player.transform.rotation;
                 Set(player,typeof(TrialFighter),"Health",30f);Set(player,typeof(TrialFighter),"Stamina",20f);
                 DefeatBoss(game,boss);
                 Check(player.Health==player.MaxHealth && player.Stamina==player.MaxStamina,"Victory restores health and stamina in round "+(round+1));
                 Check(player.Flasks==2,"Victory preserves remaining flasks in round "+(round+1));
+                Check(player.transform.position==victoryPosition && Quaternion.Angle(player.transform.rotation,victoryRotation)<.01f,"Victory preserves player position and facing in round "+(round+1));
+                if(round<7)
+                {
+                    game.Run.Tick(.5f);
+                    Check(game.Mode==TrialMode.Playing && Time.timeScale==1 && game.Run.Wave==round+1,"Intermission keeps play active and delays the next boss in round "+(round+1));
+                    game.Input.ApplyNetwork(new TrialControls{move=Vector2.up,yaw=0});
+                    for(int step=0;step<10;step++)player.Tick(.05f,game.Input);
+                    game.Input.ApplyNetwork(new TrialControls());
+                    Check(Vector3.ProjectOnPlane(player.transform.position-victoryPosition,Vector3.up).sqrMagnitude>.1f,"Player can move while waiting for the next boss in round "+(round+1));
+                }
             }
             game.Run.Tick(.1f);Check(game.Mode==TrialMode.Victory && seen.Count==8,"All eight distinct bosses complete the run");
             game.RestartTrial();Check(player.Flasks==3 && game.Run.BossesDefeated==0,"Restart resets full run and restores initial three flasks");

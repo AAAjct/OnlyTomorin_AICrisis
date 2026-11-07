@@ -4,12 +4,13 @@ namespace TomorinTrial
 {
     public sealed partial class TrialEnemy
     {
+        float runHealthScale=1;
         public float RunDamageScale {get;private set;}=1;
         float runSlow,runSlowUntil,burnUntil,burnClock,burnDamage;
         TrialPlayer burnOwner;
         public void ConfigureRunStrength(float healthScale,float damageScale)
         {
-            ScaleForParty(game.PartySize);MaxHealth*=healthScale;Health=MaxHealth;RunDamageScale=damageScale;
+            runHealthScale=healthScale;ScaleForParty(game.PartySize);Health=MaxHealth;RunDamageScale=damageScale;
             runSlow=runSlowUntil=burnUntil=burnClock=burnDamage=0;burnOwner=null;
         }
         public void WakeForRun(){Awakened=true;}

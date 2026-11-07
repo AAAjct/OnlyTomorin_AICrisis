@@ -128,7 +128,7 @@ namespace TomorinTrial
             else
             {
                 foreach(var enemy in enemies)enemy.gameObject.SetActive(true);
-                Hud.Notify(IsChampionStage?TrialChampionCatalog.Lesson(Level):"庭院 · 先击败守卫，再挑战大肥鱼",5);
+                Hud.Notify(IsRunStage?TrialChampionCatalog.LevelName(Level):IsChampionStage?TrialChampionCatalog.Lesson(Level):"庭院 · 先击败守卫，再挑战大肥鱼",5);
             }
             CameraRig.Snap();
         }
@@ -268,9 +268,9 @@ namespace TomorinTrial
             foreach(var enemy in enemies)if(enemy.Champion)enemy.Champion.CancelAttack(true);
             Mode=TrialMode.Dead;SetCursor(false);
         }
-        public void OnEnemyDied(TrialEnemy enemy)
+        public void OnEnemyDied(TrialEnemy enemy,TrialPlayer killer=null)
         {
-            if(IsRunStage){Run.EnemyDied(enemy);Player.OnRunKill(enemy);return;}
+            if(IsRunStage){Run.EnemyDied(enemy,killer);(killer?killer:Player).OnRunKill(enemy);return;}
             if(enemy.IsBoss)
             {
                 if(IsChampionStage){foreach(var other in enemies)if(other!=enemy && other.Alive){Hud.Notify(enemy.DisplayName+" 倒下 · 另一位进入决意阶段",3);return;}foreach(var other in enemies)other.Champion.CancelAttack(true);}

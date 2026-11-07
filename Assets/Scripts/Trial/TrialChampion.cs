@@ -131,6 +131,7 @@ namespace TomorinTrial
             if(!fighter.Awakened){HideWarnings();return;}
             if(TickSignatureIntro(dt))return;
             TickHazards(dt);
+            duel.Tick(game.CombatTarget,dt);
             mobilityCooldown-=dt;evasionCooldown-=dt;decisionClock-=dt;pressureAge+=dt;
             if(fighter.Vulnerable){Mobility=ChampionMobility.Grounded;queuedMove=-1;CancelAttack();fighter.BossMotion(0);if(fighter.ActionTime>=fighter.ActionDuration)fighter.BossBegin(FighterAction.Free,0);return;}
             Phase=fighter.Health<fighter.MaxHealth*.3f?3:fighter.Health<fighter.MaxHealth*.65f?2:1;
@@ -155,12 +156,12 @@ namespace TomorinTrial
             // Running away must not award another full recovery window.
             // Re-evaluate the route and use the existing gap closer instead.
             if(pursuitAge>2.6f && distance>desired+2){pursuitAge=0;decisionClock=0;mobilityCooldown=Mathf.Min(mobilityCooldown,0);orbitSide=-orbitSide;}
-            // Commands come from the same authoritative player simulation for local and remote peers.
+            // React only after observing the committed action on the authoritative simulation.
             if(mobilityCooldown<=0 && decisionClock<=0)
             {
-                if((target.Action==FighterAction.Heal || IsRemnant && target.CommandHeal) && distance>4 && distance<17 && !partnerActive)
+                if(duel.Healing && distance>4 && distance<17 && !partnerActive)
                 {if(gun){BeginMove(1);return;}StartMobility(ChampionMobility.BurstStep,delta.normalized,.26f,Kind==ChampionKind.Penguin?11:17,1);return;}
-                if(distance<5.3f && (target.CommandHeavy || target.Action==FighterAction.Heavy && target.Progress<.28f || target.Action==FighterAction.Charge) && evasionCooldown<=0 && pressureAge>.35f && Kind!=ChampionKind.Penguin)
+                if(distance<5.3f && duel.Charging && evasionCooldown<=0 && pressureAge>.35f && Kind!=ChampionKind.Penguin)
                 {orbitSide=-orbitSide;evasionCooldown=IsRemnant?1.65f:3.5f;StartMobility(gun||Kind==ChampionKind.NuoNuo?ChampionMobility.BackLeap:Kind==ChampionKind.YaYa?ChampionMobility.Vault:ChampionMobility.SideSlip,gun?-delta.normalized:Vector3.Cross(Vector3.up,delta).normalized*orbitSide,.28f,12,-1);return;}
                 if((distance>desired+4 || gun && distance<5.5f) && !partnerActive)
                 {StartMobility(gun && distance<5.5f?ChampionMobility.BackLeap:ChampionMobility.BurstStep,delta.normalized*(gun && distance<5.5f?-1:1),.30f,Kind==ChampionKind.Penguin?12:16,-1);return;}
@@ -196,8 +197,8 @@ namespace TomorinTrial
                 var m=TrialChampionCatalog.Move(Kind,i);float score=(usedMoves&(1u<<i))!=0?0:1;
                 score*=MoveSuitability(m,distance);
                 if(distance>6 && (m.shape==ChampionShape.Thrust || m.shape==ChampionShape.Leap || m.shape==ChampionShape.Lash))score*=3;
-                if(player.Guarding && player.GuardAge>.3f && m.Unblockable)score*=2.5f;
-                if(player.Action==FighterAction.Heal && (m.shape==ChampionShape.Thrust || m.shape==ChampionShape.Snipe || m.shape==ChampionShape.Mark))score*=3;
+                score*=duel.Weight(m);
+                if(duel.Healing && (m.shape==ChampionShape.Thrust || m.shape==ChampionShape.Snipe || m.shape==ChampionShape.Mark))score*=3;
                 score*=CommitmentWeight(m,player);
                 if(Kind==ChampionKind.Taffy && distance<4.5f)score*=i==3?8:.2f;
                 if(Kind==ChampionKind.YaYa && distance<3.5f)score*=i==2?4:i==1?.2f:1;
@@ -218,10 +219,10 @@ namespace TomorinTrial
                 for(int i=0;i<max;i++)
                 {
                     var m=TrialChampionCatalog.Move(Kind,i);float score=moveWeights[i]*Random.Range(.85f,1.15f);
-                    if(Kind==ChampionKind.Anon){if(distance>5 && i==4)score*=5;if(player.CommandHeavy && i==10)score*=4;if(ActiveHazards>4 && i==4)score=0;}
-                    if(player.CommandDodge || player.Action==FighterAction.Dodge)score*=m.windup>.65f?3.5f:.3f;
-                    if(player.CommandHeavy || player.Action==FighterAction.Charge)score*=m.shape==ChampionShape.Thrust || m.shape==ChampionShape.BladeWave?3:1;
-                    if(player.CommandLight)score*=m.shape==ChampionShape.Counter?4:1;
+                    if(Kind==ChampionKind.Anon){if(distance>5 && i==4)score*=5;if(duel.Charging && i==10)score*=4;if(ActiveHazards>4 && i==4)score=0;}
+                    if(duel.EarlyDodge)score*=m.windup>.65f?3.5f:.3f;
+                    if(duel.Charging)score*=m.shape==ChampionShape.Thrust || m.shape==ChampionShape.BladeWave?3:1;
+                    if(duel.LightPressure)score*=m.shape==ChampionShape.Counter?4:1;
                     if(score>highest){highest=score;best=i;}
                 }
                 return best;
@@ -272,7 +273,7 @@ namespace TomorinTrial
         public void BeginMove(int index)
         {
             if(!fighter.Alive)return;
-            respite=0;guardTime=0;fighter.BossGuard(false);
+            respite=0;guardTime=0;duelDeflected=false;fighter.BossGuard(false);
             MoveIndex=Mathf.Clamp(index,0,TrialChampionCatalog.SkillCount-1);previous=MoveIndex;usedMoves|=1u<<MoveIndex;sequence++;beat=0;Age=0;AttacksStarted++;contacted.Clear();counterTriggered=false;
             Mobility=ChampionMobility.Grounded;pressureAge=0;steering=Vector3.zero;
             origin=transform.position;origin.y=0;LockAim();firstHeading=heading;aimLockedAt=-1;
@@ -292,6 +293,7 @@ namespace TomorinTrial
         void TickAttack(float dt)
         {
             Age+=dt;
+            if(TryDuelBranch())return;
             TickSignatureAttack(dt);
             if(Recovering && Move.shape==ChampionShape.Flight)TickSpecialMotion(dt,0);
             if(beat<Move.beats)
@@ -316,7 +318,7 @@ namespace TomorinTrial
             if(Age>=Move.Duration)
             {
                 var completed=Move;int completedDepth=chainDepth;
-                bool keepPressure=Kind==ChampionKind.Anon && MoveIndex==4 && ActiveHazards>0 && completedDepth<(Phase==3?2:1);
+                bool keepPressure=!duelDeflected && Kind==ChampionKind.Anon && MoveIndex==4 && ActiveHazards>0 && completedDepth<(Phase==3?2:1);
                 CancelAttack();fighter.BossBegin(FighterAction.Free,0);
                 if(keepPressure){chainDepth=completedDepth+1;BeginMove(10);return;}
                 if(TryChainPressure(completed,completedDepth))return;
@@ -457,6 +459,7 @@ namespace TomorinTrial
         void HideWarnings(){if(warning)warning.enabled=false;if(innerWarning)innerWarning.enabled=false;if(charge)charge.enabled=false;if(trace)trace.enabled=false;}
         public void Deflected()
         {
+            duelDeflected=true;
             fighter.AddChampionPosture(Kind==ChampionKind.Anon?44:62);
             if(fighter.Vulnerable){CancelAttack();return;}
             if(Kind!=ChampionKind.Anon){CancelAttack();fighter.BossBegin(FighterAction.Stagger,.65f);}

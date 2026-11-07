@@ -30,21 +30,26 @@ namespace TomorinTrial
             }
         }
         public TrialEndlessRun(TrialGame owner){game=owner;intermission=1;}
+        public void ApplyNetwork(int wave,int kills,int bosses){Wave=wave;Kills=kills;BossesDefeated=bosses;}
         public void Reset()
         {
             game.ClearRunEnemies();guardPool.Clear();corpses.Clear();expired.Clear();
             Wave=Kills=BossesDefeated=remaining=spawned=0;intermission=1;spawnClock=0;
         }
-        public void EnemyDied(TrialEnemy enemy)
+        public void EnemyDied(TrialEnemy enemy,TrialPlayer killer=null)
         {
             if(corpses.ContainsKey(enemy))return;
             corpses.Add(enemy,2.2f);Kills++;
-            if(game.IsEndless)game.Player.AwardRunExperience(enemy.IsBoss?150+Wave*12:24+Wave*2);
+            if(game.IsEndless)
+            {
+                int experience=enemy.IsBoss?150+Wave*12:24+Wave*2;
+                (killer?killer:game.Player).AwardRunExperience(experience);
+            }
             else if(enemy.IsBoss)
             {
                 BossesDefeated++;
-                game.Player.RestoreForBossRound(game.Checkpoint);
-                game.CameraRig.Snap();
+                if(TrialNetworkManager.SessionActive)TrialNetworkManager.Current.RestorePartyForBossRound();
+                else game.Player.RestoreForBossRound(game.Checkpoint);
                 game.Hud.Notify(Complete?"八位 Boss 全部击破":"此战告捷 · 气血与气力已回满",3);
             }
         }
@@ -100,8 +105,26 @@ namespace TomorinTrial
         public bool IsBossRush=>Level==TrialLevel.BossRush;
         public bool IsRunStage=>IsEndless || IsBossRush;
         public TrialEndlessRun Run { get; private set; }
+        readonly Dictionary<int,TrialEnemy> runReplicas=new Dictionary<int,TrialEnemy>();
+        public void SyncRunReplicas(TrialActorState[] states)
+        {
+            var stale=new List<int>();
+            foreach(var pair in runReplicas)
+            {bool present=false;foreach(var state in states)if(state.id==pair.Key){present=true;break;}if(!present){Destroy(pair.Value.gameObject);stale.Add(pair.Key);}}
+            foreach(int id in stale)runReplicas.Remove(id);
+            enemies.Clear();
+            foreach(var state in states)
+            {
+                if(!runReplicas.TryGetValue(state.id,out var enemy) || !enemy)
+                {
+                    if(state.enemyKind>=2)SpawnChampion((ChampionKind)(state.enemyKind-2),state.position);else Spawn(state.position,state.enemyKind==1);
+                    enemy=enemies[enemies.Count-1];enemies.RemoveAt(enemies.Count-1);runReplicas[state.id]=enemy;
+                }
+                enemies.Add(enemy);
+            }
+        }
         public void ClearRunEnemies()
-        {foreach(var e in enemies)if(e){e.gameObject.SetActive(false);Destroy(e.gameObject);}enemies.Clear();}
+        {foreach(var e in enemies)if(e){e.gameObject.SetActive(false);Destroy(e.gameObject);}enemies.Clear();runReplicas.Clear();}
         public void RemoveRunEnemy(TrialEnemy enemy){enemies.Remove(enemy);}
         public void AddRunEnemy(TrialEnemy enemy){enemies.Add(enemy);}
         public TrialEnemy CreateRunGuard(Vector3 point)
