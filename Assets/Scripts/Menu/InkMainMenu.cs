@@ -13,19 +13,21 @@ namespace TomorinTrial
         [SerializeField] Font inkFont;
         [SerializeField] Font uiFont;
         [SerializeField] Material inkMaterial;
-        [SerializeField] RectTransform root, home, network, settings;
+        [SerializeField] RectTransform root, home, network;
         [SerializeField] UnityEngine.UI.RawImage backdrop;
         [SerializeField] UnityEngine.UI.InputField address, port, nickname;
         [SerializeField] UnityEngine.UI.Text status, members;
         [SerializeField] UnityEngine.UI.Button solo, multiplayer, options, quit, host, join, begin, leave, back;
         TrialSettingsPanel settingsView;
+        RectTransform settings;
         [SerializeField] CanvasGroup fade;
         [SerializeField] GameObject quitPanel;
         [SerializeField] UnityEngine.UI.Button confirmQuit, cancelQuit;
         Material liveMaterial;
         TrialNetworkManager manager;
-        UnityEngine.UI.Button levelDropdown;
-        UnityEngine.UI.Text levelHint;
+        UnityEngine.UI.Button configureTunnel;
+        UnityEngine.UI.Text levelCaption;
+        RectTransform networkLevels;
         bool loading;
         bool endpointSplitPending;
         public static bool AutoStartTrial;
@@ -42,24 +44,29 @@ namespace TomorinTrial
             InstallTitleArtwork();
             loading=false;fade.blocksRaycasts=true;
             InstallSettings();
-            InstallLevelSelection();
-            foreach(var field in new[]{nickname,address,port})
-                if(!field.GetComponent<TrialInputFieldNavigation>())field.gameObject.AddComponent<TrialInputFieldNavigation>();
+            InstallWardrobeEntry();
+            InstallNetworkLayout();
+            TrialModalBackdrop.Bind((RectTransform)quitPanel.transform,(RectTransform)confirmQuit.transform.parent,()=>cancelQuit.onClick.Invoke());
+            SetDirectionalNavigation(solo,up:quit,down:multiplayer);
+            SetDirectionalNavigation(multiplayer,up:solo,down:options);
+            SetDirectionalNavigation(options,up:multiplayer,down:wardrobeButton);
+            SetDirectionalNavigation(wardrobeButton,up:options,down:quit);
+            SetDirectionalNavigation(quit,up:wardrobeButton,down:solo);
+            SetDirectionalNavigation(confirmQuit,left:cancelQuit,right:cancelQuit);
+            SetDirectionalNavigation(cancelQuit,left:confirmQuit,right:confirmQuit);
             NavigationActive=false;RefreshButtonStyles();
+            StretchNetworkColumn(network,0,.5f);
+            StretchNetworkColumn(networkLevels,.5f,1);
             liveMaterial=new Material(inkMaterial);backdrop.material=liveMaterial;
             ReducedMotion=PlayerPrefs.GetInt("Ink.ReducedMotion",0)==1;
             AudioListener.volume=PlayerPrefs.GetFloat("Ink.Volume",.7f);
             address.text=PlayerPrefs.GetString("Ink.Address","127.0.0.1");port.text=PlayerPrefs.GetInt("Ink.Port",7777).ToString();nickname.text=PlayerPrefs.GetString("Ink.Name","旅人");
             address.onValueChanged.AddListener(_=>endpointSplitPending=true);
             SplitPastedEndpoint(address.text);
-            foreach(var label in home.GetComponentsInChildren<UnityEngine.UI.Text>(true))
-                if(label.text=="ENTER  确认    /    ↑ ↓  选择")label.text="ENTER  确认    /    WASD / 方向键  选择";
-            foreach(var button in new[]{solo,multiplayer,options,quit})
-                foreach(var label in button.GetComponentsInChildren<UnityEngine.UI.Text>(true))
-                    if(label.text=="01"||label.text=="02"||label.text=="03"||label.text=="04")label.gameObject.SetActive(false);
             foreach(var label in solo.GetComponentsInChildren<UnityEngine.UI.Text>(true))if(label.text=="独行入庭")label.text="单人游玩";
-            solo.onClick.AddListener(()=>OpenLevelList(false));
+            solo.onClick.AddListener(OpenLevelList);
             multiplayer.onClick.AddListener(()=>Show(network));options.onClick.AddListener(()=>Show(settings));
+            wardrobeButton.onClick.AddListener(OpenWardrobe);
             quit.onClick.AddListener(()=>{quitPanel.SetActive(true);cancelQuit.Select();});
             confirmQuit.onClick.AddListener(()=>Application.Quit());cancelQuit.onClick.AddListener(()=>{quitPanel.SetActive(false);quit.Select();});
             host.onClick.AddListener(()=>{if(Configure())manager.Host();});join.onClick.AddListener(()=>{if(Configure())manager.Join();});
@@ -73,8 +80,6 @@ namespace TomorinTrial
         {
             foreach(var label in options.GetComponentsInChildren<UnityEngine.UI.Text>(true))
                 if(label.text=="声音与动效")label.text="设置";
-            // Older saved scenes retain their original settings hierarchy; only the shared view is used.
-            if(settings)settings.gameObject.SetActive(false);
             settingsView=TrialSettingsPanel.Create(root,uiFont?uiFont:inkFont,()=>Show(home));
             settings=(RectTransform)settingsView.transform;
         }
@@ -106,6 +111,19 @@ namespace TomorinTrial
             if(endpointSplitPending)SplitPastedEndpoint(address.text);
         }
         bool Configure(){SplitPastedEndpoint(address.text);return manager.Configure(address.text,port.text,nickname.text);}
+        void ConfigureHostTunnel()
+        {
+            if(manager.Busy)return;
+            if(!TrialNetworkManager.TryFindFreeTcpPort(out var freePort))
+            {
+                status.text="未能分配可用的 TCP 端口，请重试。";
+                return;
+            }
+            address.SetTextWithoutNotify("127.0.0.1");
+            port.SetTextWithoutNotify(freePort.ToString());
+            endpointSplitPending=false;
+            status.text=$"已填入本机地址 · 请将穿透服务的本地 TCP 端口设为 {freePort}";
+        }
         IEnumerator Reveal(){while(!loading && fade.alpha<1){fade.alpha+=Time.unscaledDeltaTime*(ReducedMotion?100:1.7f);yield return null;}}
         IEnumerator LoadSolo()
         {
@@ -116,7 +134,14 @@ namespace TomorinTrial
         void Show(RectTransform panel)
         {
             home.gameObject.SetActive(panel==home);network.gameObject.SetActive(panel==network);
+            networkLevels.gameObject.SetActive(panel==network);
             if(panel==settings)settingsView.Show();else settingsView.Hide();
+            if(wardrobePanel)
+            {
+                bool open=panel==wardrobePanel;
+                wardrobePanel.gameObject.SetActive(open);
+                if(wardrobeStage)wardrobeStage.SetActive(open);
+            }
             if(panel==home)solo.Select();else if(panel==network)SelectNetworkEntry();
         }
         void RefreshNetwork()
@@ -124,42 +149,87 @@ namespace TomorinTrial
             if(!status||!manager)return;
             status.text=manager.Status;
             bool busy=manager.Busy;address.interactable=port.interactable=nickname.interactable=!busy;
-            host.interactable=join.interactable=!busy;
+            host.interactable=join.interactable=configureTunnel.interactable=!busy;
             begin.gameObject.SetActive(manager.IsHost);leave.gameObject.SetActive(busy);
-            if(levelDropdown)
-            {
-                bool select=!busy || manager.IsHost;
-                levelDropdown.interactable=select;
-                levelDropdown.GetComponentInChildren<UnityEngine.UI.Text>().text=manager.LevelName+(manager.SelectedLevel==TrialLevel.Arena?"":" · "+TrialDifficultySettings.Label(manager.SelectedDifficulty))+"   ▾";
-                levelHint.text=manager.SelectedLevel==TrialLevel.Arena?"玩家自由决斗 · 至少 2 人 · 击杀计分 / 3 秒重生":manager.SelectedLevel==TrialLevel.Endless?"组队抵御雾潮 · 经验各自获取 · 词条独立选择，战斗继续":manager.SelectedLevel==TrialLevel.BossRush?"组队连战 8 位 Boss · 每人初始 3 瓶药 · 战后回满血量与耐力":TrialChampionCatalog.IsChampion(manager.SelectedLevel)?TrialChampionCatalog.Lesson(manager.SelectedLevel):"从庭院入口开始 · 先清小怪，再挑战大肥鱼";
-                begin.interactable=manager.SelectedLevel!=TrialLevel.Arena || manager.Members.Length>=2;
-            }
+            RefreshNetworkLevels(!busy || manager.IsHost);
+            levelCaption.text=manager.LevelName+(manager.SelectedLevel==TrialLevel.Arena?"":" · "+TrialDifficultySettings.Label(manager.SelectedDifficulty));
+            begin.interactable=manager.SelectedLevel!=TrialLevel.Arena || manager.Members.Length>=2;
             var visibleMembers=new string[System.Math.Min(3,manager.Members.Length)];System.Array.Copy(manager.Members,visibleMembers,visibleMembers.Length);
             members.text=manager.Members.Length==0?"尚无同伴入庭":$"房间人数：{manager.Members.Length}  · "+string.Join(" / ",visibleMembers)+(manager.Members.Length>3?$" 等 {manager.Members.Length} 人":"");
             RefreshNetworkNavigation();
         }
-        void InstallLevelSelection()
+        void InstallNetworkLayout()
         {
-            // Install into both the saved menu hierarchy and freshly generated menus.
-            network.sizeDelta=new Vector2(670,800);
-            var border=network.Find("Ink rule");if(border)((RectTransform)border).sizeDelta=new Vector2(3,800);
-            var panel=Panel("Level selection",network,38,444,590,120,Color.clear);
-            Label(panel,"选择关卡 · 由房主决定",0,0,590,24,16,Grey);
-            levelDropdown=Button(panel,"庭院 (Boss · 大肥鱼)   ▾",0,28,590,48,"");
-            levelDropdown.GetComponent<UnityEngine.UI.Image>().color=new Color(.13f,.14f,.13f,.045f);
-            levelHint=Label(panel,"",0,83,590,36,16,Grey);
-            status.rectTransform.anchoredPosition=new Vector2(38,-570);status.rectTransform.sizeDelta=new Vector2(590,36);
-            members.rectTransform.anchoredPosition=new Vector2(38,-612);members.rectTransform.sizeDelta=new Vector2(590,38);members.fontSize=16;
-            begin.GetComponent<RectTransform>().anchoredPosition=new Vector2(38,-660);leave.GetComponent<RectTransform>().anchoredPosition=new Vector2(338,-660);
-            back.GetComponent<RectTransform>().anchoredPosition=new Vector2(38,-758);
-            foreach(var label in network.GetComponentsInChildren<UnityEngine.UI.Text>(true))if(label.text.StartsWith("房主本机：")){label.rectTransform.anchoredPosition=new Vector2(38,-722);label.rectTransform.sizeDelta=new Vector2(590,24);}
-            levelDropdown.onClick.AddListener(()=>OpenLevelList(true));
-            Label(network,"方向键选择 · A / Enter 编辑 · B / Esc 结束",180,180,448,22,13,Grey,TextAnchor.MiddleRight);
-            foreach(var label in network.GetComponentsInChildren<UnityEngine.UI.Text>(true))
+            // Apply the same layout to the saved menu and the generated fallback.
+            var labels=network.GetComponentsInChildren<UnityEngine.UI.Text>(true);
+            foreach(var label in labels)
             {
-                if(label.text=="你的名字")label.rectTransform.sizeDelta=new Vector2(120,27);
-                if(label.text=="1–4 人协作 · 局域网 / TCP 端口映射")label.text="多人同行 / 竞技决斗 · 局域网联机";
+                if(label.transform.parent!=network)continue;
+                if(label.text=="局域网联机")Place(label.rectTransform,38,24,590,64);
             }
+            Place(network,0,0,670,770);
+            var background=network.GetComponent<UnityEngine.UI.Image>();
+            background.color=new Color(.96f,.945f,.90f);
+            background.raycastTarget=true;
+            if(network.Find("Ink rule") is RectTransform border)border.sizeDelta=new Vector2(3,770);
+            PlaceNetworkField(nickname,labels,38,119,590);
+            PlaceNetworkField(address,labels,38,204,292);
+            PlaceNetworkField(port,labels,350,204,112);
+
+            var tunnelButton=Panel("一键配置",network,482,204,146,48,new Color(.61f,.18f,.13f,.12f));
+            var tunnelBackground=tunnelButton.GetComponent<UnityEngine.UI.Image>();
+            tunnelBackground.raycastTarget=true;
+            configureTunnel=tunnelButton.gameObject.AddComponent<UnityEngine.UI.Button>();
+            configureTunnel.targetGraphic=tunnelBackground;
+            tunnelButton.gameObject.AddComponent<TrialSettingsFocus>();
+            Label(tunnelButton,"一键配置",0,0,146,48,20,Ink,TextAnchor.MiddleCenter);
+            configureTunnel.onClick.AddListener(ConfigureHostTunnel);
+
+            var divider=new Color(.13f,.14f,.13f,.18f);
+            Line(network,38,276,590,1,divider);
+            Label(network,"当前关卡",38,293,590,26,16,Grey);
+            levelCaption=Label(network,"",38,326,590,43,23,Ink);
+
+            Place((RectTransform)host.transform,38,395,285,50);
+            Place((RectTransform)join.transform,343,395,285,50);
+            Line(network,38,465,590,1,divider);
+            Place(status.rectTransform,38,488,590,44);
+            status.fontSize=18;
+            Place(members.rectTransform,38,542,590,54);
+            members.fontSize=16;
+            Place((RectTransform)begin.transform,38,621,285,50);
+            Place((RectTransform)leave.transform,343,621,285,50);
+            Line(network,38,688,590,1,divider);
+            Place((RectTransform)back.transform,38,705,180,42);
+            BuildNetworkLevels();
+        }
+
+        static void StretchNetworkColumn(RectTransform panel,float left,float right)
+        {
+            TrialMenuLayout.StretchContents(panel);
+            panel.anchorMin=new Vector2(left,0);
+            panel.anchorMax=new Vector2(right,1);
+            panel.offsetMin=panel.offsetMax=Vector2.zero;
+        }
+
+        void PlaceNetworkField(UnityEngine.UI.InputField field,UnityEngine.UI.Text[] labels,float x,float y,float width)
+        {
+            var rect=(RectTransform)field.transform;
+            field.shouldActivateOnSelect=false;
+            field.gameObject.AddComponent<TrialSettingsFocus>();
+            field.onEndEdit.AddListener(_=>networkEditEndedFrame=Time.frameCount);
+            Place(rect,x,y,width,48);
+            Place(field.textComponent.rectTransform,13,0,width-26,48);
+            if(rect.Find("Ink rule") is RectTransform rule)rule.sizeDelta=new Vector2(width,1);
+            foreach(var label in labels)
+                if(label.transform.parent==network && label.text==field.name)
+                    Place(label.rectTransform,x,y-28,width,27);
+        }
+
+        static void Place(RectTransform rect,float x,float y,float width,float height)
+        {
+            rect.anchoredPosition=new Vector2(x,-y);
+            rect.sizeDelta=new Vector2(width,height);
         }
         void Update()
         {
@@ -170,7 +240,8 @@ namespace TomorinTrial
             var focusedField=selected?selected.GetComponent<UnityEngine.UI.InputField>():null;
             if(keys!=null && !(focusedField && focusedField.isFocused) &&
                 (keys.wKey.wasPressedThisFrame||keys.aKey.wasPressedThisFrame||keys.sKey.wasPressedThisFrame||keys.dKey.wasPressedThisFrame))NavigationActive=true;
-            if(pad!=null&&(pad.dpad.ReadValue().sqrMagnitude>.1f||pad.leftStick.ReadValue().sqrMagnitude>.25f||pad.buttonSouth.wasPressedThisFrame))NavigationActive=true;
+            if(pad!=null&&(pad.dpad.ReadValue().sqrMagnitude>.1f||pad.leftStick.ReadValue().sqrMagnitude>.25f||
+                pad.rightStick.ReadValue().sqrMagnitude>.25f||pad.buttonSouth.wasPressedThisFrame))NavigationActive=true;
             if(UpdateLevelList())return;
             UpdateNetworkNavigation(focusedField,pad,keys);
             if(liveMaterial)
@@ -179,21 +250,34 @@ namespace TomorinTrial
                 liveMaterial.SetVector("_Pointer",Vector4.zero);
             }
             if(TrialSettingsPanel.InputBlocked)return;
-            if(keys!=null && keys.escapeKey.wasPressedThisFrame && focusedField && focusedField.isFocused)
+            if(wardrobePanel && wardrobePanel.gameObject.activeSelf &&
+                (keys!=null && keys.escapeKey.wasPressedThisFrame || pad!=null && pad.buttonEast.wasPressedThisFrame))
+            {CloseWardrobe();return;}
+            if(keys!=null && keys.escapeKey.wasPressedThisFrame && focusedField &&
+                (focusedField.isFocused || networkEditEndedFrame==Time.frameCount))
             {focusedField.DeactivateInputField();return;}
             if(Keyboard.current!=null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {if(quitPanel.activeSelf)quitPanel.SetActive(false);else if(settings.gameObject.activeSelf)Show(home);else if(network.gameObject.activeSelf&&!manager.Busy)Show(home);}
         }
-        void OnDestroy(){if(manager)manager.Changed-=RefreshNetwork;if(liveMaterial)Destroy(liveMaterial);PlayerPrefs.Save();}
+        void OnDestroy()
+        {
+            if(manager)manager.Changed-=RefreshNetwork;
+            if(liveMaterial)Destroy(liveMaterial);
+            ReleaseWardrobePreview();
+            PlayerPrefs.Save();
+        }
 
         // Called by the Editor builder too: the saved scene contains a fully inspectable Canvas.
         public void InstallTitleArtwork()
         {
+            if(!home)return;
             var texture=Resources.Load<Texture2D>("UI/InkTitleCalligraphy");
-            if(!texture || !home)return;
-            foreach(string oldName in new[]{"只鹅","_智械危机"})
-            {var old=home.Find(oldName);if(old)old.gameObject.SetActive(false);}
-            var seal=home.Find("Cinnabar seal");if(seal)((RectTransform)seal).anchoredPosition=new Vector2(600,-190);
+            if(!texture)
+            {
+                if(!home.Find("只鹅"))Label(home,"只鹅",-7,166,600,135,112,Ink);
+                if(!home.Find("_智械危机"))Label(home,"_智械危机",0,294,650,90,65,Ink);
+                return;
+            }
             var existing=home.Find("Ink calligraphy title");
             var rect=existing?(RectTransform)existing:Rect("Ink calligraphy title",home,new Vector2(-12,98),new Vector2(620,310));
             var image=rect.GetComponent<UnityEngine.UI.RawImage>();if(!image)image=rect.gameObject.AddComponent<UnityEngine.UI.RawImage>();
@@ -212,41 +296,31 @@ namespace TomorinTrial
             var dust=Rect("Ink dust & red petals · 54 particles",root,Vector2.zero,Vector2.zero);Stretch(dust);dust.gameObject.AddComponent<InkAtmosphere>();
             home=Rect("Home",root,new Vector2(110,0),new Vector2(650,900));
             Label(home,"序  /  THE MACHINE AWAKENS",0,91,600,28,17,Grey);
-            Label(home,"只鹅",-7,166,600,135,112,Ink);
-            Label(home,"_智械危机",0,294,650,90,65,Ink);
-            var seal=Panel("Cinnabar seal",home,495,203,48,83,Red);Label(seal,"只\n鹅",0,8,48,68,25,Paper,TextAnchor.MiddleCenter);
             Line(home,1,413,64,2,Red);Label(home,"一念为人，万象成械。",83,400,490,31,21,Grey);
             solo=Button(home,"单人游玩",0,486,430,61,"");
             multiplayer=Button(home,"局域网联机",0,559,430,61,"");
             options=Button(home,"设置",0,632,430,61,"");
             quit=Button(home,"离开",0,705,430,61,"");
-            Label(home,"ENTER  确认    /    ↑ ↓  选择",0,826,500,27,17,Grey);
+            InstallWardrobeEntry();
             var footer=Rect("Footer",root,new Vector2(48,866),new Vector2(1504,30));
             Label(footer,"只鹅计划  /  INK & CIRCUITS",0,0,650,28,13,Grey);
             Label(footer,"水墨之间 · 同行入庭",1110,0,390,28,14,Grey,TextAnchor.MiddleRight);
             network=Panel("Network room",root,76,77,670,745,new Color(.96f,.945f,.90f,.98f));
-            Line(network,0,0,3,745,Red);Label(network,"联 机  /  CO-OP",36,28,590,25,15,Red);
-            Label(network,"与同伴入画",33,76,590,68,48,Ink);
-            Label(network,"多人同行 / 竞技决斗 · 局域网联机",38,150,590,28,18,Grey);
+            Line(network,0,0,3,745,Red);
+            Label(network,"局域网联机",33,76,590,68,48,Ink);
             nickname=Field(network,"你的名字",38,208,590,PlayerPrefs.GetString("Ink.Name","旅人"));nickname.characterLimit=12;
-            address=Field(network,"房主 IP / 穿透域名",38,290,409,"127.0.0.1");address.characterLimit=253;
-            port=Field(network,"TCP 端口",465,290,163,"7777");port.characterLimit=5;port.contentType=UnityEngine.UI.InputField.ContentType.IntegerNumber;
+            address=Field(network,"房主 IP / 穿透域名",38,290,300,"127.0.0.1");address.characterLimit=253;
+            port=Field(network,"TCP 端口",352,290,120,"7777");port.characterLimit=5;port.contentType=UnityEngine.UI.InputField.ContentType.IntegerNumber;
             host=Button(network,"创建房间",38,383,280,50,"+");join=Button(network,"加入房间",338,383,290,50,"→");
             status=Label(network,"尚未连接",38,451,590,45,19,Red);
             members=Label(network,"尚无同伴入庭",38,502,590,95,19,Ink);
             begin=Button(network,"共同启程",38,607,280,50,"▶");leave=Button(network,"离开房间",338,607,290,50,"×");
-            Label(network,"房主本机："+TrialNetworkManager.LocalAddresses(),38,666,590,38,13,Grey);
             back=Button(network,"返回",38,704,180,32,"←");
-            var hint=Panel("Port mapping guide",root,820,643,653,157,new Color(.95f,.935f,.88f,.92f));
-            hint.SetParent(network,false);hint.anchoredPosition=new Vector2(739,-566);
-            Label(hint,"跨网相逢",23,15,590,28,22,Ink);
-            Label(hint,"房主：将穿透服务的 TCP 本地端口映射到此处端口。\n同伴：填写服务给出的域名 / IP 和外部端口。\n同一局域网：填写房主 IPv4 与房主端口。",23,54,606,82,16,Grey);
-            settings=Rect("Settings placeholder",root,Vector2.zero,Vector2.zero);
             var modal=Panel("Quit confirmation",root,0,0,1600,900,new Color(.04f,.06f,.06f,.4f));Stretch(modal);modal.GetComponent<UnityEngine.UI.Image>().raycastTarget=true;quitPanel=modal.gameObject;
             var popup=Panel("Quit dialog",modal,0,0,674,282,new Color(.96f,.945f,.90f,.99f));popup.anchorMin=popup.anchorMax=popup.pivot=new Vector2(.5f,.5f);popup.anchoredPosition=Vector2.zero;
             Label(popup,"暂别此间？",38,34,590,70,45,Ink);
             confirmQuit=Button(popup,"离开游戏",38,173,280,57,"→");cancelQuit=Button(popup,"再留片刻",344,173,290,57,"←");quitPanel.SetActive(false);
-            network.gameObject.SetActive(false);settings.gameObject.SetActive(false);
+            network.gameObject.SetActive(false);
             InstallTitleArtwork();
             if(!FindFirstObjectByType<EventSystem>())new GameObject("EventSystem",typeof(EventSystem),typeof(InputSystemUIInputModule));
         }

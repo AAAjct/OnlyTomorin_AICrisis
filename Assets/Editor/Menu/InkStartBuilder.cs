@@ -33,6 +33,7 @@ namespace TomorinTrial.Editor
             data.FindProperty("artwork").objectReferenceValue=AssetDatabase.LoadAssetAtPath<Texture2D>(imagePath);
             data.FindProperty("inkFont").objectReferenceValue=AssetDatabase.LoadAssetAtPath<Font>("Assets/Art/UI/Fonts/InkKai.ttf");
             data.FindProperty("uiFont").objectReferenceValue=AssetDatabase.LoadAssetAtPath<Font>("Assets/Art/UI/Fonts/InkUI.ttc");
+            data.FindProperty("wardrobeModel").objectReferenceValue=AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Art/Models/Tomorin/Tomorin.fbx");
             data.FindProperty("inkMaterial").objectReferenceValue=material;data.ApplyModifiedPropertiesWithoutUndo();
             menu.BuildVisuals();
             EditorSceneManager.SaveScene(scene,TrialNetworkManager.MenuScene);

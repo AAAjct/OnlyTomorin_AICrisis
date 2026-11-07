@@ -31,7 +31,7 @@
 - TrialCombatEvent carries player ownership and transient parry/block/guard-break/death feedback. World effects are shared; HUD and camera effects belong to the identified local player. Combat authority remains on the host.
 - Input edges send immediately; movement changes target 60 Hz with idle 10 Hz heartbeat. World snapshots target 30 Hz, contain only active boss hazards, and skip the host's local connection. Client action clocks advance at most 100 ms beyond the last received snapshot.
 - TrialGame remembers entering network simulation and does not fall back to standalone simulation while disconnection loads the menu.
-- Combat network regression tool: Assets/Editor/Trial/TrialNetworkValidation.cs. Evidence and limits: Docs/COMBAT_NETWORK_VALIDATION.md. No network package/settings migration was required.
+- Combat network regression tool: Assets/Editor/Trial/Validation/TrialNetworkValidation.cs. Evidence and limits: Docs/COMBAT_NETWORK_VALIDATION.md. No network package/settings migration was required.
 
 ## Courtyard / arena and combat feel update (2026-11-02)
 

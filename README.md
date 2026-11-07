@@ -86,11 +86,11 @@ Boss 会按距离选择可触及的招式、追击远处目标，并减少连续
 
 ## 项目结构
 
-- `Assets/Scripts/Trial/`：战斗、动作、相机、庭院、HUD、触控和联机。
+- `Assets/Scripts/Trial/`：按角色（`Actors`）、动作（`Animation`）、关卡与相机（`World`）、界面（`UI`）、输入（`Input`）、联机（`Networking`）、表现（`Effects`）、试炼进程（`Runs`）和核心逻辑（`Core`）分组。
 - `Assets/Scripts/Menu/`：水墨开始界面、房间配置与按钮动效。
 - `Assets/Art/Models/`：Tomorin、DeepSeek、NaiWa 模型。
 - `Assets/Anims/Trial/`：19 个可预览的角色骨骼动作片段；运行时由同一套程序姿态驱动。
-- `Assets/Editor/Trial/`：场景装配、动画烘焙、Play Mode 验证工具。
+- `Assets/Editor/Trial/`：场景装配和资源配置（`Builders`）、维护工具（`Tools`）及 Play Mode 验证（`Validation`）。
 - `Docs/`：更详细的玩法、图标及验证记录。
 
 `Tools > Tomorin > Apply combat and interface polish` 可更新奶蛙场景引用、动画预览资产及开始菜单按钮。`Verify combat and interface polish (Play Mode)` 验证主要交互，报告写入 `Logs/Trial/Validation.txt`。这些操作不导出游戏安装包。

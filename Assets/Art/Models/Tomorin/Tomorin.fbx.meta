@@ -35,6 +35,16 @@ ModelImporter:
       name: MI_Private
     second: {fileID: 2100000, guid: 5e35725892d72bf4e84f9cac26942c0c, type: 2}
   - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: RovingHat_Surface
+    second: {fileID: 2100000, guid: f52da8f1623214746a0e1055ba91651e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: TomorinMask_Emblem
+    second: {fileID: 2100000, guid: d481b27dcb184cb4db4698a86c00003e, type: 2}
+  - first:
       type: UnityEngine:Texture2D
       assembly: UnityEngine.CoreModule
       name: T_Private

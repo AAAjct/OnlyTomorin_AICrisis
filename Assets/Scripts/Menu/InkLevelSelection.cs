@@ -1,127 +1,202 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 namespace TomorinTrial
 {
     public sealed partial class InkMainMenu
     {
         GameObject levelList;
-        UnityEngine.UI.ScrollRect levelScroll;
-        RectTransform levelContent;
-        bool listForNetwork;
-        UnityEngine.UI.Button courtyardRow,arenaRow,endlessRow,bossRushRow;
-        UnityEngine.UI.Text listTitle;
-        GameObject selectionReturn;
+        Button courtyardRow;
         TrialLevel soloLevel;
-        readonly UnityEngine.UI.Button[] difficultyButtons=new UnityEngine.UI.Button[3];
-        UnityEngine.UI.Text difficultyHint;
+        Button[] soloDifficulty, networkDifficulty;
+        Text soloDifficultyHint, networkDifficultyHint;
+        List<(TrialLevel level, Button button, Text caption)> networkLevelRows;
+        static readonly TrialDifficulty[] Difficulties = {TrialDifficulty.Easy, TrialDifficulty.Normal, TrialDifficulty.Hard};
 
-        void RefreshDifficultySelection()
+        void OpenLevelList()
         {
-            var selected=listForNetwork?manager.SelectedDifficulty:TrialDifficultySettings.Solo;
-            var choices=new[]{TrialDifficulty.Easy,TrialDifficulty.Normal,TrialDifficulty.Hard};
-            for(int i=0;i<choices.Length;i++)
+            if (!levelList)
             {
-                var text=difficultyButtons[i].GetComponentInChildren<UnityEngine.UI.Text>();
-                text.text=(choices[i]==selected?"● ":"")+TrialDifficultySettings.Label(choices[i]);
-            }
-            difficultyHint.text=selected==TrialDifficulty.Easy?"敌人生命 75% · 伤害 70%":selected==TrialDifficulty.Hard?"敌人生命 130% · 伤害 130%":"敌人生命与伤害 100%";
-        }
-        readonly System.Collections.Generic.List<UnityEngine.UI.Button> challengeRows=new System.Collections.Generic.List<UnityEngine.UI.Button>();
-
-        void OpenLevelList(bool multiplayerList)
-        {
-            if(multiplayerList && manager.Busy && !manager.IsHost)return;
-            if(!levelList)
-            {
-                var overlay=Panel("Shared level list",root,0,0,1600,900,new Color(.03f,.04f,.04f,.7f));Stretch(overlay);overlay.GetComponent<UnityEngine.UI.Image>().raycastTarget=true;levelList=overlay.gameObject;
-                var card=Panel("Level list card",overlay,0,0,900,830,Paper);card.anchorMin=card.anchorMax=card.pivot=new Vector2(.5f,.5f);card.anchoredPosition=Vector2.zero;
-                Line(card,0,0,3,830,Red);listTitle=Label(card,"选择关卡",32,20,820,58,32,Ink);
-                var choices=new[]{TrialDifficulty.Easy,TrialDifficulty.Normal,TrialDifficulty.Hard};
-                for(int i=0;i<choices.Length;i++)
+                var overlay = Panel("Solo level list", root, 0, 0, 1600, 900, new Color(.03f,.04f,.04f,.7f));
+                Stretch(overlay);
+                levelList = overlay.gameObject;
+                var card = Panel("Level list card", overlay, 0, 0, 900, 830, Paper);
+                card.anchorMin = card.anchorMax = card.pivot = new Vector2(.5f,.5f);
+                card.anchoredPosition = Vector2.zero;
+                TrialModalBackdrop.Bind(overlay, card, CloseLevelList);
+                Line(card, 0, 0, 3, 830, Red);
+                Label(card, "单人关卡", 32, 20, 820, 58, 32, Ink);
+                soloDifficulty = BuildDifficultyButtons(card, 24, 82, 155, difficulty =>
                 {
-                    var choice=choices[i];
-                    difficultyButtons[i]=Button(card,TrialDifficultySettings.Label(choice),24+i*170,82,155,48,"");
-                    difficultyButtons[i].onClick.AddListener(()=>
-                    {
-                        if(listForNetwork)manager.SelectDifficulty(choice);else TrialDifficultySettings.Solo=choice;
-                        RefreshDifficultySelection();
-                    });
-                }
-                difficultyHint=Label(card,"",550,82,320,48,15,Grey);
-                var viewport=Panel("Level viewport",card,24,150,832,586,Color.clear);
-                viewport.GetComponent<UnityEngine.UI.Image>().raycastTarget=true;
-                viewport.gameObject.AddComponent<UnityEngine.UI.RectMask2D>();
-                levelContent=Panel("Level rows",viewport,0,0,832,900,Color.clear);
-                levelScroll=viewport.gameObject.AddComponent<UnityEngine.UI.ScrollRect>();
-                levelScroll.viewport=viewport;levelScroll.content=levelContent;levelScroll.horizontal=false;
-                levelScroll.movementType=UnityEngine.UI.ScrollRect.MovementType.Clamped;levelScroll.scrollSensitivity=38;
-                var scrollTrack=Panel("Level scrollbar",card,860,150,16,586,new Color(.13f,.14f,.13f,.10f));
-                scrollTrack.GetComponent<UnityEngine.UI.Image>().raycastTarget=true;
-                var scrollHandle=Panel("Level scroll handle",scrollTrack,0,0,10,100,Red);
-                scrollHandle.anchorMin=Vector2.zero;scrollHandle.anchorMax=Vector2.one;
-                scrollHandle.offsetMin=new Vector2(3,3);scrollHandle.offsetMax=new Vector2(-3,-3);
-                var scrollbar=scrollTrack.gameObject.AddComponent<UnityEngine.UI.Scrollbar>();
-                scrollbar.direction=UnityEngine.UI.Scrollbar.Direction.BottomToTop;
-                scrollbar.handleRect=scrollHandle;scrollbar.targetGraphic=scrollHandle.GetComponent<UnityEngine.UI.Image>();
-                scrollbar.navigation=new UnityEngine.UI.Navigation{mode=UnityEngine.UI.Navigation.Mode.None};
-                levelScroll.verticalScrollbar=scrollbar;
-                levelScroll.verticalScrollbarVisibility=UnityEngine.UI.ScrollRect.ScrollbarVisibility.Permanent;
-                arenaRow=CreateLevelRow(TrialLevel.Arena,"玩家自由决斗 · 至少两人");
-                courtyardRow=CreateLevelRow(TrialLevel.BigFish,"清理守卫，再迎战大肥鱼");
-                Button(card,"返回",24,766,220,48,"←").onClick.AddListener(CloseLevelList);
-                Label(card,"滚轮 / 拖动浏览 · 方向键 / 手柄选择",302,774,550,30,15,Grey);
-                for(int i=0;i<6;i++)
+                    TrialDifficultySettings.Solo = difficulty;
+                    RefreshDifficultyButtons(soloDifficulty, soloDifficultyHint, difficulty, true);
+                });
+                soloDifficultyHint = Label(card, "", 550, 82, 320, 48, 15, Grey);
+                var scroll = BuildLevelScroll(card, 24, 150, 852, 586);
+                var rows = BuildLevelRows(scroll, 828, false, level =>
                 {
-                    var level=(TrialLevel)((int)TrialLevel.Twins+i);
-                    challengeRows.Add(CreateLevelRow(level,level==TrialLevel.Remnant?"极限 Boss · 读指令 · 联机击杀成长":level==TrialLevel.Twins?"双人近战 · 交替夹击":level==TrialLevel.Anon?"架剑格挡 · 侧闪反击":level==TrialLevel.Taffy?"实体弹道 · 掩体与换弹":level==TrialLevel.Penguin?"重锤锻击 · 扩散冰环":"长鞭距离战 · 内外安全区"));
-                }
-                endlessRow=CreateLevelRow(TrialLevel.Endless,"持续刷怪 · 每 5 波精英 · 经验升级 / 30 种词条三选一");
-                bossRushRow=CreateLevelRow(TrialLevel.BossRush,"8 位 Boss 逐个挑战 · 初始 3 瓶药不补充 · 战后回满血量与耐力");
+                    soloLevel = level;
+                    CloseLevelList();
+                    StartCoroutine(LoadSolo());
+                });
+                courtyardRow = rows[0].button;
+                var backButton = Button(card, "返回", 24, 766, 220, 48, "←");
+                backButton.onClick.AddListener(CloseLevelList);
+                for (int i = 0; i < rows.Count; i++)
+                    SetDirectionalNavigation(rows[i].button, up:i>0 ? rows[i-1].button : soloDifficulty[0],
+                        down:i+1<rows.Count ? rows[i+1].button : backButton);
+                WireDifficultyNavigation(soloDifficulty, backButton, courtyardRow);
+                SetDirectionalNavigation(backButton, up:rows[rows.Count-1].button, down:soloDifficulty[0]);
             }
-            selectionReturn=EventSystem.current?EventSystem.current.currentSelectedGameObject:null;
-            endlessRow.gameObject.SetActive(true);bossRushRow.gameObject.SetActive(true);
-            listForNetwork=multiplayerList;arenaRow.gameObject.SetActive(multiplayerList);
-            var rows=new System.Collections.Generic.List<UnityEngine.UI.Button>();
-            if(multiplayerList)rows.Add(arenaRow);
-            rows.Add(courtyardRow);rows.AddRange(challengeRows);
-            rows.Add(endlessRow);rows.Add(bossRushRow);
-            for(int i=0;i<rows.Count;i++)
-            {
-                rows[i].GetComponent<RectTransform>().anchoredPosition=new Vector2(0,-i*106);
-                var nav=new UnityEngine.UI.Navigation{mode=UnityEngine.UI.Navigation.Mode.Explicit,selectOnUp=i>0?rows[i-1]:difficultyButtons[0],selectOnDown=i+1<rows.Count?rows[i+1]:rows[i]};
-                rows[i].navigation=nav;
-            }
-            levelContent.sizeDelta=new Vector2(832,rows.Count*106);levelContent.anchoredPosition=Vector2.zero;
+            RefreshDifficultyButtons(soloDifficulty, soloDifficultyHint, TrialDifficultySettings.Solo, true);
+            levelList.SetActive(true);
+            levelList.transform.SetAsLastSibling();
+            courtyardRow.Select();
+        }
 
-            RefreshDifficultySelection();
-            listTitle.text=multiplayerList?"联机关卡":"单人游玩 · 选择关卡";
-            levelList.SetActive(true);levelList.transform.SetAsLastSibling();
-            (multiplayerList?arenaRow:courtyardRow).Select();
-        }
-        UnityEngine.UI.Button CreateLevelRow(TrialLevel level,string description)
+        void BuildNetworkLevels()
         {
-            var button=Button(levelContent,TrialChampionCatalog.LevelName(level),0,0,832,98,"");
-            button.GetComponent<InkButtonMotion>().PreserveLayout=true;
-            var title=button.GetComponentInChildren<UnityEngine.UI.Text>();
-            title.rectTransform.anchoredPosition=new Vector2(28,-8);title.rectTransform.sizeDelta=new Vector2(780,34);title.alignment=TextAnchor.MiddleLeft;title.fontSize=24;
-            Label(button.transform,description,28,57,780,28,16,Grey).alignment=TextAnchor.MiddleLeft;
-            Line(button.transform,28,97,770,1,new Color(.13f,.14f,.13f,.12f));
-            button.gameObject.AddComponent<InkLevelRowFocus>().Scroll=levelScroll;
-            button.onClick.AddListener(()=>SelectListedLevel(level));return button;
+            networkLevels = Panel("Network levels", root, 0, 0, 670, 770, Paper);
+            networkLevels.GetComponent<Image>().raycastTarget = true;
+            Line(networkLevels, 0, 0, 1, 770, new Color(.13f,.14f,.13f,.18f));
+            Label(networkLevels, "联机关卡", 38, 24, 590, 64, 34, Ink);
+            networkDifficulty = BuildDifficultyButtons(networkLevels, 38, 96, 148, manager.SelectDifficulty);
+            networkDifficultyHint = Label(networkLevels, "", 38, 146, 590, 31, 16, Grey);
+            var scroll = BuildLevelScroll(networkLevels, 38, 187, 590, 550);
+            networkLevelRows = BuildLevelRows(scroll, 566, true, manager.SelectLevel);
         }
-        void SelectListedLevel(TrialLevel level)
+
+        void RefreshNetworkLevels(bool editable)
         {
-            if(listForNetwork)manager.SelectLevel(level);
-            CloseLevelList();
-            if(!listForNetwork){soloLevel=level;StartCoroutine(LoadSolo());}
+            RefreshDifficultyButtons(networkDifficulty, networkDifficultyHint, manager.SelectedDifficulty, editable);
+            foreach (var row in networkLevelRows)
+            {
+                row.button.interactable = editable;
+                row.caption.text = (row.level == manager.SelectedLevel ? "●  " : "") + TrialChampionCatalog.LevelName(row.level);
+            }
         }
-        void CloseLevelList(){if(levelList)levelList.SetActive(false);if(selectionReturn && EventSystem.current)EventSystem.current.SetSelectedGameObject(selectionReturn);}
+
+        Button[] BuildDifficultyButtons(RectTransform card, int x, int y, int width, UnityAction<TrialDifficulty> select)
+        {
+            var buttons = new Button[Difficulties.Length];
+            for (int i = 0; i < buttons.Length; i++)
+            {
+                var difficulty = Difficulties[i];
+                buttons[i] = Button(card, TrialDifficultySettings.Label(difficulty), x+i*(width+15), y, width, 44, "");
+                buttons[i].onClick.AddListener(() => select(difficulty));
+            }
+            return buttons;
+        }
+
+        void RefreshDifficultyButtons(Button[] buttons, Text hint, TrialDifficulty difficulty, bool editable)
+        {
+            for (int i = 0; i < buttons.Length; i++)
+            {
+                buttons[i].interactable = editable;
+                buttons[i].GetComponentInChildren<Text>().text = (Difficulties[i]==difficulty ? "● " : "") +
+                    TrialDifficultySettings.Label(Difficulties[i]);
+            }
+            hint.text = !editable ? "由房主选择关卡和难度" : difficulty switch
+            {
+                TrialDifficulty.Easy => "敌人生命 75% · 伤害 70%",
+                TrialDifficulty.Hard => "敌人生命 130% · 伤害 130%",
+                _ => "敌人生命与伤害 100%"
+            };
+        }
+
+        void WireDifficultyNavigation(Button[] buttons, Selectable up, Selectable down, Selectable leftColumn = null)
+        {
+            for (int i = 0; i < buttons.Length; i++)
+                SetDirectionalNavigation(buttons[i], up:up, down:down,
+                    left:i==0 && leftColumn ? leftColumn : buttons[(i+buttons.Length-1)%buttons.Length],
+                    right:buttons[(i+1)%buttons.Length]);
+        }
+
+        ScrollRect BuildLevelScroll(RectTransform card, int x, int y, int width, int height)
+        {
+            var viewport = Panel("Level viewport", card, x, y, width-24, height, Color.clear);
+            viewport.GetComponent<Image>().raycastTarget = true;
+            viewport.gameObject.AddComponent<RectMask2D>();
+            var content = Rect("Level rows", viewport, Vector2.zero, Vector2.zero);
+            content.anchorMax = Vector2.one;
+            var scroll = viewport.gameObject.AddComponent<ScrollRect>();
+            scroll.viewport = viewport;
+            scroll.content = content;
+            scroll.horizontal = false;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 14;
+            var track = Panel("Level scrollbar", card, x+width-14, y, 14, height, new Color(.13f,.14f,.13f,.10f));
+            track.GetComponent<Image>().raycastTarget = true;
+            var handle = Panel("Level scroll handle", track, 0, 0, 0, 0, Red);
+            Stretch(handle);
+            handle.offsetMin = new Vector2(2,2);
+            handle.offsetMax = new Vector2(-2,-2);
+            var scrollbar = track.gameObject.AddComponent<Scrollbar>();
+            scrollbar.direction = Scrollbar.Direction.BottomToTop;
+            scrollbar.handleRect = handle;
+            scrollbar.targetGraphic = handle.GetComponent<Image>();
+            scrollbar.navigation = new Navigation {mode=Navigation.Mode.None};
+            scroll.verticalScrollbar = scrollbar;
+            return scroll;
+        }
+
+        List<(TrialLevel level, Button button, Text caption)> BuildLevelRows(ScrollRect scroll, int width,
+            bool multiplayerList, UnityAction<TrialLevel> select)
+        {
+            const int step = 106;
+            var rows = new List<(TrialLevel level, Button button, Text caption)>();
+            if (multiplayerList) Add(TrialLevel.Arena, "玩家自由决斗 · 至少两人");
+            Add(TrialLevel.BigFish, "清理守卫，再迎战大肥鱼");
+            Add(TrialLevel.Twins, "双人近战 · 交替夹击");
+            Add(TrialLevel.Anon, "架剑格挡 · 侧闪反击");
+            Add(TrialLevel.Taffy, "实体弹道 · 掩体与换弹");
+            Add(TrialLevel.Penguin, "重锤锻击 · 扩散冰环");
+            Add(TrialLevel.YaYa, "长鞭距离战 · 内外安全区");
+            Add(TrialLevel.Remnant, "极限 Boss · 读指令 · 联机击杀成长");
+            Add(TrialLevel.Endless, "持续刷怪 · 每 5 波精英 · 经验升级 / 30 种词条三选一");
+            Add(TrialLevel.BossRush, "8 位 Boss 逐个挑战 · 初始 3 瓶药不补充 · 战后回满血量与耐力");
+            scroll.content.sizeDelta = new Vector2(0, rows.Count*step);
+            return rows;
+
+            void Add(TrialLevel level, string description)
+            {
+                var button = Button(scroll.content, TrialChampionCatalog.LevelName(level), 0, rows.Count*step, width, 98, "");
+                button.GetComponent<InkButtonMotion>().PreserveLayout = true;
+                var title = button.GetComponentInChildren<Text>();
+                Place(title.rectTransform, 28, 8, width-56, 34);
+                title.fontSize = 24;
+                Label(button.transform, description, 28, 49, width-56, 40, 16, Grey);
+                Line(button.transform, 28, 97, width-56, 1, new Color(.13f,.14f,.13f,.12f));
+                var rect = (RectTransform)button.transform;
+                TrialMenuLayout.StretchContents(rect);
+                rect.anchorMax = Vector2.one;
+                rect.sizeDelta = new Vector2(0, 98);
+                button.gameObject.AddComponent<InkLevelRowFocus>().Scroll = scroll;
+                button.onClick.AddListener(() => select(level));
+                rows.Add((level, button, title));
+            }
+        }
+
+        void CloseLevelList()
+        {
+            levelList.SetActive(false);
+            solo.Select();
+        }
+
         bool UpdateLevelList()
         {
-            if(!levelList || !levelList.activeSelf)return false;
-            if(Keyboard.current?.escapeKey.wasPressedThisFrame==true || Gamepad.current?.buttonEast.wasPressedThisFrame==true)CloseLevelList();
+            if (!levelList || !levelList.activeSelf) return false;
+            if (Keyboard.current?.escapeKey.wasPressedThisFrame==true || Gamepad.current?.buttonEast.wasPressedThisFrame==true)
+                CloseLevelList();
+            else if (NavigationActive && EventSystem.current)
+            {
+                var selected = EventSystem.current.currentSelectedGameObject;
+                if (!selected || !selected.transform.IsChildOf(levelList.transform)) courtyardRow.Select();
+            }
             return true;
         }
     }

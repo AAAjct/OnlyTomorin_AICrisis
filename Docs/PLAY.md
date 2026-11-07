@@ -38,7 +38,7 @@ Windows 独立版若已构建，入口为 `Builds/AshenCourt/Tomorin_AshenCourt.
 
 ## 动画与资产
 
-`Assets/Scripts/Trial/TrialRig.cs` 为现有 16 根加权骨骼实现专用动作，以手臂双骨 IK 配合躯干扭转、腿部摆动和翻滚驱动；剑跟随右手。奔跑根据实际位移速度驱动步频，并增加抬腿、摆臂、身体前倾与转向侧倾；锁定横移使用移动方向驱动腿部。原始模型没有完整膝关节与手指骨骼，因此仍采用适配该模型的夸张动作。
+`Assets/Scripts/Trial/Animation/TrialRig.cs` 为现有 16 根加权骨骼实现专用动作，以手臂双骨 IK 配合躯干扭转、腿部摆动和翻滚驱动；剑跟随右手。奔跑根据实际位移速度驱动步频，并增加抬腿、摆臂、身体前倾与转向侧倾；锁定横移使用移动方向驱动腿部。原始模型没有完整膝关节与手指骨骼，因此仍采用适配该模型的夸张动作。
 
 `Assets/Anims/Trial/` 包含 19 个可检查与重新导出的 Generic 动画片段：Idle、Walk、Run、Sprint、Slash01/02/03/04、RisingSlash、ChainThrust、ChainFinisher、WindDodgeSlash、DodgePursuit、Heavy、Dodge、Guard、Drink、Hit、Death。`TomorinSword.controller` 和 `Assets/Prefabs/Trial/Tomorin_SwordRig.prefab` 可预览这些动作。运行时由同一套动作方程混合骨骼，战斗判定独立于动画事件。
 
