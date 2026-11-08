@@ -11,8 +11,9 @@ namespace TomorinTrial
         public const float ParryStamina=30;
         public const float HitStamina=10;
         public const float KillStamina=45;
-        protected override bool CanRecoverStamina => base.CanRecoverStamina || Action==FighterAction.Light || Action==FighterAction.Heavy;
-        protected override float StaminaRecoveryRate => (1+.12f*AffixStacks(TrialAffix.Recovery))*(Action==FighterAction.Light || Action==FighterAction.Heavy?18:Guarding?40:PlanarVelocity.sqrMagnitude<.25f?165:120);
+        protected override bool CanRecoverStamina => !Guarding &&
+            (base.CanRecoverStamina && !guardWasHeld || Action==FighterAction.Light || Action==FighterAction.Heavy);
+        protected override float StaminaRecoveryRate => (1+.12f*AffixStacks(TrialAffix.Recovery))*(Action==FighterAction.Light || Action==FighterAction.Heavy?18:PlanarVelocity.sqrMagnitude<.25f?165:120);
         protected override float StaminaRecoveryDelay => .18f;
         public int Flasks { get; private set; } = 3;
         public TrialEnemy Target { get; private set; }
@@ -504,7 +505,8 @@ namespace TomorinTrial
             }
             if(Time.time<hurtUntil)return false;
             Vector3 sourceDirection=receivingHazard?hazardSourceDirection:attacker?attacker.transform.position-transform.position:transform.forward;
-            bool frontal=Vector3.Angle(transform.forward,Vector3.ProjectOnPlane(sourceDirection,Vector3.up))<100;
+            Vector3 planarSource=Vector3.ProjectOnPlane(sourceDirection,Vector3.up);
+            bool frontal=Vector3.Angle(transform.forward,planarSource)<100;
             bool deflectable=!receivingHazard && attacker is TrialEnemy bossSource && (bossSource.Boss && bossSource.Boss.CanBeDeflected || bossSource.Champion && bossSource.Champion.CanDeflect);
             // A committed light-to-heavy cut can intercept a readable frontal strike.
             if(Action==FighterAction.Heavy && Combo==15 && Progress>=.08f && Progress<=.30f && frontal &&
@@ -515,7 +517,7 @@ namespace TomorinTrial
                 HoldCombat(.09f);intercepted.HoldCombat(.12f);RestoreCombatStamina(ParryStamina);
                 EmitCombat(TrialCombatCue.CutThrough,transform.position+Vector3.up);return false;
             }
-            bool canGuard=Guarding && (attacker || receivingHazard);
+            bool canGuard=Guarding && (attacker || receivingHazard) && Vector3.Dot(transform.forward,planarSource)>0;
             if(canGuard)
             {
                 bool perfectGuard=GuardAge<.20f;
@@ -544,11 +546,13 @@ namespace TomorinTrial
                     // The player chooses the empowered follow-up after the deflect.
                     return false;
                 }
-                float guardCost=Mathf.Clamp(damage*.42f,10,24);
+                float guardCost=MaxStamina*.06f+Mathf.Clamp(damage*.42f,10,24);
                 if(Stamina>=guardCost)
                 {
                     Spend(guardCost);
-                    Health=Mathf.Max(1,Health-damage*.04f);HoldCombat(.03f);CombatFeedback(TrialCombatCue.Block,sourceDirection);return false;
+                    float chipRate=attacker is TrialEnemy mob && !mob.IsBoss?.40f:.15f;
+                    Health-=Mathf.Min(damage*chipRate,Mathf.Max(0,Health-1));
+                    HoldCombat(.03f);CombatFeedback(TrialCombatCue.Block,sourceDirection);return false;
                 }
             }
             if(canGuard){Stamina=0;CombatFeedback(TrialCombatCue.GuardBreak);}
