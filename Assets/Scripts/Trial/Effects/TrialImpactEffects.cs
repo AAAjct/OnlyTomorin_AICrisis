@@ -21,7 +21,8 @@ namespace TomorinTrial
         MaterialPropertyBlock ghostProperties;
         Material ghostMaterial,perfectDodgeMaterial;
         AudioSource courtMusic,bossMusic;
-        float rumbleUntil,slowUntil;
+        float rumbleUntil,rumbleStrength,slowUntil;
+        Gamepad rumblingGamepad;
         int nextArc,nextGhost,nextPerfectDodgeGhost;
         public void SlowMotion(float seconds){slowUntil=Mathf.Max(slowUntil,Time.unscaledTime+seconds);}
 
@@ -41,8 +42,19 @@ namespace TomorinTrial
         }
         public void Rumble(float low,float high,float seconds)
         {
-            if(!game.Input.UsingGamepad || Gamepad.current==null)return;
-            Gamepad.current.SetMotorSpeeds(low,high);rumbleUntil=Time.unscaledTime+seconds;
+            var pad=game.Input.ActiveGamepad;
+            if(!TrialPreferences.VibrationEnabled || pad==null || !pad.added || !Application.isFocused)return;
+            float now=Time.unscaledTime,strength=low+high;
+            // A regular hit can follow a signature cue in the same contact.
+            if(rumblingGamepad==pad && now<rumbleUntil && strength<=rumbleStrength)return;
+            if(rumblingGamepad!=pad)StopRumble();
+            pad.SetMotorSpeeds(low,high);
+            rumblingGamepad=pad;rumbleUntil=now+seconds;rumbleStrength=strength;
+        }
+        void StopRumble()
+        {
+            if(rumblingGamepad!=null && rumblingGamepad.added)rumblingGamepad.ResetHaptics();
+            rumblingGamepad=null;rumbleUntil=rumbleStrength=0;
         }
         public void SlashEffect(Vector3 position,Vector3 forward,Color tint,float radius,bool ring=false,float width=0,float duration=0)
         {
@@ -183,7 +195,7 @@ namespace TomorinTrial
                 if(local)
                 {
                     if(!TrialNetworkManager.SessionActive && !InkMainMenu.ReducedMotion)perfectDodgeSlowUntil=Time.unscaledTime+.34f;
-                    game.CameraRig.Pulse(3);Rumble(.26f,.55f,.13f);
+                    game.CameraRig.Pulse(3);Rumble(.10f,.80f,.14f);
                     game.Hud.Flash(new Color(.34f,.78f,1,.10f));
                     game.Hud.Notify("完美闪避 · 轻：闪身横斩 / 重：后跃落劈雷吼炮·雷龙",1.8f);
                 }
@@ -213,7 +225,8 @@ namespace TomorinTrial
             foreach(var arc in arcs)if(arc!=null && arc.line.enabled)
             {float alpha=Mathf.Clamp01((arc.until-Time.unscaledTime)/arc.lifetime);arc.line.enabled=alpha>0;var c=arc.tint;c.a=alpha;arc.line.startColor=arc.line.endColor=c;}
             FadeGhosts(ghosts);FadeGhosts(perfectDodgeGhosts);
-            if(rumbleUntil>0 && Time.unscaledTime>=rumbleUntil){Gamepad.current?.ResetHaptics();rumbleUntil=0;}
+            if(rumblingGamepad!=null && (!TrialPreferences.VibrationEnabled || Time.unscaledTime>=rumbleUntil || game.Mode==TrialMode.Paused || game.Input.ActiveGamepad!=rumblingGamepad || !rumblingGamepad.added))
+                StopRumble();
             if(courtMusic && bossMusic)
             {
                 bool battle=game.IsArena || (game.Enemies.Count>0 && game.Enemies[game.Enemies.Count-1] && game.Enemies[game.Enemies.Count-1].Awakened);
@@ -260,7 +273,7 @@ namespace TomorinTrial
         }
         void DisposeImpactEffects()
         {
-            Gamepad.current?.ResetHaptics();
+            StopRumble();
             if(tideMaterial)Destroy(tideMaterial);
             foreach(var ghost in ghosts)if(ghost!=null)foreach(var mesh in ghost.meshes)Destroy(mesh);
             foreach(var ghost in perfectDodgeGhosts)if(ghost!=null)foreach(var mesh in ghost.meshes)Destroy(mesh);
@@ -268,6 +281,7 @@ namespace TomorinTrial
             if(perfectDodgeMaterial)Destroy(perfectDodgeMaterial);
             DisposeInkEffects();
         }
-        void OnApplicationFocus(bool focus){if(!focus){Gamepad.current?.ResetHaptics();rumbleUntil=0;}}
+        void OnApplicationFocus(bool focus){if(!focus)StopRumble();}
+        void OnApplicationPause(bool paused){if(paused)StopRumble();}
     }
 }

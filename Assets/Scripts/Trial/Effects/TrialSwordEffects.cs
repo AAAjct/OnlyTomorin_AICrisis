@@ -54,7 +54,9 @@ namespace TomorinTrial
             {
                 Vector3 end=value.end==Vector3.zero?value.position+value.forward*2:value.end;
                 SakuraCorridor(value.position,end,value.forward);
-                Sound("skillSakura",value.position);return true;
+                Sound("skillSakura",value.position);
+                if(local)Rumble(.24f,.72f,.10f);
+                return true;
             }
             if(cue==TrialCombatCue.SandImpact)
             {

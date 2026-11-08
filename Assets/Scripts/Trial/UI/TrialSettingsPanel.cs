@@ -18,7 +18,7 @@ namespace TomorinTrial
         Slider editingVolume;
         Navigation volumeNavigation;
         readonly UnityEngine.UI.Slider[] soundVolumes=new UnityEngine.UI.Slider[4];
-        UnityEngine.UI.Text sprintLabel,motionLabel,status,frameLabel,syncLabel,frameHint,graphicsLabel;
+        UnityEngine.UI.Text sprintLabel,motionLabel,status,frameLabel,syncLabel,frameHint,graphicsLabel,vibrationLabel;
         UnityEngine.UI.Button first;
         readonly List<UnityEngine.UI.Selectable> navigation=new List<UnityEngine.UI.Selectable>();
         readonly List<Action> refreshBindings=new List<Action>();
@@ -62,11 +62,12 @@ namespace TomorinTrial
             for(int i=0;i<soundVolumes.Length;i++){int category=i;soundVolumes[i]=SoundSlider(soundNames[i],260+i*64,TrialPreferences.AudioLevel(i),v=>TrialPreferences.SetAudioLevel(category,v));}
             first=Button("Sprint mode",card,36,534,300,42,"",()=>{TrialPreferences.ToggleSprint=!TrialPreferences.ToggleSprint;Refresh();});sprintLabel=first.GetComponentInChildren<UnityEngine.UI.Text>();
 
-            motionLabel=Button("Motion",card,36,590,300,42,"",()=>{InkMainMenu.SetReducedMotion(!InkMainMenu.ReducedMotion);Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
+            motionLabel=Button("Motion",card,36,582,300,42,"",()=>{InkMainMenu.SetReducedMotion(!InkMainMenu.ReducedMotion);Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
 
-            frameLabel=Button("Frame rate limit",card,36,646,300,42,"",()=>{TrialPreferences.CycleMobileFrameRate();Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
-            syncLabel=Button("VSync",card,36,702,300,42,"",()=>{TrialPreferences.VSyncEnabled=!TrialPreferences.VSyncEnabled;Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
-            frameHint=Label("",card,36,750,310,34,14,Grey);
+            frameLabel=Button("Frame rate limit",card,36,630,300,42,"",()=>{TrialPreferences.CycleMobileFrameRate();Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
+            syncLabel=Button("VSync",card,36,678,300,42,"",()=>{TrialPreferences.VSyncEnabled=!TrialPreferences.VSyncEnabled;Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
+            vibrationLabel=Button("Controller vibration",card,36,726,300,42,"",()=>{TrialPreferences.VibrationEnabled=!TrialPreferences.VibrationEnabled;Refresh();}).GetComponentInChildren<UnityEngine.UI.Text>();
+            frameHint=Label("",card,36,771,310,28,14,Grey);
             Label("按键设置",card,380,103,135,32,23,Ink);
             Label("操作",card,380,145,138,25,16,Grey);
             Label("键鼠主键",card,538,145,124,25,16,Grey);
@@ -274,7 +275,8 @@ namespace TomorinTrial
         {
             graphicsLabel.text=TrialGraphicsBudget.Caption;sprintLabel.text=TrialPreferences.SprintCaption;motionLabel.text="画面动效："+(InkMainMenu.ReducedMotion?"关闭":"开启");frameLabel.text=TrialPreferences.MobileFrameCaption;
             syncLabel.text="垂直同步："+(TrialPreferences.VSyncEnabled?"开启":"关闭");
-            frameHint.text=Application.isMobilePlatform?"移动设备按帧率限制运行，同步由系统管理。":TrialPreferences.VSyncEnabled?"同步开启时跟随屏幕刷新率，优先于帧率限制。":"";
+            vibrationLabel.text="手柄震动："+(TrialPreferences.VibrationEnabled?"开启":"关闭");
+            frameHint.text=Application.isMobilePlatform?"移动端同步由系统管理。":TrialPreferences.VSyncEnabled?"垂直同步优先于帧率限制。":"";
             foreach(var update in refreshBindings)update();
         }
         public void BeginRebind(TrialBindings.Entry entry,int slot,UnityEngine.UI.Button button)

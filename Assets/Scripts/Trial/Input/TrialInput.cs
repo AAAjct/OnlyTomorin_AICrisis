@@ -23,7 +23,8 @@ namespace TomorinTrial
         public bool Confirm { get; private set; }
         public bool Restart { get; private set; }
         public bool Upgrade { get; private set; }
-        public bool UsingGamepad {get;private set;}
+        public bool UsingGamepad=>ActiveGamepad!=null;
+        internal Gamepad ActiveGamepad {get;private set;}
         int suppressUntilFrame=-1;
         public void SuppressCombat(){suppressUntilFrame=Time.frameCount+2;Upgrade=Attack=AttackHeld=Heavy=HeavyHeld=Dodge=Jump=Guard=Heal=Interact=Lock=false;Spells=touchSpells=0;}
         bool sprintToggled;
@@ -91,7 +92,7 @@ namespace TomorinTrial
         void TrackDevice(InputAction.CallbackContext context)
         {
             if((context.action==move || context.action==look) && context.ReadValue<Vector2>().sqrMagnitude<.025f)return;
-            UsingGamepad=context.control.device is Gamepad;
+            ActiveGamepad=context.control.device as Gamepad;
         }
         InputAction Button(string label,params string[] bindings)
         {var action=combat.AddAction(label,InputActionType.Button);foreach(var binding in bindings)action.AddBinding(binding);return action;}

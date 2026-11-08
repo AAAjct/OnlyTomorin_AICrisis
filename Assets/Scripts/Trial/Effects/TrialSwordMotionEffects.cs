@@ -16,7 +16,7 @@ namespace TomorinTrial
             if(cue.cue==TrialCombatCue.SwordLanding)
             {
                 Burst(cue.position,StyleColor(cue.style)*2.2f,24);Sound("landing",cue.position,.92f);
-                if(local)game.CameraRig.Kick(.14f);
+                if(local){game.CameraRig.Kick(.14f);Rumble(.67f,.32f,.11f);}
             }
             // Preserve the blue sand fan, impact sound and damage feedback as well.
             return cue.cue!=TrialCombatCue.SandImpact;

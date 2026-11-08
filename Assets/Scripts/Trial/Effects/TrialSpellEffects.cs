@@ -115,7 +115,7 @@ namespace TomorinTrial
                     else if(!local)Sound("mirrorInvocation",value.position);
                     return true;
                 case TrialCombatCue.MirrorScreenBreak:
-                    if(local)game.Hud.ShatterMirrorScreen();
+                    if(local){game.Hud.ShatterMirrorScreen();Rumble(.32f,.84f,.13f);}
                     return true;
                 case TrialCombatCue.MirrorPrismCut:
                     MakeMirrorPrismCut(value);
@@ -130,6 +130,8 @@ namespace TomorinTrial
                         nextMirrorSound=Time.unscaledTime+.10f;
                         Sound("spellGlass",value.position,execution?.84f:1);
                     }
+                    if(local && (execution || bossImpact))
+                        Rumble(execution?.78f:.52f,.82f,execution?.17f:.12f);
                     if(execution && ShatterMirrorModel(value))return true;
                     if(bossImpact)SlashEffect(value.position,value.forward,MirrorTint,2.1f);
                     int count=execution?(Application.isMobilePlatform?12:20):bossImpact?10:5;
@@ -142,6 +144,7 @@ namespace TomorinTrial
                     return true;
                 case TrialCombatCue.ThunderChain:
                     MakeLightning(value);
+                    if(local)Rumble(.48f,.86f,.11f);
                     return true;
                 case TrialCombatCue.BlackCoffin:
                     PlayCoffinImpact(value,local);

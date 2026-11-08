@@ -529,7 +529,7 @@ namespace TomorinTrial
                     if(!perfectGuard || !deflectable)
                     {
                         HoldCombat(.03f);
-                        CombatFeedback(TrialCombatCue.Block,sourceDirection);
+                        CombatFeedback(perfectGuard?TrialCombatCue.PerfectBlock:TrialCombatCue.Block,sourceDirection);
                         if(!Guarding)CombatFeedback(TrialCombatCue.GuardBreak);
                         return false;
                     }

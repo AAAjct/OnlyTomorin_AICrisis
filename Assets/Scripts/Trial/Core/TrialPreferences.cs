@@ -32,6 +32,12 @@ namespace TomorinTrial
                 return saved is 0 or 30 or 60 or 90 or 120 or 144 ? saved : 60;
             }
         }
+        public static bool VibrationEnabled
+        {
+            get=>PlayerPrefs.GetInt("Ink.Vibration",1)!=0;
+            set{PlayerPrefs.SetInt("Ink.Vibration",value?1:0);PlayerPrefs.Save();}
+        }
+
         public static bool VSyncEnabled
         {
             get=>PlayerPrefs.GetInt("Ink.VSync",0)!=0;

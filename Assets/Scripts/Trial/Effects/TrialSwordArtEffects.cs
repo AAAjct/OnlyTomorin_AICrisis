@@ -113,6 +113,7 @@ namespace TomorinTrial
                 if(cue.cue==TrialCombatCue.SwordRecall)
                 {
                     cue.cue=TrialCombatCue.EmpoweredStep;Art(cue,.22f);Sound("skillRecall",cue.end);
+                    if(local)Rumble(.22f,.65f,.075f);
                     return true;
                 }
             }
@@ -134,7 +135,9 @@ namespace TomorinTrial
                 if(local)
                 {
                     if(thunder)game.Hud.Notify("破道之六十三 · 雷吼炮 · 雷龙",1.4f);
-                    game.CameraRig.Kick(thunder?.28f:.10f);Rumble(.25f,.45f,.1f);
+                    game.CameraRig.Kick(thunder?.28f:.10f);
+                    if(thunder)Rumble(.74f,.84f,.17f);
+                    else Rumble(.25f,.45f,.10f);
                 }
                 return true;
             }

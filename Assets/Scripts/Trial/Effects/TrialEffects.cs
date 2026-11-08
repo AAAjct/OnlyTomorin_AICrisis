@@ -119,7 +119,7 @@ namespace TomorinTrial
             if(PlaySwordCue(value,localPlayer))return;
             if(TrialNetworkManager.SessionActive)
             {
-                float hold=value.cue==TrialCombatCue.Parry?.115f:value.cue==TrialCombatCue.Block?.03f:value.cue==TrialCombatCue.Kill || value.cue==TrialCombatCue.FinisherHit?.12f:value.cue==TrialCombatCue.HeavyHit?.095f:value.cue==TrialCombatCue.Hit?.065f:0;
+                float hold=value.cue==TrialCombatCue.Parry?.115f:value.cue is TrialCombatCue.Block or TrialCombatCue.PerfectBlock?.03f:value.cue==TrialCombatCue.Kill || value.cue==TrialCombatCue.FinisherHit?.12f:value.cue==TrialCombatCue.HeavyHit?.095f:value.cue==TrialCombatCue.Hit?.065f:0;
                 if(value.cue==TrialCombatCue.HeavyHit && value.amount==TrialCombatEvent.BlinkSlashImpact)hold=TrialCombatEvent.BlinkSlashHitStop;
                 if(hold>0 && value.amount!=TrialCombatEvent.ContactOnlyImpact)TrialNetworkManager.Current.PlayerById(value.player)?.HoldCombat(hold);
             }
@@ -135,7 +135,7 @@ namespace TomorinTrial
                 Art(new TrialCombatEvent{cue=TrialCombatCue.CrescentCut,position=contact,forward=value.forward,player=value.player},.24f);
                 if(localPlayer){game.CameraRig.BladeClash();HitStop(.12f);Rumble(.8f,1,.19f);game.Hud.Flash(new Color(1,.45f,.22f,.15f));game.Hud.Notify("完美格挡 · 下一击强化",1.5f);}
             }
-            else if(value.cue==TrialCombatCue.Block)
+            else if(value.cue is TrialCombatCue.Block or TrialCombatCue.PerfectBlock)
             {
                 Vector3 direction=Vector3.ProjectOnPlane(value.forward,Vector3.up).normalized;
                 Vector3 center=value.position+Vector3.up;
@@ -144,9 +144,18 @@ namespace TomorinTrial
                 Burst(contact,new Color(1.55f,.95f,.42f),32);
                 SlashEffect(center,direction,new Color(.48f,.78f,1),.85f,width:.10f,duration:.15f);
                 SlashEffect(contact,direction,new Color(1,.85f,.55f),.32f,ring:true,duration:.12f);
-                if(localPlayer){game.CameraRig.Kick(.18f);Rumble(.15f,.4f,.06f);HitStop(.025f);}
+                if(localPlayer)
+                {
+                    game.CameraRig.Kick(.18f);HitStop(.025f);
+                    if(value.cue==TrialCombatCue.PerfectBlock)Rumble(.65f,.95f,.14f);
+                    else Rumble(.32f,.55f,.08f);
+                }
             }
-            else if(localPlayer && value.cue==TrialCombatCue.GuardBreak)game.Hud.Notify("架势崩溃",1.2f);
+            else if(localPlayer && value.cue==TrialCombatCue.GuardBreak)
+            {
+                Rumble(.95f,.35f,.19f);
+                game.Hud.Notify("架势崩溃",1.2f);
+            }
             else if(localPlayer && value.cue==TrialCombatCue.Death)game.OnPlayerDied();
         }
         public void TickTime()
