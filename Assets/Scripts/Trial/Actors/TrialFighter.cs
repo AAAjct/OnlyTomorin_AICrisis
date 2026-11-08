@@ -62,6 +62,7 @@ namespace TomorinTrial
         protected virtual float StaminaRecoveryRate => Guarding?0:29;
         protected virtual float StaminaRecoveryDelay => .7f;
         protected virtual bool CanRecoverStamina => Action==FighterAction.Free;
+        protected virtual bool CanRecoverPosture => true;
 
         public virtual TrialActorState CaptureNetwork(int id) => new TrialActorState
         {
@@ -140,7 +141,8 @@ namespace TomorinTrial
             recoveryDelay -= dt;
             if (recoveryDelay <= 0 && CanRecoverStamina)
                 Stamina = Mathf.Min(MaxStamina, Stamina + StaminaRecoveryRate * Mathf.Min(dt,-recoveryDelay));
-            Posture = Mathf.Max(0, Posture - 7 * dt);
+            if (CanRecoverPosture)
+                Posture = Mathf.Max(0, Posture - 7 * dt);
             TickGravity(dt);
             if (trail != null) trail.emitting = AttackActive;
             if (hitFlash > 0)

@@ -45,6 +45,13 @@ namespace TomorinTrial.Editor
                 var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();while(!game || !game.Ready){yield return null;game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();}
                 game.StartTrial();if(level==TrialLevel.BigFish)game.StartBossChallenge();
                 game.enabled=false;game.Input.enabled=false;
+                game.Player.transform.rotation=Quaternion.Euler(0,90,0);
+                game.Player.ToggleLock();
+                Check(game.Player.Locked && game.Player.LockTarget is TrialEnemy lockedBoss && lockedBoss.IsBoss,
+                    level+" can lock a boss from the encounter spawn");
+                Vector3 bearing=Vector3.ProjectOnPlane(game.Player.LockTarget.transform.position-game.Player.transform.position,Vector3.up);
+                Check(Vector3.Angle(game.Player.transform.forward,bearing)<1,level+" lock turns the player toward the boss without movement input");
+                game.Player.ToggleLock();
                 foreach(var enemy in game.Enemies)
                 {
                     if(!enemy.IsBoss)continue;

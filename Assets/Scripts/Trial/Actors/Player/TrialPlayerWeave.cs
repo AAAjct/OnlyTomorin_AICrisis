@@ -85,7 +85,7 @@ namespace TomorinTrial
         void TrackSwordTarget(float dt)
         {
             bool attacking=Action==FighterAction.Light || Action==FighterAction.Heavy;
-            if(!attacking || SwordGuardReturning || Combo==ThunderDragon || Combo==SpiralSword || Combo==RollThrust || Combo==BlinkHorizontalSlash || IsDive(Combo) || IsSakuraThrust && guardFinishPaused)return;
+            if(!attacking || SwordGuardReturning || Combo==ThunderDragon || Combo==SpiralSword || Combo==RollThrust || Combo==BlinkHorizontalSlash || Combo==MirrorPrismStrike || IsDive(Combo) || IsSakuraThrust && guardFinishPaused)return;
             if(Locked && LockTarget.Alive)chaseTarget=LockTarget;
             else if(!chaseTarget || !chaseTarget.Alive)chaseTarget=FindChaseTarget();
             if(!chaseTarget)return;

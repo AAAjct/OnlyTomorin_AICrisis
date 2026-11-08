@@ -208,7 +208,7 @@ namespace TomorinTrial
                 if(combo==TrialPlayer.ParryMirror){float beat=Mathf.Clamp01((p-(p<.42f?.08f:.42f))/.27f);swing=Mathf.SmoothStep(0,1,beat);recover=p>.82f?(p-.82f)/.18f:0;}
                 if(combo==TrialPlayer.RollFlash){swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.12f,.40f,p));recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.62f,1,p));}
                 if(combo==TrialPlayer.RollThrust)swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,.30f,p));
-                if(combo==TrialPlayer.BlinkHorizontalSlash)swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.08f,.45f,p));
+                if(combo==TrialPlayer.BlinkHorizontalSlash || combo==TrialPlayer.MirrorPrismStrike)swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.08f,.45f,p));
                 if(combo==TrialPlayer.SakuraFollowup && player && player.LandingSakuraFlow)
                     swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,.42f,p));
                 if(combo==TrialPlayer.SwordGuardReturn){swing=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.02f,.50f,p));recover=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.68f,1,p));}
@@ -411,6 +411,7 @@ namespace TomorinTrial
                         windup=new Vector3(-.42f,1.18f,.12f);finish=new Vector3(.50f,.92f,.58f);
                         startAngles=new Vector3(75,-95,15);endAngles=new Vector3(100,95,-20);break;
                     case TrialPlayer.BlinkHorizontalSlash:
+                    case TrialPlayer.MirrorPrismStrike:
                         windup=new Vector3(-.38f,.75f,-.12f);finish=new Vector3(.56f,.95f,.56f);
                         startAngles=new Vector3(90,-85,8);endAngles=new Vector3(90,85,-8);break;
                     case 10: // Countercut travels from the deflect into a rising reverse cut.

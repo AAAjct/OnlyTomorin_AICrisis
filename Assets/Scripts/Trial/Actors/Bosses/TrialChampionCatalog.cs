@@ -89,7 +89,7 @@ namespace TomorinTrial
         };
         static readonly ChampionMove[][] extensions={
             new[]{
-                M("擒龙·贴身锁肩","红色抓取：侧闪或后撤，不能硬挡",ChampionShape.Grab,ChampionDefense.Dodge,.85f,.6f,1.2f,2.8f,0,50,52),
+                M("擒龙·贴身锁肩","红色抓取：格挡会消耗大量耐力，也可侧闪或后撤",ChampionShape.Grab,ChampionDefense.Dodge,.85f,.6f,1.2f,2.8f,0,50,52),
                 M("震步·碎莲踏","看到脚下蓄力，退出四米内圈",ChampionShape.Stomp,ChampionDefense.Retreat,1.05f,.65f,1.1f,4.3f,0,180,44),
                 M("截拳·守势反击","轻击会触发反击；重击破守或等其落空",ChampionShape.Counter,ChampionDefense.Deflect,1.0f,.6f,1.0f,3.6f,0,100,42),
                 M("追风·折线崩拳","锁定拳路后侧闪，落空可追击",ChampionShape.DashCut,ChampionDefense.Deflect,.7f,.56f,.85f,4.0f,0,65,39,3),

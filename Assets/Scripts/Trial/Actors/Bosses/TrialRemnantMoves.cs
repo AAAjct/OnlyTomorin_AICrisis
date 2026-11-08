@@ -14,7 +14,7 @@ namespace TomorinTrial
             M("离羽·追魂剑气","横移或迎面弹反剑气",ChampionShape.BladeWave,ChampionDefense.Deflect,.44f,.31f,.75f,28,0,12,68,4),
             M("归墟·回旋残刃","飞剑去回两段，留意回程",ChampionShape.Boomerang,ChampionDefense.Deflect,.55f,.5f,.8f,21,0,18,83),
             M("迟刑·点名剑墓","点名后持续离开落点",ChampionShape.Mark,ChampionDefense.Dodge,.82f,.58f,.85f,2.8f,0,180,84,3),
-            M("噬命·锁颈","近身抓取不可格挡",ChampionShape.Grab,ChampionDefense.Dodge,.44f,.4f,.7f,3.2f,0,45,105),
+            M("噬命·锁颈","近身抓取，格挡会消耗大量耐力",ChampionShape.Grab,ChampionDefense.Dodge,.44f,.4f,.7f,3.2f,0,45,105),
             M("残月·空心剑域","靠近进入内圈",ChampionShape.Annulus,ChampionDefense.Approach,.72f,.62f,.75f,12,3.2f,180,87,2),
             M("碎躯·踏魂","退出脚下近身震击",ChampionShape.Stomp,ChampionDefense.Retreat,.58f,.4f,.65f,4.6f,0,180,93),
             M("逆羽·游身五斩","追踪环身剑舞，弹反或退开",ChampionShape.Spiral,ChampionDefense.Deflect,.46f,.32f,.75f,5.4f,0,75,66,5),

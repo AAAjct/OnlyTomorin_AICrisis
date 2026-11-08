@@ -32,7 +32,7 @@ namespace TomorinTrial
                 ps.GetComponent<ParticleSystemRenderer>().sharedMaterial=particles;pool.Add(ps);
             }
             CreateSound("swing",.32f,180,.23f,1);CreateSound("hit",.22f,90,.35f,2);
-            CreateSound("parry",.65f,820,.29f,3);CreateSound("warning",.36f,280,.14f,3);
+            CreateSound("parry",.65f,820,.29f,3);CreateSound("block",.18f,540,.38f,3);CreateSound("warning",.36f,280,.14f,3);
             CreateSound("dodge",.27f,75,.13f,1);CreateSound("heal",.9f,520,.13f,3);CreateSound("death",.9f,65,.24f,2);
             CreateSound("spellThunder",.5f,126,.32f,2);
             CreateSound("spellGlass",.67f,1750,.22f,3);
@@ -106,7 +106,7 @@ namespace TomorinTrial
             bool attack=ComboAudioSet.Contains(key) || key=="swing" || key=="hit" || key=="impactHeavy" || key=="finish" || key=="charge" || key=="landing";
             var source=sources[boss?10+nextWarningSource++%4:nextSource++%10];
             float gain=TrialPreferences.AudioLevel(0)*(boss?TrialPreferences.AudioLevel(3):clash?TrialPreferences.AudioLevel(2):attack?TrialPreferences.AudioLevel(1):1);
-            source.volume=(boss?.92f:key=="footstep"?.24f:.62f)*gain;source.priority=boss?24:128;
+            source.volume=(boss?.92f:key=="block"?.82f:key=="footstep"?.24f:.62f)*gain;source.priority=boss?24:128;
             source.spatialBlend=boss?.18f:.65f;source.minDistance=boss?8:2;source.maxDistance=boss?45:24;
             if(attack){pitch*=.975f+(float)audioRandom.NextDouble()*.05f;source.volume*=.96f+(float)audioRandom.NextDouble()*.08f;}
             source.transform.position=point;source.pitch=pitch;source.Stop();source.clip=clip;source.Play();
@@ -137,9 +137,13 @@ namespace TomorinTrial
             }
             else if(value.cue==TrialCombatCue.Block)
             {
-                Sound("block",value.position);
-                Burst(value.position+Vector3.up,new Color(1,.8f,.5f),24);
-                SlashEffect(value.position+Vector3.up,value.forward,new Color(.65f,.85f,1),.85f);
+                Vector3 direction=Vector3.ProjectOnPlane(value.forward,Vector3.up).normalized;
+                Vector3 center=value.position+Vector3.up;
+                Vector3 contact=center+direction*.65f;
+                Sound("block",contact);
+                Burst(contact,new Color(1.55f,.95f,.42f),32);
+                SlashEffect(center,direction,new Color(.48f,.78f,1),.85f,width:.10f,duration:.15f);
+                SlashEffect(contact,direction,new Color(1,.85f,.55f),.32f,ring:true,duration:.12f);
                 if(localPlayer){game.CameraRig.Kick(.18f);Rumble(.15f,.4f,.06f);HitStop(.025f);}
             }
             else if(localPlayer && value.cue==TrialCombatCue.GuardBreak)game.Hud.Notify("架势崩溃",1.2f);

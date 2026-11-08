@@ -15,6 +15,9 @@ namespace TomorinTrial
         const float MirrorBossDamage=.05f;
         internal const byte MirrorExecutionStyle=2,MirrorBossImpactStyle=3;
         const float MirrorCounterDuration=2f,MirrorSightDot=.5735764f; // 55 degrees to either side.
+        const float MirrorDashDistance=6f,MirrorCutHalfWidth=1.65f;
+        internal const int MirrorCutCount=10;
+        const float MirrorCutLeadIn=.035f,MirrorCutInterval=.075f;
         internal const string MirrorPhrase="碎裂吧，镜花水月";
         static readonly int[] SpellCosts={MaxSpellEnergy,MaxSpellEnergy/2};
         internal static int SpellCost(int slot)=>SpellCosts[slot];
@@ -26,7 +29,10 @@ namespace TomorinTrial
         float chantRemaining;
         float mirrorCounterUntil;
         float mirrorStageRemaining;
-        bool mirrorGlassBroken;
+        bool mirrorGlassBroken,mirrorStrikeReady;
+        int mirrorCutsRemaining;
+        float mirrorCutDelay;
+        Vector3 mirrorCutStart,mirrorCutEnd,mirrorCutForward;
         ushort mirrorBlink;
         static readonly float[] MirrorBlinkAngles={0,30,-30,58,-58,78,-78};
         readonly List<TrialEnemy> mirrorTargets=new List<TrialEnemy>();
@@ -34,7 +40,7 @@ namespace TomorinTrial
         internal void AwardSpellEnergyForKill()=>AwardSpellEnergy(KillEnergy);
         void AwardSpellEnergy(int amount)
         {
-            if(chantRemaining>0)return;
+            if(chantRemaining>0 || mirrorStageRemaining>0 || MirrorCounterReady)return;
             SpellEnergy=Mathf.Min(MaxSpellEnergy,SpellEnergy+amount);
         }
 
@@ -92,23 +98,111 @@ namespace TomorinTrial
 
         void ReleaseMirror()
         {
+            mirrorStrikeReady=true;
             mirrorCounterUntil=Time.time+MirrorCounterDuration;
             mirrorStageRemaining=game.Effects.MirrorLeadIn;
             mirrorGlassBroken=false;
             Vector3 eyes=transform.position+Vector3.up*1.4f;
-            Vector3 forward=transform.forward;
-            SpellCue(TrialCombatCue.MirrorCast,eyes);
+            Vector3 forward=MirrorAim();
+            SpellCue(TrialCombatCue.MirrorCast,eyes,direction:forward);
             mirrorTargets.Clear();
             foreach(var enemy in game.Enemies)
             {
                 if(!enemy)continue;
-                bool eligible=enemy.IsBoss?enemy.CanBeSpellDamaged:enemy.CanBeSpellExecuted && enemy.Health*3<=enemy.MaxHealth*2;
+                bool eligible=enemy.IsBoss?enemy.CanBeSpellDamaged:enemy.CanBeSpellExecuted;
                 if(!eligible)continue;
                 Vector3 center=enemy.transform.position+Vector3.up;
                 Vector3 bearing=Vector3.ProjectOnPlane(center-eyes,Vector3.up).normalized;
                 if((bearing!=Vector3.zero && Vector3.Dot(forward,bearing)<MirrorSightDot) ||
                     Physics.Linecast(eyes,center,1,QueryTriggerInteraction.Ignore))continue;
                 mirrorTargets.Add(enemy);
+            }
+        }
+
+        Vector3 MirrorAim()
+        {
+            if(Locked)
+            {
+                Vector3 offset=Vector3.ProjectOnPlane(LockTarget.transform.position-transform.position,Vector3.up);
+                if(offset.sqrMagnitude>.0001f)return offset.normalized;
+            }
+            return transform.forward;
+        }
+
+        bool StartMirrorStrike()
+        {
+            if(!Spend(SwordStaminaCost(false,MirrorPrismStrike)))return false;
+            mirrorStrikeReady=false;
+            if(!startingGuardCombo)ConsumeAttackInput();
+            attackGuardLatch|=Guarding;
+            bufferedLight=bufferedHeavy=bufferedHeal=-10;
+            protectedUntil=weaveUntil=chainUntil=0;
+            PlanarVelocity=combatImpulse=Vector3.zero;
+            Sprinting=airborneCombo=false;
+            Combo=MirrorPrismStrike;
+            BeginSwordArt();
+            Begin(FighterAction.Light,.52f);
+
+            Vector3 origin=transform.position;
+            Vector3 forward=MirrorAim();
+            Turn(forward,360,1);
+            float distance=MirrorDashDistance;
+            if(Locked)
+            {
+                // Keep a nearby locked target inside the cuts at the center of the dash.
+                Vector3 offset=Vector3.ProjectOnPlane(LockTarget.transform.position-origin,Vector3.up);
+                distance=Mathf.Min(distance,offset.magnitude*2);
+            }
+            // Sweep against the world only, allowing the blink to cross fighters.
+            if(distance>0 && Physics.CapsuleCast(origin+Vector3.up*(motor.radius+.05f),origin+Vector3.up*(motor.height-motor.radius),
+                motor.radius,forward,out var wall,distance,1,QueryTriggerInteraction.Ignore))
+                distance=Mathf.Max(0,wall.distance-.05f);
+            if(distance>0)
+            {
+                game.Effects.Afterimage(this);
+                Teleport(origin+forward*distance);
+                unchecked{mirrorBlink++;}
+            }
+
+            mirrorCutStart=origin;
+            mirrorCutEnd=transform.position;
+            mirrorCutForward=forward;
+            mirrorCutsRemaining=MirrorCutCount;
+            mirrorCutDelay=MirrorCutLeadIn;
+            return true;
+        }
+
+        void TickMirrorCuts(float dt)
+        {
+            if(mirrorCutsRemaining==0)return;
+            mirrorCutDelay-=dt;
+            while(mirrorCutsRemaining>0 && mirrorCutDelay<=0)
+            {
+                byte cut=(byte)(MirrorCutCount-mirrorCutsRemaining);
+                mirrorCutsRemaining--;
+                mirrorCutDelay+=MirrorCutInterval;
+                SpellCue(TrialCombatCue.MirrorPrismCut,mirrorCutStart,mirrorCutEnd,style:cut,direction:mirrorCutForward);
+                DamageMirrorCut(mirrorCutStart,mirrorCutEnd,mirrorCutForward);
+                if(game.HasResult || ChoosingBoon || !Alive)return;
+            }
+        }
+
+        void DamageMirrorCut(Vector3 origin,Vector3 end,Vector3 forward)
+        {
+            Vector3 center=(origin+end)*.5f;
+            float halfLength=Mathf.Max(.65f,Vector3.Distance(origin,end)*.30f);
+            foreach(var target in game.Opponents(this))
+            {
+                if(!target || !target.Alive || !target.OverlapsAttackHeight(center.y-.25f,center.y+2.1f))continue;
+                Vector3 offset=Vector3.ProjectOnPlane(target.transform.position-center,Vector3.up);
+                float along=Vector3.Dot(offset,forward);
+                float radius=target is TrialEnemy enemy?enemy.BodyRadius:.28f;
+                float width=MirrorCutHalfWidth+radius;
+                if(Mathf.Abs(along)>halfLength+radius ||
+                    (offset-forward*along).sqrMagnitude>width*width)continue;
+                if(Physics.Linecast(center+Vector3.up,target.transform.position+Vector3.up,1,QueryTriggerInteraction.Ignore))continue;
+                SwordDamage(target,82f/MirrorCutCount,48f/MirrorCutCount,finish:false,flowing:true,hitStamina:HitStamina/MirrorCutCount);
+                if(game.HasResult || ChoosingBoon || !Alive)break;
             }
         }
 
@@ -128,14 +222,14 @@ namespace TomorinTrial
                 if(enemy && enemy.IsBoss)
                 {
                     mirrorTargets[i]=null;
-                    if(enemy.DamageWithSpell(this,MirrorBossDamage,24,awardSpellEnergy:true))
+                    if(enemy.DamageWithSpell(this,MirrorBossDamage,24,awardSpellEnergy:false))
                         SpellCue(TrialCombatCue.MirrorBreak,enemy.transform.position+Vector3.up*1.25f,target:enemy,style:MirrorBossImpactStyle);
                 }
-                else if(enemy && enemy.ExecuteWithSpell())
+                else if(enemy && enemy.Health<=enemy.MaxHealth*2f/3f && enemy.ExecuteWithSpell())
                     SpellCue(TrialCombatCue.MirrorBreak,enemy.transform.position+Vector3.up,target:enemy,style:MirrorExecutionStyle);
                 else mirrorTargets[i]=null;
             }
-            foreach(var enemy in mirrorTargets)if(enemy)game.OnEnemyDied(enemy,this);
+            foreach(var enemy in mirrorTargets)if(enemy)game.OnEnemyDied(enemy,this,awardSpellEnergy:false);
             mirrorTargets.Clear();
         }
 
@@ -169,12 +263,13 @@ namespace TomorinTrial
             return false;
         }
 
-        void SpellCue(TrialCombatCue cue,Vector3 point,Vector3 end=default,TrialFighter target=null,byte style=0)
+        void SpellCue(TrialCombatCue cue,Vector3 point,Vector3 end=default,TrialFighter target=null,byte style=0,Vector3? direction=null)
         {
             int id=target?game.SpellTargetId(target):0;
+            Vector3 forward=direction??transform.forward;
             if(Mirror.NetworkServer.active)
-                TrialNetworkManager.Current.BroadcastSwordCombat(this,cue,point,transform.forward,end,0,style,id);
-            else game.Effects.PlayCombat(new TrialCombatEvent{cue=cue,position=point,forward=transform.forward,end=end,style=style,target=id},this==game.Player);
+                TrialNetworkManager.Current.BroadcastSwordCombat(this,cue,point,forward,end,0,style,id);
+            else game.Effects.PlayCombat(new TrialCombatEvent{cue=cue,position=point,forward=forward,end=end,style=style,target=id},this==game.Player);
         }
 
         void CaptureSpells(ref TrialActorState state)
@@ -198,6 +293,8 @@ namespace TomorinTrial
         void ResetSpells(bool lostLife)
         {
             chantRemaining=0;
+            mirrorStrikeReady=false;
+            mirrorCutsRemaining=0;
             mirrorCounterUntil=0;
             mirrorStageRemaining=0;
             mirrorTargets.Clear();

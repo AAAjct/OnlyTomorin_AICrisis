@@ -176,13 +176,14 @@ namespace TomorinTrial
             PlaceNetworkField(address,labels,38,204,292);
             PlaceNetworkField(port,labels,350,204,112);
 
-            var tunnelButton=Panel("一键配置",network,482,204,146,48,new Color(.61f,.18f,.13f,.12f));
+            var tunnelButton=Panel("一键配置",network,482,204,146,48,Color.clear);
             var tunnelBackground=tunnelButton.GetComponent<UnityEngine.UI.Image>();
-            tunnelBackground.raycastTarget=true;
             configureTunnel=tunnelButton.gameObject.AddComponent<UnityEngine.UI.Button>();
             configureTunnel.targetGraphic=tunnelBackground;
-            tunnelButton.gameObject.AddComponent<TrialSettingsFocus>();
-            Label(tunnelButton,"一键配置",0,0,146,48,20,Ink,TextAnchor.MiddleCenter);
+            var tunnelCaption=Label(tunnelButton,"一键配置",0,0,146,48,20,Ink,TextAnchor.MiddleCenter);
+            var tunnelMotion=tunnelButton.gameObject.AddComponent<InkButtonMotion>();
+            tunnelMotion.PreserveLayout=true;
+            tunnelMotion.Configure(tunnelCaption.rectTransform,null,tunnelBackground);
             configureTunnel.onClick.AddListener(ConfigureHostTunnel);
 
             var divider=new Color(.13f,.14f,.13f,.18f);

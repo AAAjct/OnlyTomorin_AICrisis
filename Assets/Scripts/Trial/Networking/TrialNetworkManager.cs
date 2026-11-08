@@ -598,6 +598,7 @@ namespace TomorinTrial
             if(game.Run!=null)game.Run.ApplyNetwork(latest.runWave,latest.runKills,latest.runBossesDefeated);
             if(latest.champions!=null)for(int i=0;i<Mathf.Min(latest.champions.Length,game.Enemies.Count);i++)if(game.Enemies[i].Champion)game.Enemies[i].Champion.ApplyNetwork(latest.champions[i],snapshotAge);
             game.ApplyNetworkWorld(latest);
+            game.Player.UpdateLock(!blocked && game.Input.Lock);
         }
         public static string LocalAddresses()
         {

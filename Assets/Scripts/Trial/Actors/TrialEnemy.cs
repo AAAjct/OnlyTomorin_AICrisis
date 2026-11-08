@@ -42,6 +42,7 @@ namespace TomorinTrial
         bool resolvePending;
         bool resolveGlow;
         public bool ResolveActive=>IsBoss && resolveTime>0;
+        protected override bool CanRecoverPosture => !(Champion && Champion.IsRemnant && Champion.Attacking);
         public bool BreakoutInvulnerable=>ResolveActive && resolveTime>1.8f;
         void LateUpdate()
         {

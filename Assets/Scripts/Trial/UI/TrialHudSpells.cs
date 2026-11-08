@@ -35,6 +35,7 @@ namespace TomorinTrial
         readonly Text[] spellKeys=new Text[TrialPlayer.SpellCount];
         readonly TrialSpellIcon[] spellIcons=new TrialSpellIcon[TrialPlayer.SpellCount];
         int spellBindingVersion=-1;
+        bool spellBindingPad;
         Coroutine mirrorScreenRoutine;
         bool mirrorTitlePending;
         TrialMirrorScreen mirrorScreen;
@@ -120,13 +121,15 @@ namespace TomorinTrial
             if(!playing)return;
             var available=(RectTransform)spellHud.parent;
             spellHud.localScale=Vector3.one*Mathf.Clamp(available.rect.width*.78f/SpellHudWidth,.35f,1);
-            if(spellBindingVersion!=TrialBindings.Version)
+            if(spellBindingVersion!=TrialBindings.Version || spellBindingPad!=game.Input.UsingGamepad)
             {
                 spellBindingVersion=TrialBindings.Version;
+                spellBindingPad=game.Input.UsingGamepad;
                 for(int i=0;i<spellKeys.Length;i++)
                 {
                     var entry=TrialBindings.Spells[i];
-                    spellKeys[i].text=TrialBindings.Display(entry,string.IsNullOrEmpty(TrialBindings.Path(entry,0))?1:0);
+                    int slot=spellBindingPad?2:string.IsNullOrEmpty(TrialBindings.Path(entry,0))?1:0;
+                    spellKeys[i].text=TrialBindings.Display(entry,slot);
                 }
             }
             int energy=player.SpellEnergy;

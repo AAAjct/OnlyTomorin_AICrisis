@@ -81,7 +81,7 @@ namespace TomorinTrial
             for(int i=0;i<spellActions.Length;i++)
             {
                 var entry=TrialBindings.Spells[i];
-                spellActions[i]=Button(entry.Id,entry.Defaults[0],entry.Defaults[1]);
+                spellActions[i]=Button(entry.Id,entry.Defaults);
             }
             actions.FindActionMap("Player",true).Enable();combat.Enable();
             foreach(var map in actions.actionMaps)foreach(var action in map.actions)action.performed+=TrackDevice;

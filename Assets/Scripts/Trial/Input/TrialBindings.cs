@@ -15,8 +15,8 @@ namespace TomorinTrial
             {Id=id;Label=label;Action=action;Defaults=new[]{primary,alternate,pad};}
         }
         internal static readonly Entry[] Spells={
-            new Entry("Spell1","黑棺","SwordCombat/Spell1","<Keyboard>/1","<Keyboard>/numpad1",null),
-            new Entry("Spell2","镜花水月","SwordCombat/Spell2","<Keyboard>/2","<Keyboard>/numpad2",null)
+            new Entry("Spell1","黑棺","SwordCombat/Spell1","<Keyboard>/1","<Keyboard>/numpad1","<Gamepad>/dpad/left"),
+            new Entry("Spell2","镜花水月","SwordCombat/Spell2","<Keyboard>/2","<Keyboard>/numpad2","<Gamepad>/dpad/right")
         };
         public static readonly Entry[] Entries={
             new Entry("Up","向前移动","Player/Move","<Keyboard>/w","<Keyboard>/upArrow",null),
@@ -72,6 +72,10 @@ namespace TomorinTrial
                     case "<Gamepad>/rightStickPress":return "R3";
                     case "<Gamepad>/leftStickPress":return "L3";
                     case "<Gamepad>/dpad/up":return "↑";
+                    case "<Gamepad>/dpad/left":return "←";
+                    case "<Gamepad>/dpad/right":return "→";
+                    case "<Gamepad>/leftTrigger":return ps?"L2":"LT";
+                    case "<Gamepad>/rightTrigger":return ps?"R2":"RT";
                     case "<Gamepad>/start":return ps?"Options":"Menu";
                 }
             }

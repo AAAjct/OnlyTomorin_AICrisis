@@ -16,7 +16,7 @@ namespace TomorinTrial
         public const int HiltStrike=58,HeelTurn=59,LowVault=60,VaultSweep=61,OrbitCut=62,FallingDraw=63,ElbowBreak=64,ScissorKick=65,SheathTurn=66,CloudRake=67;
         public const int LoftingDraw=68,AerialCascade=69;
         public const int ParryMirror=70,ParryAscend=71,SwordRecallCut=72,SwordRecallRise=73;
-        public const int SwordGuardReturn=74;
+        public const int SwordGuardReturn=74,MirrorPrismStrike=75;
         public static bool IsMartialMove(int move)=>move>=HiltStrike && move<=LoftingDraw || move==ParryMirror || move==ParryAscend || move==SwordRecallCut || move==SwordRecallRise;
         public static bool IsBodyStrike(int move)=>move==HiltStrike || move==HeelTurn || move==ElbowBreak || move==ScissorKick;
         public static bool IsMartialAir(int move)=>move==SwordRecallRise || move==ParryAscend || move==LoftingDraw || move==LowVault || move==VaultSweep || move==ScissorKick || move==CloudRake;
@@ -109,7 +109,7 @@ namespace TomorinTrial
         // current move; a queued press can start a fresh route after recovery.
         static int NextLight(int move)=>move switch
         {
-            0 or 12 or BlinkHorizontalSlash=>1,1=>2,2=>WheelFinish,
+            0 or 12 or BlinkHorizontalSlash or MirrorPrismStrike=>1,1=>2,2=>WheelFinish,
             RollThrust or 22 or GuardNeedle or GatheredPierce=>CrossDraw,
             17=>RisingBridge,SakuraFollowup=>CrossDraw,
             CrossDraw=>HiltStrike,HiltStrike=>HeelTurn,
@@ -157,7 +157,7 @@ namespace TomorinTrial
         static float HeavyLinkProgress(int move)=>move==ParryMirror?.76f:move==AerialCascade?.80f:move==FallingDraw?.72f:move==AirFan?.78f:move==DoubleFang?.74f:move==ParryTriple?.70f:move==6?.70f:move==DodgeDragon?.84f:move==ThunderDragon?.62f:move==SpiralSword?.55f:.66f;
         public static bool IsAirBlade(int move)=>move>=AirBladeFirst && move<=AirBladeThird;
         public static bool IsDive(int move)=>move==20 || move==AirSandDive;
-        public static bool HasSwordContact(int move)=>move!=SwordGuardReturn && move!=AerialCascade && !IsBodyStrike(move) && move!=LowVault && move!=AirStep && move!=AirFan && move!=WallRebound && move!=DoubleFang && move!=3 && move!=6 && !IsAirBlade(move) && !IsDive(move) && move!=ParryTriple && move!=ThunderDragon && move!=SpiralSword && move!=DodgeDragon;
+        public static bool HasSwordContact(int move)=>move!=MirrorPrismStrike && move!=SwordGuardReturn && move!=AerialCascade && !IsBodyStrike(move) && move!=LowVault && move!=AirStep && move!=AirFan && move!=WallRebound && move!=DoubleFang && move!=3 && move!=6 && !IsAirBlade(move) && !IsDive(move) && move!=ParryTriple && move!=ThunderDragon && move!=SpiralSword && move!=DodgeDragon;
         public bool IsFinishingCut=>Combo==WheelFinish || Combo==RollFlash || Combo==6 || Combo==14 || Combo==17 || Combo==19 || IsDive(Combo) || Combo==24;
     }
 }

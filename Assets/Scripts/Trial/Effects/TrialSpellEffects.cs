@@ -9,7 +9,7 @@ namespace TomorinTrial
         static readonly Color MirrorTint=new Color(.35f,1.7f,1.85f);
         readonly List<SpellVisual> spellVisuals=new List<SpellVisual>();
         Material spellSurface;
-        Mesh spellShard;
+        Mesh spellShard,mirrorPrism;
         AudioSource coffinVoice,mirrorVoice,coffinBreakAudio;
         bool coffinVoiceStarted,coffinVoicePaused;
         float nextMirrorSound;
@@ -29,7 +29,7 @@ namespace TomorinTrial
             public LineRenderer[] Lines;
             public Vector3 Start,End,Size,Drift,Spin;
             public float Age,Duration;
-            public bool RisingCoffin,CoffinPrepared;
+            public bool RisingCoffin,CoffinPrepared,PrismSlash;
         }
 
         void InitializeSpellVoices()
@@ -117,6 +117,10 @@ namespace TomorinTrial
                 case TrialCombatCue.MirrorScreenBreak:
                     if(local)game.Hud.ShatterMirrorScreen();
                     return true;
+                case TrialCombatCue.MirrorPrismCut:
+                    MakeMirrorPrismCut(value);
+                    if(local && value.style==0)game.CameraRig.Kick(.18f);
+                    return true;
                 case TrialCombatCue.MirrorBreak:
                     bool execution=value.style==TrialPlayer.MirrorExecutionStyle;
                     bool bossImpact=value.style==TrialPlayer.MirrorBossImpactStyle;
@@ -197,6 +201,75 @@ namespace TomorinTrial
                 new Color(.10f,.48f,.58f,.98f),MirrorTint,0);
         }
 
+        void MakeMirrorPrismCut(TrialCombatEvent value)
+        {
+            int cut=value.style;
+            float side=cut%2==0?1:-1;
+            Vector3 across=Vector3.Cross(Vector3.up,value.forward);
+            value.position=Vector3.Lerp(value.position,value.end,Mathf.Lerp(.22f,.78f,cut/(TrialPlayer.MirrorCutCount-1f)))
+                +across*(side*.27f)+Vector3.up*(.78f+.19f*(cut%4));
+            var slash=AddMirrorPrism("Mirror · prism slash",value,.26f);
+            slash.PrismSlash=true;
+            slash.Size=new Vector3(3.4f+.33f*(cut%4),.24f+.06f*(cut%3),.21f);
+            slash.Root.localScale=new Vector3(slash.Size.x*.24f,slash.Size.y,slash.Size.z);
+            slash.Root.rotation=Quaternion.LookRotation(value.forward)*Quaternion.Euler(cut*13,side*(18+cut%3*13),side*(22+cut%5*12));
+
+            // New chips shear off each blade and tumble independently as the next cut appears.
+            for(int i=0;i<3;i++)
+            {
+                var fragment=value;
+                fragment.position+=slash.Root.right*((i-1)*.68f)+Vector3.up*.08f*i;
+                fragment.style=(byte)(cut*3+i);
+                var chip=AddMirrorPrism("Mirror · prism fragment",fragment,.33f+.045f*i);
+                chip.Root.localScale=new Vector3(.31f+.08f*i,.10f,.095f);
+                chip.Spin=new Vector3(190+cut*23,160+i*100,-side*(260+i*30));
+                chip.Root.rotation=Quaternion.Euler(chip.Spin*.4f);
+                chip.Drift=slash.Root.right*((i-1)*1.8f)+value.forward*(side*.60f)+Vector3.up*(1.35f+.36f*i);
+            }
+            Sound(cut%2==0?"cutDraw":"cutSweep",value.position,.95f+.06f*(cut%3));
+        }
+
+        SpellVisual AddMirrorPrism(string name,TrialCombatEvent value,float duration)
+        {
+            if(!mirrorPrism)mirrorPrism=BuildMirrorPrism();
+            var effect=AddSpellVisual(name,value,duration);
+            effect.Root.gameObject.AddComponent<MeshFilter>().sharedMesh=mirrorPrism;
+            ApplySpellSurface(effect,effect.Root.gameObject.AddComponent<MeshRenderer>(),
+                new Color(.045f,.009f,.082f,.96f),new Color(1.04f,.26f,2.6f),0);
+            effect.Tint.SetFloat("_Prism",1);
+            effect.Surface.SetPropertyBlock(effect.Tint);
+            return effect;
+        }
+
+        static Mesh BuildMirrorPrism()
+        {
+            // The shared mesh has two tapered tips and three faceted sides.
+            var rim=new[]{new Vector3(-.08f,.5f,0),new Vector3(-.08f,-.25f,.5f),new Vector3(-.08f,-.25f,-.5f)};
+            var vertices=new List<Vector3>(18);
+            var uv=new List<Vector2>(18);
+            var triangles=new List<int>(18);
+            for(int i=0;i<rim.Length;i++)
+            {
+                Vector3 a=rim[i],b=rim[(i+1)%rim.Length];
+                AddFace(Vector3.left*.5f,b,a);
+                AddFace(Vector3.right*.5f,a,b);
+            }
+            var mesh=new Mesh{name="Tapered mirror prism"};
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0,uv);
+            mesh.SetTriangles(triangles,0);
+            mesh.UploadMeshData(true);
+            return mesh;
+
+            void AddFace(Vector3 a,Vector3 b,Vector3 c)
+            {
+                int index=vertices.Count;
+                vertices.Add(a);vertices.Add(b);vertices.Add(c);
+                uv.Add(Vector2.zero);uv.Add(Vector2.right);uv.Add(Vector2.up);
+                triangles.Add(index);triangles.Add(index+1);triangles.Add(index+2);
+            }
+        }
+
         LineRenderer SpellLine(Transform parent,string label,int points)
         {
             var obj=new GameObject(label);
@@ -266,6 +339,15 @@ namespace TomorinTrial
                     continue;
                 }
                 float progress=effect.Age/effect.Duration;
+                if(effect.PrismSlash)
+                {
+                    float length=Mathf.Lerp(.24f,1,Mathf.InverseLerp(0,.16f,progress));
+                    float width=Mathf.Lerp(1,.25f,Mathf.InverseLerp(.30f,1,progress));
+                    effect.Root.localScale=Vector3.Scale(effect.Size,new Vector3(length,width,width));
+                    effect.Tint.SetFloat("_Fade",1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.30f,1,progress)));
+                    effect.Surface.SetPropertyBlock(effect.Tint);
+                    continue;
+                }
                 if(effect.ModelMesh)
                 {
                     PaintMirrorModel(effect,progress);
@@ -293,6 +375,7 @@ namespace TomorinTrial
             ClearSpellVisuals();
             if(spellSurface)Destroy(spellSurface);
             if(spellShard)Destroy(spellShard);
+            if(mirrorPrism)Destroy(mirrorPrism);
             if(mirrorModelMaterial)Destroy(mirrorModelMaterial);
             if(coffinShellMesh)Destroy(coffinShellMesh);
             if(coffinFallbackMesh)Destroy(coffinFallbackMesh);

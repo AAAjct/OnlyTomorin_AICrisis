@@ -24,7 +24,7 @@ namespace TomorinTrial
         public float yaw;
         public byte held, pressed, spells;
     }
-    public enum TrialCombatCue : byte { Parry, Block, GuardBreak, Death, Hit, HeavyHit, Kill, PerfectDodge, BlinkSlash, Reversal, Hurt, SkillImpact, Dodge, Heal, ChargeReady, CutThrough, HeavyLand, FinisherHit, CrimsonBlade, MoonBlade, BlueSand, SakuraScatter, SandImpact, ThunderDragon, SpiralSword, ThrustTrace, RisingCut, CrescentCut, EmpoweredStep, SwordLeap, SwordTurn, SwordDescent, SwordLanding, RollFlash, WeaveSigil, MartialStroke, SwordRecall, SwordGuardReturn, SwordFlowHit, MirrorCast, MirrorBreak, ThunderChain, BlackCoffin, MirrorScreenBreak }
+    public enum TrialCombatCue : byte { Parry, Block, GuardBreak, Death, Hit, HeavyHit, Kill, PerfectDodge, BlinkSlash, Reversal, Hurt, SkillImpact, Dodge, Heal, ChargeReady, CutThrough, HeavyLand, FinisherHit, CrimsonBlade, MoonBlade, BlueSand, SakuraScatter, SandImpact, ThunderDragon, SpiralSword, ThrustTrace, RisingCut, CrescentCut, EmpoweredStep, SwordLeap, SwordTurn, SwordDescent, SwordLanding, RollFlash, WeaveSigil, MartialStroke, SwordRecall, SwordGuardReturn, SwordFlowHit, MirrorCast, MirrorBreak, ThunderChain, BlackCoffin, MirrorScreenBreak, MirrorPrismCut }
     // Transient feedback is separate from snapshots: several contacts may occur
     // between snapshots, and each belongs to the player who received the hit.
     public struct TrialCombatEvent : NetworkMessage

@@ -9,6 +9,7 @@ Shader "Trial/Spell Surface"
         _Fade ("Fade", Range(0,1)) = 1
         [HideInInspector] _Coffin ("Coffin surface", Float) = 0
         [HideInInspector] _Rise ("Coffin height", Range(0,1)) = 1
+        [HideInInspector] _Prism ("Mirror prism", Float) = 0
     }
     SubShader
     {
@@ -27,7 +28,7 @@ Shader "Trial/Spell Surface"
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _Body, _Glow;
-                float _Seed, _Glass, _Fade, _Coffin, _Rise;
+                float _Seed, _Glass, _Fade, _Coffin, _Rise, _Prism;
             CBUFFER_END
 
             struct Attributes
@@ -58,6 +59,14 @@ Shader "Trial/Spell Surface"
                 float edge=smoothstep(.93,.995,nearest);
                 float2 uv=input.uv;
                 float time=_Time.y+_Seed;
+                if(_Prism>.5)
+                {
+                    float border=min(min(uv.x,uv.y),1-uv.x-uv.y);
+                    float bevel=1-smoothstep(.015,.10,border);
+                    float glint=pow(.5+.5*cos(input.local.x*13-time*18),6);
+                    half3 obsidian=_Body.rgb*(.75+.7*uv.x);
+                    return half4(lerp(obsidian,_Glow.rgb,bevel*(.48+.52*glint)),_Body.a*_Fade);
+                }
                 if(_Coffin>.5)
                 {
                     float2 stone=uv*float2(3.7,4.8*_Rise);

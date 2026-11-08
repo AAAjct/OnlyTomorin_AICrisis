@@ -131,6 +131,7 @@ namespace TomorinTrial
         // All displacement goes through CharacterController; walls still stop lunges and retreat.
         bool TickSwordMotion(float dt)
         {
+            if(Combo==MirrorPrismStrike)return true;
             if(TickSwordGuardReturn())return true;
             if(TickMartialMotion())return true;
             if(TickEmpoweredMotion(dt))return true;
@@ -459,10 +460,10 @@ namespace TomorinTrial
             EmitCombat(TrialCombatCue.Kill,guard.transform.position+Vector3.up,contactOnly);
             return true;
         }
-        bool SwordDamage(TrialFighter enemy,float damage,float posture,bool finish,bool flowing=false,int? lightMove=null,int? finisherMoveId=null,bool unblockable=false)
+        bool SwordDamage(TrialFighter enemy,float damage,float posture,bool finish,bool flowing=false,int? lightMove=null,int? finisherMoveId=null,bool unblockable=false,float hitStamina=HitStamina)
         {
             if(!enemy.ReceiveHit(this,damage*(Boon==TrialBoon.Edge?1.12f:1),posture*(Boon==TrialBoon.Breaker?1.15f:1),unblockable))return false;
-            RestoreCombatStamina(enemy.Alive?HitStamina:KillStamina);
+            RestoreCombatStamina(enemy.Alive?hitStamina:KillStamina);
             if(finisherMoveId.HasValue && TryFinishGuard(enemy,finisherMoveId.Value))return true;
             flowing|=SwordGuardReturning;
             bool contactOnly=!flowing && IsSecondaryLightContact(lightMove??CurrentLightMove);

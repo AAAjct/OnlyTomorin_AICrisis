@@ -160,14 +160,17 @@ namespace TomorinTrial
             }
             else foreach(var enemy in enemies)yield return enemy;
         }
-        public TrialFighter NearestOpponent(TrialPlayer attacker,float range)
+        public TrialFighter NearestOpponent(TrialPlayer attacker,float range,float? bossRange=null)
         {
-            TrialFighter found=null;float closest=range*range;
+            TrialFighter found=null;float closest=float.PositiveInfinity;
             foreach(var target in Opponents(attacker))
             {
-                if(!target.Alive || target is TrialEnemy enemy && enemy.IsBoss && !GateOpen)continue;
+                if(!target || !target.isActiveAndEnabled || !target.Alive)continue;
+                bool boss=target is TrialEnemy enemy && enemy.IsBoss;
+                if(boss && !GateOpen)continue;
+                float limit=boss?bossRange??range:range;
                 float d=(target.transform.position-attacker.transform.position).sqrMagnitude;
-                if(d<closest){closest=d;found=target;}
+                if(d<closest && d<limit*limit){closest=d;found=target;}
             }
             return found;
         }

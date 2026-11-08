@@ -127,7 +127,8 @@ namespace TomorinTrial
             {
                 if(h.age>=h.aux)
                 {
-                    SpawnSpecial(ChampionHazardKind.Bullet,h.position,(h.endpoint-h.position).normalized*18,.18f,3,h.damage);
+                    var shot=SpawnSpecial(ChampionHazardKind.Bullet,h.position,(h.endpoint-h.position).normalized*18,.18f,3,h.damage);
+                    if(shot!=null)shot.unblockable=h.unblockable;
                     h.aux=h.age+.95f;h.endpoint=game.CombatTarget.transform.position+Vector3.up*1.05f;
                     game.Effects.Sound("hit",h.position,.6f);
                 }
@@ -140,7 +141,7 @@ namespace TomorinTrial
                     if(!target || !target.Alive || h.hit.Contains(target))continue;
                     if(!target.OverlapsAttackHeight(h.position.y-.1f,h.position.y+(h.kind==ChampionHazardKind.Silk?.3f:h.aux<0?.3f:1.5f)))continue;
                     bool contact=h.kind==ChampionHazardKind.Silk?SegmentDistance(Planar(target.transform.position)+Vector3.up*.045f,h.position,h.endpoint)<.30f:Planar(target.transform.position-h.position).sqrMagnitude<Mathf.Max(.1f,h.radius-.14f)*Mathf.Max(.1f,h.radius-.14f);
-                    if(contact){h.hit.Add(target);target.ReceiveHazardHit(fighter,h.damage,35,true,h.position-target.transform.position);}
+                    if(contact){h.hit.Add(target);target.ReceiveHazardHit(fighter,h.damage,35,h.unblockable,h.position-target.transform.position);}
                 }
             }
             else if(h.kind==ChampionHazardKind.Ray || h.kind==ChampionHazardKind.WhipOrbit)
@@ -160,7 +161,7 @@ namespace TomorinTrial
                     float angle=Vector3.SignedAngle(h.velocity,delta,Vector3.up),swept=Mathf.DeltaAngle(previousTurn,turn),relative=Mathf.DeltaAngle(previousTurn,angle),padding=Mathf.Atan2(.38f,Mathf.Max(.1f,distance))*Mathf.Rad2Deg;
                     bool crossed=swept>=0?relative>=-padding && relative<=swept+padding:relative<=padding && relative>=swept-padding;
                     if(crossed && distance>=h.radius-.28f && distance<=h.limit+.28f && !Physics.Linecast(h.position,target.transform.position+Vector3.up*1.05f,1,QueryTriggerInteraction.Ignore))
-                    {h.hit.Add(target);target.ReceiveHazardHit(fighter,h.damage,40,true,h.position-target.transform.position);}
+                    {h.hit.Add(target);target.ReceiveHazardHit(fighter,h.damage,40,h.unblockable,h.position-target.transform.position);}
                 }
             }
             else
@@ -199,7 +200,7 @@ namespace TomorinTrial
                 if(h.kind==ChampionHazardKind.Rocket && (target.transform.position+Vector3.up*1.05f-h.position).sqrMagnitude>radius*radius)continue;
                 if(Planar(target.transform.position-h.position).sqrMagnitude>Mathf.Max(.1f,radius-.18f)*Mathf.Max(.1f,radius-.18f))continue;
                 if(Physics.Linecast(h.position+Vector3.up*.25f,target.transform.position+Vector3.up,1,QueryTriggerInteraction.Ignore))continue;
-                bool hit=target.ReceiveHazardHit(fighter,h.damage,40,true,h.position-target.transform.position);
+                bool hit=target.ReceiveHazardHit(fighter,h.damage,40,h.unblockable,h.position-target.transform.position);
                 if(hit && Kind==ChampionKind.YaYa)target.ApplyCombatImpulse(Planar(h.position-target.transform.position).normalized*8);
             }
             Deactivate(h);

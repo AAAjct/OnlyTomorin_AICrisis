@@ -322,8 +322,9 @@ namespace TomorinTrial
                         hit=SegmentDistance(p+Vector3.up*.07f,h.position,end)<h.radius+.2f;
                     }
                     if(!hit || Physics.Linecast(h.position+Vector3.up*.6f,target.transform.position+Vector3.up*.6f,1,QueryTriggerInteraction.Ignore))continue;
-                    h.hit.Add(target);target.ReceiveHazardHit(fighter,h.damage,30,true,h.position-target.transform.position);
-                    if(h.kind==ChampionHazardKind.SilkKnot)target.ApplyCombatImpulse(Planar(h.endpoint-p).normalized*5);
+                    h.hit.Add(target);
+                    bool damaged=target.ReceiveHazardHit(fighter,h.damage,30,h.unblockable,h.position-target.transform.position);
+                    if(damaged && h.kind==ChampionHazardKind.SilkKnot)target.ApplyCombatImpulse(Planar(h.endpoint-p).normalized*5);
                 }
             }
             if(h.active)DrawHazard(h);return true;
