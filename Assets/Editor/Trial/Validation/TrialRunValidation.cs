@@ -23,7 +23,14 @@ namespace TomorinTrial.Editor
             var player=game.Player;Check(!player.ChoosingBoon,"Endless starts without the one-time entrance boon");
             player.AwardRunExperience(500);Check(player.PendingRunChoices>1,"Experience queues every earned level");
             Check(!player.ChoosingRunAffix && Time.timeScale==1,"Earning levels does not interrupt combat");
+            var movement=new TrialControls{move=Vector2.up,held=2};
+            game.Input.ApplyNetwork(movement);
+            for(int i=0;i<12;i++)player.Tick(1f/60,game.Input);
+            Check(player.CaptureNetwork(0).movement>0 && player.Sprinting,"Moving player publishes a sprint gait before upgrading");
             Check(player.OpenRunUpgrade(),"Player manually opens pending upgrades");
+            var upgradeState=player.CaptureNetwork(0);
+            Check(upgradeState.runChoiceOpen && upgradeState.movement==0 && player.PlanarVelocity==Vector3.zero && !player.Sprinting,
+                "Opening an upgrade while moving publishes an idle gait");
             Check(Time.timeScale==0,"Upgrade pauses scaled time");
             while(player.ChoosingRunAffix)
             {

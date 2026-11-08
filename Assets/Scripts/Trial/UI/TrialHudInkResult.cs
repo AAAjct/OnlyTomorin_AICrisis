@@ -6,6 +6,7 @@ namespace TomorinTrial
     public sealed partial class TrialHud
     {
         const float InkResultDuration=3.2f;
+        const float InkResultSpeed=1.25f;
         CanvasGroup resultInk;
         RectTransform resultGlyph,resultCut;
         Text resultCharacter;
@@ -13,6 +14,7 @@ namespace TomorinTrial
         readonly Material[] resultInkMaterials=new Material[3];
         Texture2D resultVictoryInk,resultDefeatInk;
         float resultStarted=-10;
+        bool resultIsVictory;
         bool resultWasAlive=true;
         TrialMode resultMode=TrialMode.Title;
         static readonly int RevealId=Shader.PropertyToID("_Reveal");
@@ -62,6 +64,7 @@ namespace TomorinTrial
 
         public void ShowInkResult(bool victory)
         {
+            resultIsVictory=victory;
             resultStarted=Time.unscaledTime;resultCharacter.text=victory?"斩":"菜";
             var texture=victory?resultVictoryInk:resultDefeatInk;
             bool useArtwork=texture && resultInkMaterials[0];
@@ -74,21 +77,33 @@ namespace TomorinTrial
         void UpdateInkResult()
         {
             bool alive=game.Player.Alive;
-            if(game.Mode==TrialMode.Victory && resultMode!=TrialMode.Victory)ShowInkResult(true);
-            else if((!alive && resultWasAlive) || (game.Mode==TrialMode.Dead && resultMode!=TrialMode.Dead))ShowInkResult(false);
-            else if((alive && !resultWasAlive) || (game.Mode==TrialMode.Playing && (resultMode==TrialMode.Victory || resultMode==TrialMode.Dead)))resultStarted=-10;
+            if(game.HasResult)
+            {
+                if(game.ResultAge<TrialGame.ResultInkDelay)
+                {
+                    resultStarted=-10;
+                    resultInk.gameObject.SetActive(false);
+                    resultWasAlive=alive;
+                    resultMode=TrialMode.Playing;
+                    return;
+                }
+                if(resultMode!=game.Mode)ShowInkResult(game.Mode==TrialMode.Victory);
+            }
+            else if(!alive && resultWasAlive)ShowInkResult(false);
+            else if((alive && !resultWasAlive) || resultMode==TrialMode.Victory || resultMode==TrialMode.Dead)resultStarted=-10;
             resultWasAlive=alive;resultMode=game.Mode;
-            float age=Time.unscaledTime-resultStarted;
+            float age=(Time.unscaledTime-resultStarted)*InkResultSpeed;
             if(age>=InkResultDuration){if(resultInk.gameObject.activeSelf)resultInk.gameObject.SetActive(false);return;}
             RenderInkResult(age);
         }
 
-        // Unscaled time keeps the ink moving during the victory/death hit stop.
+        // The ink plays at the same speed during slow motion and on the result screen.
         void RenderInkResult(float age)
         {
             float reveal=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,.56f,age));
             float split=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.78f,1.34f,age));
             float red=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.98f,2.25f,age));
+            if(resultIsVictory)red=1-red;
             bool reduced=InkMainMenu.ReducedMotion;
             resultInk.alpha=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,.12f,age))*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(2.62f,InkResultDuration,age)));
             resultGlyph.localScale=Vector3.one*(reduced?1:Mathf.Lerp(1.045f,1,reveal));

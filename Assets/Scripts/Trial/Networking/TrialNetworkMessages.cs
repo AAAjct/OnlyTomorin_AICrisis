@@ -22,14 +22,18 @@ namespace TomorinTrial
     {
         public Vector2 move;
         public float yaw;
-        public byte held, pressed;
+        public byte held, pressed, spells;
     }
-    public enum TrialCombatCue : byte { Parry, Block, GuardBreak, Death, Hit, HeavyHit, Kill, PerfectDodge, BlinkSlash, Reversal, Hurt, SkillImpact, Dodge, Heal, ChargeReady, CutThrough, HeavyLand, FinisherHit, CrimsonBlade, MoonBlade, BlueSand, SakuraScatter, SandImpact, FireDragon, SpiralSword, ThrustTrace, RisingCut, CrescentCut, EmpoweredStep, SwordLeap, SwordTurn, SwordDescent, SwordLanding, RollFlash, WeaveSigil, MartialStroke, SwordRecall, SwordGuardReturn, SwordFlowHit }
+    public enum TrialCombatCue : byte { Parry, Block, GuardBreak, Death, Hit, HeavyHit, Kill, PerfectDodge, BlinkSlash, Reversal, Hurt, SkillImpact, Dodge, Heal, ChargeReady, CutThrough, HeavyLand, FinisherHit, CrimsonBlade, MoonBlade, BlueSand, SakuraScatter, SandImpact, ThunderDragon, SpiralSword, ThrustTrace, RisingCut, CrescentCut, EmpoweredStep, SwordLeap, SwordTurn, SwordDescent, SwordLanding, RollFlash, WeaveSigil, MartialStroke, SwordRecall, SwordGuardReturn, SwordFlowHit, MirrorCast, MirrorBreak, ThunderChain, BlackCoffin, MirrorScreenBreak }
     // Transient feedback is separate from snapshots: several contacts may occur
     // between snapshots, and each belongs to the player who received the hit.
     public struct TrialCombatEvent : NetworkMessage
     {
-        public int player;
+        // Contact cues use amount for these flags; sword art cues carry their own payload.
+        public const float ContactOnlyImpact=-1;
+        public const float BlinkSlashImpact=-2;
+        internal const float BlinkSlashHitStop=.04f;
+        public int player, target;
         public TrialCombatCue cue;
         public Vector3 position, forward;
         public Vector3 end;
@@ -49,8 +53,11 @@ namespace TomorinTrial
         public Vector3 recoil;
         public float yaw, health, maxHealth, stamina, posture, postureLimit, actionTime, duration, movement, protection;
         public int kills, deaths;
+        public ushort spellEnergy,mirrorBlink;
+        public float chantRemaining,mirrorCounter;
         public TrialBoon boon,offerA,offerB,offerC;
         public float maxStamina;
+        public float respawnRemaining;
         public float bossResolve,bossFlinch;
         public float swordCharge,parryReady,dodgeFollowup;
         public float swordLanding;
@@ -60,7 +67,7 @@ namespace TomorinTrial
         public bool comboHeavy,weaveHeavy;
         public byte weaveFrom;
         public byte action, combo, flasks;
-        public bool guard, awake,dragonLanded;
+        public bool guard, awake,dragonLanded,headSevered,spellExecuted;
     }
     public struct TrialHazardState { public Vector3 position; public float radius; public bool active, wave; }
     public struct TrialBossState

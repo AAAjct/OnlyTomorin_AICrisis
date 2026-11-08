@@ -10,7 +10,7 @@ namespace TomorinTrial
             HiltStrike or ElbowBreak or SheathTurn=>3,
             LoftingDraw or HeelTurn or LowVault or VaultSweep=>2,
             AerialCascade or ScissorKick or CloudRake=>1,OrbitCut=>4,FallingDraw=>5,
-            6 or RollFlash or FireDragon=>0,
+            6 or RollFlash or ThunderDragon=>0,
             AirStep or AirCross or AirFan or AirPierce or WallRebound or MoonChase or 2=>1,
             CrossDraw or LowReap or RisingBridge or 0=>2,
             GatheredPierce or GuardNeedle or WheelFinish or 17 or 19=>3,
@@ -85,7 +85,7 @@ namespace TomorinTrial
         void TrackSwordTarget(float dt)
         {
             bool attacking=Action==FighterAction.Light || Action==FighterAction.Heavy;
-            if(!attacking || SwordGuardReturning || Combo==FireDragon || Combo==SpiralSword || Combo==RollThrust || IsDive(Combo))return;
+            if(!attacking || SwordGuardReturning || Combo==ThunderDragon || Combo==SpiralSword || Combo==RollThrust || Combo==BlinkHorizontalSlash || IsDive(Combo) || IsSakuraThrust && guardFinishPaused)return;
             if(Locked && LockTarget.Alive)chaseTarget=LockTarget;
             else if(!chaseTarget || !chaseTarget.Alive)chaseTarget=FindChaseTarget();
             if(!chaseTarget)return;

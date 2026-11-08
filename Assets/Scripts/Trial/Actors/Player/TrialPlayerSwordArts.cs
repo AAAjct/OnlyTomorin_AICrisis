@@ -23,17 +23,24 @@ namespace TomorinTrial
         float swordMotionProgress;
         byte swordMotionCues;
         byte comboBladeEmissions;
+        int swordMoveId;
+        bool lightImpactPlayed;
+        bool guardFinishPaused;
+        const float BlinkSlashDriveEnd=.34f;
+        bool IsSakuraThrust=>Combo==5 || Combo==SakuraFollowup;
+        int CurrentLightMove=>Action==FighterAction.Light?swordMoveId:0;
         readonly List<SwordFlight> swordFlights=new List<SwordFlight>();
         sealed class SwordFlight
         {
             public Vector3 point,direction;
             public float remaining,damage,posture;
             public TrialCombatCue cue;
+            public int lightMove;
             public readonly HashSet<TrialFighter> hits=new HashSet<TrialFighter>();
         }
 
         public static bool IsAerialMove(int move)=>IsLowAirMove(move) || move==3 || IsAirBlade(move) || IsDive(move);
-        static float LightLinkProgress(int move)=>move==ParryMirror?.76f:move==AerialCascade?.80f:move==FallingDraw?.72f:move==ScissorKick || move==CloudRake?.66f:move==AirFan?.78f:move==DoubleFang?.74f:move==WheelFinish?.66f:move==ParryTriple?.70f:move==3 || move==AirStep?.50f:IsAirBlade(move)?.60f:move==AirSandDive?.75f:.55f;
+        static float LightLinkProgress(int move)=>move==ParryMirror?.76f:move==AerialCascade?.80f:move==FallingDraw?.72f:move==ScissorKick || move==CloudRake?.66f:move==AirFan?.78f:move==DoubleFang?.74f:move==WheelFinish?.66f:move==ParryTriple?.70f:move==BlinkHorizontalSlash?.54f:move==3 || move==AirStep?.50f:IsAirBlade(move)?.60f:move==AirSandDive?.75f:.55f;
         bool TryJump(TrialInput input)
         {
             // A direct entry to the existing aerial tree, with the same cost and rig.
@@ -55,6 +62,9 @@ namespace TomorinTrial
         void BeginSwordArt()
         {
             ClearDodgeLink();
+            swordMoveId++;
+            lightImpactPlayed=false;
+            guardFinishPaused=false;
             swordStart=transform.position;swordHeading=transform.forward;swordMotionProgress=0;swordEmissions=0;swordLanded=false;swordMotionCues=0;comboBladeEmissions=0;
             swordGroundContact=false;swordLandingAge=0;landingForwardSpeed=0;landingSakuraFlow=false;
             if(Combo==3 || Combo==AirStep){launchFloor=transform.position.y;launchHeight=Combo==AirStep?1.25f:2.15f;airborneCombo=true;}
@@ -124,6 +134,12 @@ namespace TomorinTrial
             if(TickSwordGuardReturn())return true;
             if(TickMartialMotion())return true;
             if(TickEmpoweredMotion(dt))return true;
+            if(Combo==BlinkHorizontalSlash)
+            {
+                if(Progress<=.54f)Turn(swordHeading,1800,dt);
+                MoveSwordDistance(swordHeading,2.65f,0,BlinkSlashDriveEnd);
+                return true;
+            }
             if(IsSwordLandingSource(Combo) && swordLanded)
             {
                 // Integrate the decaying landing momentum at any frame rate.
@@ -152,8 +168,18 @@ namespace TomorinTrial
             {MoveSwordDistance(swordHeading,Combo==FlowingSweep?1.4f:1.8f,.10f,.48f);return true;}
             if(Combo==6)
             {MoveSwordDistance(-swordHeading,4.2f,.04f,.30f);return true;}
-            if(Combo==5 || Combo==SakuraFollowup)
-            {MoveSwordDistance(swordHeading,Combo==5?6.0f:6.8f,landingSakuraFlow?0:.12f,landingSakuraFlow?.42f:.48f);return true;}
+            if(IsSakuraThrust)
+            {
+                var excluded=motor.excludeLayers;
+                try
+                {
+                    // Fighter bodies share a layer. Keep world collision during the thrust.
+                    motor.excludeLayers=excluded.value|(1<<gameObject.layer);
+                    MoveSwordDistance(swordHeading,Combo==5?6.0f:6.8f,landingSakuraFlow?0:.12f,landingSakuraFlow?.42f:.48f);
+                }
+                finally{motor.excludeLayers=excluded;}
+                return true;
+            }
             if(Combo==2)
             {MoveSwordDistance(swordHeading,1.8f,.13f,.43f);return true;}
             return false;
@@ -188,7 +214,7 @@ namespace TomorinTrial
         {
             float progress=Mathf.SmoothStep(0,1,Mathf.InverseLerp(start,end,Progress));
             float step=Mathf.Max(0,progress-swordMotionProgress)*distance;swordMotionProgress=progress;
-            if(chaseTarget && chaseTarget.Alive && Vector3.Dot(heading,swordHeading)>.8f)
+            if(!IsSakuraThrust && chaseTarget && chaseTarget.Alive && Vector3.Dot(heading,swordHeading)>.8f)
             {
                 float body=chaseTarget is TrialEnemy foe?foe.BodyRadius:.28f;
                 float gap=Vector3.ProjectOnPlane(chaseTarget.transform.position-transform.position,Vector3.up).magnitude-body-1.1f;
@@ -196,6 +222,20 @@ namespace TomorinTrial
             }
             if(step>0)motor.Move(heading*step);
         }
+
+        bool SakuraCrossed(Vector3 target,float bodyRadius)
+        {
+            Vector3 travel=transform.position-swordStart;
+            Vector3 horizontal=Vector3.ProjectOnPlane(travel,Vector3.up);
+            if(horizontal.sqrMagnitude<.0001f)return false;
+
+            float along=Vector3.Dot(target-swordStart,horizontal)/horizontal.sqrMagnitude;
+            if(along<0 || along>1)return false;
+            Vector3 offset=target-(swordStart+travel*along);
+            float width=.65f+bodyRadius;
+            return Mathf.Abs(offset.y)<=GroundMeleeHeight && Vector3.ProjectOnPlane(offset,Vector3.up).sqrMagnitude<=width*width;
+        }
+
         void TickSwordArts()
         {
             if(IsMartialMove(Combo)){TickMartialArts();return;}
@@ -257,12 +297,12 @@ namespace TomorinTrial
                     LaunchSword(TrialCombatCue.MoonBlade,transform.position+Vector3.up+transform.forward*.6f,Quaternion.AngleAxis(spread,Vector3.up)*transform.forward,28,25);
                 }
             }
-            if((Combo==5 || Combo==SakuraFollowup) && Progress>=.48f && swordEmissions==0)
+            if(IsSakuraThrust && Progress>=.48f && swordEmissions==0)
             {
                 swordEmissions++;
                 Vector3 from=swordStart+Vector3.up,to=transform.position+Vector3.up;
+                SwordSegment(from,to,1.35f,24,20,new HashSet<TrialFighter>(),finisherMoveId:swordMoveId);
                 EmitSwordCue(TrialCombatCue.SakuraScatter,from,swordHeading,to,1);
-                SwordSegment(from,to,1.35f,24,20,new HashSet<TrialFighter>());
             }
             if(IsDive(Combo) && !swordLanded && (swordGroundContact || motor.isGrounded) && verticalSpeed<=0)
             {
@@ -313,8 +353,8 @@ namespace TomorinTrial
                 swordMotionCues|=1;
                 EmitSwordCue(TrialCombatCue.SwordLeap,swordStart+Vector3.up*.06f,swordHeading,transform.position,1);
             }
-            bool turning=Combo==2 || Combo==6 || Combo==9 || Combo==10 || Combo==21 || Combo==24 || Combo==FlowingSweep || Combo==FireDragon;
-            float turnAt=Combo==2?.44f:Combo==6?.32f:Combo==FireDragon?.08f:.18f;
+            bool turning=Combo==2 || Combo==6 || Combo==9 || Combo==10 || Combo==21 || Combo==24 || Combo==FlowingSweep || Combo==ThunderDragon;
+            float turnAt=Combo==2?.44f:Combo==6?.32f:Combo==ThunderDragon?.08f:.18f;
             if(turning && Progress>=turnAt && (swordMotionCues&2)==0)
             {
                 swordMotionCues|=2;
@@ -336,7 +376,7 @@ namespace TomorinTrial
             }
         }
 
-        void SwordSegment(Vector3 from,Vector3 to,float radius,float damage,float posture,HashSet<TrialFighter> hits,bool flowing=false)
+        void SwordSegment(Vector3 from,Vector3 to,float radius,float damage,float posture,HashSet<TrialFighter> hits,bool flowing=false,int? lightMove=null,int? finisherMoveId=null,float thunderPower=-1)
         {
             Vector3 segment=to-from;
             foreach(var enemy in game.Opponents(this))
@@ -346,14 +386,16 @@ namespace TomorinTrial
                 float t=segment.sqrMagnitude>.0001f?Mathf.Clamp01(Vector3.Dot(torso-from,segment)/segment.sqrMagnitude):0;
                 float body=enemy is TrialEnemy foe?foe.BodyRadius:.28f;
                 if(Vector3.Distance(torso,from+segment*t)>radius+body+.24f || Physics.Linecast(from,torso,1,QueryTriggerInteraction.Ignore))continue;
-                hits.Add(enemy);SwordDamage(enemy,damage,posture,false,flowing);
+                hits.Add(enemy);
+                if(SwordDamage(enemy,damage,posture,false,flowing,lightMove,finisherMoveId,unblockable:thunderPower>=0) && thunderPower>=0)
+                    ConductThunder(enemy,hits,thunderPower);
             }
         }
 
         void LaunchSword(TrialCombatCue cue,Vector3 point,Vector3 direction,float damage,float posture)
         {
             if(swordFlights.Count>=48)return;
-            swordFlights.Add(new SwordFlight{point=point,direction=direction,remaining=TrialSwordFlight.Lifetime(cue),cue=cue,damage=damage,posture=posture});
+            swordFlights.Add(new SwordFlight{point=point,direction=direction,remaining=TrialSwordFlight.Lifetime(cue),cue=cue,damage=damage,posture=posture,lightMove=CurrentLightMove});
             if(Mirror.NetworkServer.active)TrialNetworkManager.Current.BroadcastSwordCombat(this,cue,point,direction,Vector3.zero,0,SwordStyle);
             else game.Effects.PlayCombat(new TrialCombatEvent{cue=cue,position=point,forward=direction,style=SwordStyle},this==game.Player);
         }
@@ -377,7 +419,7 @@ namespace TomorinTrial
                     float body=enemy is TrialEnemy foe?foe.BodyRadius:.28f;
                     if(Vector3.Distance(torso,from+segment*t)>radius+body+.24f)continue;
                     if(Physics.Linecast(from,torso,1,QueryTriggerInteraction.Ignore))continue;
-                    flight.hits.Add(enemy);SwordDamage(enemy,flight.damage,flight.posture,false);
+                    flight.hits.Add(enemy);SwordDamage(enemy,flight.damage,flight.posture,false,lightMove:flight.lightMove);
                 }
                 flight.point=to;flight.remaining-=dt;
                 if(wall || flight.remaining<=0)swordFlights.RemoveAt(i);
@@ -393,14 +435,41 @@ namespace TomorinTrial
                 SwordDamage(enemy,damage,posture,finish);
             }
         }
-        void SwordDamage(TrialFighter enemy,float damage,float posture,bool finish,bool flowing=false)
+        bool IsSecondaryLightContact(int lightMove)
         {
-            if(!enemy.ReceiveHit(this,damage*(Boon==TrialBoon.Edge?1.12f:1),posture*(Boon==TrialBoon.Breaker?1.15f:1)))return;
+            // A late projectile keeps its damage, but cannot pause another move.
+            if(lightMove==0)return false;
+            if(lightMove!=CurrentLightMove || lightImpactPlayed)return true;
+            lightImpactPlayed=true;
+            return false;
+        }
+        bool TryFinishGuard(TrialFighter target,int finisherMoveId)
+        {
+            if(target is not TrialEnemy guard || guard.IsBoss || guard.Alive)return false;
+            guard.SeverHead();
+            bool currentMove=finisherMoveId==swordMoveId;
+            guard.HoldCombat(.12f);
+            // A lingering throw can sever another guard without stopping the next move.
+            bool contactOnly=!currentMove || guardFinishPaused;
+            if(!contactOnly)
+            {
+                guardFinishPaused=true;lightImpactPlayed=true;
+                HoldCombat(.11f);
+            }
+            EmitCombat(TrialCombatCue.Kill,guard.transform.position+Vector3.up,contactOnly);
+            return true;
+        }
+        bool SwordDamage(TrialFighter enemy,float damage,float posture,bool finish,bool flowing=false,int? lightMove=null,int? finisherMoveId=null,bool unblockable=false)
+        {
+            if(!enemy.ReceiveHit(this,damage*(Boon==TrialBoon.Edge?1.12f:1),posture*(Boon==TrialBoon.Breaker?1.15f:1),unblockable))return false;
             RestoreCombatStamina(enemy.Alive?HitStamina:KillStamina);
+            if(finisherMoveId.HasValue && TryFinishGuard(enemy,finisherMoveId.Value))return true;
             flowing|=SwordGuardReturning;
-            if(!flowing)HoldCombat(finish?.12f:.065f);
+            bool contactOnly=!flowing && IsSecondaryLightContact(lightMove??CurrentLightMove);
+            if(!flowing && !contactOnly)HoldCombat(finish?.12f:.065f);
             if(!(enemy is TrialEnemy boss && boss.ResolveActive))enemy.HoldCombat(finish?.13f:.075f);
-            EmitCombat(flowing?TrialCombatCue.SwordFlowHit:!enemy.Alive?TrialCombatCue.Kill:finish?TrialCombatCue.FinisherHit:TrialCombatCue.Hit,enemy.transform.position+Vector3.up);
+            EmitCombat(flowing?TrialCombatCue.SwordFlowHit:!enemy.Alive?TrialCombatCue.Kill:finish?TrialCombatCue.FinisherHit:TrialCombatCue.Hit,enemy.transform.position+Vector3.up,contactOnly);
+            return true;
         }
     }
 

@@ -17,6 +17,7 @@ namespace TomorinTrial
         UnityEngine.UI.Text hpText,flaskText,objectiveText,promptText,noticeText,bossName,menuTitle,menuSubtitle,menuCaption,mainButtonLabel,enemyName;
         UnityEngine.UI.Button mainButton,secondaryButton,settingsButton;
         UnityEngine.UI.Text dangerText;
+        UnityEngine.UI.Text respawnText;
         UnityEngine.UI.Text playerName;
         UnityEngine.UI.Text bossSkill;
         UnityEngine.UI.Image markerImage;
@@ -32,6 +33,8 @@ namespace TomorinTrial
         const float HealthShakeDuration=.36f;
         string notice="";
         TrialMode lastMode=(TrialMode)(-1);
+        bool lastResultInProgress;
+        InputSystemUIInputModule uiModule;
 
         public void Initialize(TrialGame owner)
         {
@@ -60,6 +63,8 @@ namespace TomorinTrial
             promptText=Label("Interact",root,"",new Vector2(.5f,0),new Vector2(-320,119),new Vector2(640,40),20,ivory,TextAnchor.MiddleCenter);
             noticeText=Label("Announcement",root,"",new Vector2(.5f,.67f),new Vector2(-260,0),new Vector2(520,32),19,gold,TextAnchor.MiddleCenter);
             promptText.gameObject.SetActive(false);noticeText.gameObject.SetActive(false);
+            respawnText=Label("Respawn countdown",root,"",new Vector2(.5f,.5f),new Vector2(-240,30),new Vector2(480,54),34,ivory,TextAnchor.MiddleCenter);
+            respawnText.gameObject.SetActive(false);
 
             bossPanel=Panel("Boss",root,new Vector2(.5f,1),new Vector2(-440,-38),new Vector2(880,96),Color.clear);
             bossName=Label("Boss name",bossPanel,"大肥鱼 · DeepSeek",new Vector2(.5f,1),new Vector2(-330,-30),new Vector2(660,28),20,ivory,TextAnchor.MiddleCenter);
@@ -92,24 +97,24 @@ namespace TomorinTrial
             secondaryButton=Button("Boss challenge or title",menu,new Vector2(66,-722),new Vector2(420,47),"直接挑战大肥鱼",()=>{if(game.Mode==TrialMode.Title)game.StartBossChallenge();else game.ReturnToTitle();});
             roomButton=Button("Return to room",menu,new Vector2(66,-785),new Vector2(420,47),"返回联机房间",()=>TrialNetworkManager.Current.ReturnToRoom());roomButton.gameObject.SetActive(false);
             footer=Label("Menu footer",menu,"Enter / A",new Vector2(0,1),new Vector2(66,-800),new Vector2(550,30),13,muted).gameObject;
-            var uiModule=FindFirstObjectByType<InputSystemUIInputModule>();
+            uiModule=FindFirstObjectByType<InputSystemUIInputModule>();
             if(uiModule && uiModule.actionsAsset==null)uiModule.AssignDefaultActions();
             var nav=new UnityEngine.UI.Navigation{mode=UnityEngine.UI.Navigation.Mode.Explicit,selectOnDown=secondaryButton};mainButton.navigation=nav;
             nav.selectOnDown=null;nav.selectOnUp=mainButton;secondaryButton.navigation=nav;
-            InitializeSettings();InitializeArtwork();InitializeTouchControls();InitializeDamageFeedback();InitializeInkResult();
+            InitializeSettings();InitializeArtwork();InitializeTouchControls();InitializeDamageFeedback();InitializeInkResult();InitializeSpellHud();
         }
 
         UnityEngine.UI.Button roomButton;
         void PrimaryAction()
         {
             switch(game.Mode)
-            {case TrialMode.Title:game.StartTrial();break;case TrialMode.Paused:game.Resume();break;case TrialMode.Dead:if(TrialNetworkManager.SessionActive)game.RetryChallenge();else game.Respawn();break;case TrialMode.Victory:game.RetryChallenge();break;}
+            {case TrialMode.Title:game.StartTrial();break;case TrialMode.Paused:game.Resume();break;case TrialMode.Dead:case TrialMode.Victory:game.RetryChallenge();break;}
         }
 
         void Update()
         {
             if(!game || !game.Ready)return;
-            UpdateArtwork();UpdateTouchControls();
+            UpdateArtwork();UpdateTouchControls();UpdateSpellHud();
             UpdateChoiceInput();
             UpdateRunChoices();UpdatePlayerNameplates();
             if(TrialNetworkManager.SessionActive)playerName.text=TrialNetworkManager.Current.NameOf(game.Player);
@@ -122,13 +127,13 @@ namespace TomorinTrial
             if(shownGuards!=game.DefeatedGuards || shownGate!=game.GateOpen)
             {shownGuards=game.DefeatedGuards;shownGate=game.GateOpen;objectiveText.text=game.IsChampionStage?TrialChampionCatalog.LevelName(game.Level):game.GateOpen?"庭门已开":"奶蛙  "+shownGuards+" / 3";}
             if(game.IsArena)objectiveText.text=TrialNetworkManager.Current.ArenaScoreboard();
-            promptText.text=game.IsRunStage?"":game.IsArena?(!game.Player.Alive?"阵亡 · 3 秒后重生":game.Player.SpawnProtected?"重生保护 · 主动攻击后解除":""):game.Mode==TrialMode.Playing && Vector3.Distance(game.Player.transform.position,game.World.ShrinePosition)<2.6f?interactPrompt:"";
+            promptText.text=game.IsRunStage?"":game.IsArena?(game.Player.SpawnProtected?"重生保护 · 主动攻击后解除":""):game.Mode==TrialMode.Playing && Vector3.Distance(game.Player.transform.position,game.World.ShrinePosition)<2.6f?interactPrompt:"";
             noticeText.text=game.Mode==TrialMode.Playing && Time.unscaledTime<noticeUntil?notice:"";
             if(game.Mode==TrialMode.Playing)
             {
-                if(game.Player.ParryEmpowered)promptText.text="格挡强化 · 轻击三连刺 / 重击火龙（可蓄力）/ 闪避远闪";
+                if(game.Player.ParryEmpowered)promptText.text="格挡强化 · 轻击三连刺 / 重击雷吼炮·雷龙（可蓄力）/ 闪避远闪";
                 else if(game.Player.ParryDodgeFollowup)promptText.text="远闪追击 · 轻击闪至背后 / 重击螺旋回旋刀";
-                else if(game.Player.Action==FighterAction.Charge && game.Player.Combo==TrialPlayer.FireDragon)promptText.text=$"火龙蓄力 {game.Player.ChargeAmount*100:0}% · 松开重击释放";
+                else if(game.Player.Action==FighterAction.Charge && game.Player.Combo==TrialPlayer.ThunderDragon)promptText.text=$"雷吼炮·雷龙蓄力 {game.Player.ChargeAmount*100:0}% · 松开重击释放";
             }
             // An empty enemy list must not interrupt the rest of the HUD update.
             TrialEnemy boss=game.Enemies.Count>0?game.Enemies[game.Enemies.Count-1]:null;
@@ -163,8 +168,31 @@ namespace TomorinTrial
                 var enemy=game.Player.LockTarget as TrialEnemy;
                 markerImage.color=enemy && enemy.WindingUp?(enemy.Unblockable?new Color(1,.12f,.06f):new Color(1,.83f,.37f)):gold;
             }
-            if(game.Mode!=lastMode){lastMode=game.Mode;RefreshMenu();}
+            bool resultInProgress=game.ResultInProgress;
+            if(game.Mode!=lastMode || resultInProgress!=lastResultInProgress)
+            {lastMode=game.Mode;lastResultInProgress=resultInProgress;RefreshMenu();}
             UpdateRoguelikeHud();
+            UpdateRespawnCountdown();
+        }
+
+        void LateUpdate()
+        {
+            if(!menu || !menu.gameObject.activeInHierarchy || game.Mode==TrialMode.Title)return;
+            var events=EventSystem.current;
+            if(!events || events.currentSelectedGameObject || !events.sendNavigationEvents || !uiModule)return;
+
+            // Let the UI module process the move before giving an unselected menu its first focus.
+            var move=uiModule.move?.action;
+            if(move!=null && move.WasPressedThisFrame())
+                (mainButton.interactable?mainButton:secondaryButton).Select();
+        }
+
+        void UpdateRespawnCountdown()
+        {
+            var network=TrialNetworkManager.SessionActive?TrialNetworkManager.Current:null;
+            float remaining=network && !game.Player.Alive && game.Mode==TrialMode.Playing?network.LocalRespawnRemaining:0;
+            respawnText.gameObject.SetActive(remaining>0);
+            if(remaining>0)respawnText.text=$"{Mathf.CeilToInt(remaining)} 秒后复活";
         }
 
         void UpdateHealthShake()
@@ -190,7 +218,8 @@ namespace TomorinTrial
         void RefreshMenu()
         {
             if(game.Mode!=TrialMode.Paused)CloseSettings();
-            bool show=game.Mode!=TrialMode.Playing;menu.gameObject.SetActive(show && !SettingsOpen);
+            bool show=game.Mode!=TrialMode.Playing && !game.ResultInProgress;
+            menu.gameObject.SetActive(show && !SettingsOpen);
             pauseBackdrop.gameObject.SetActive(game.Mode==TrialMode.Paused && !SettingsOpen);
             settingsButton.gameObject.SetActive(game.Mode==TrialMode.Paused);
             mainButton.GetComponent<RectTransform>().anchoredPosition=new Vector2(66,game.Mode==TrialMode.Paused?-632:-647);
@@ -201,7 +230,7 @@ namespace TomorinTrial
             menuCaption.resizeTextForBestFit=game.Mode==TrialMode.Paused;menuCaption.resizeTextMinSize=14;menuCaption.resizeTextMaxSize=16;
             menuCaption.verticalOverflow=game.Mode==TrialMode.Paused?VerticalWrapMode.Truncate:VerticalWrapMode.Overflow;
             ConfigurePauseNavigation();
-            stats.SetActive(!show);objectiveText.gameObject.SetActive(!show);
+            stats.SetActive(game.Mode==TrialMode.Playing);objectiveText.gameObject.SetActive(game.Mode==TrialMode.Playing);
             secondaryButton.gameObject.SetActive(game.Mode==TrialMode.Paused || game.Mode==TrialMode.Title || game.Mode==TrialMode.Dead || game.Mode==TrialMode.Victory);
             secondaryButton.GetComponentInChildren<UnityEngine.UI.Text>().text=game.Mode==TrialMode.Title?(game.IsChampionStage?"直接挑战 Boss   →":"直接挑战大肥鱼   →"):game.Mode==TrialMode.Dead?"退出到主菜单":"返回标题";
             footer.SetActive(game.Mode==TrialMode.Title);
@@ -210,7 +239,8 @@ namespace TomorinTrial
             mainButton.interactable=!(TrialNetworkManager.SessionActive && (game.Mode==TrialMode.Victory || game.Mode==TrialMode.Dead) && !TrialNetworkManager.Current.IsHost);
             if(room){Navigate(secondaryButton,mainButton.interactable?mainButton:roomButton,roomButton);Navigate(roomButton,secondaryButton,mainButton.interactable?mainButton:secondaryButton);}
 
-            if(show && EventSystem.current){EventSystem.current.SetSelectedGameObject(null);EventSystem.current.SetSelectedGameObject(mainButton.interactable?mainButton.gameObject:secondaryButton.gameObject);}
+            if(show && !SettingsOpen && EventSystem.current)
+                EventSystem.current.SetSelectedGameObject(game.Mode==TrialMode.Title?mainButton.gameObject:null);
             menuSubtitle.text="";
             if(game.Mode==TrialMode.Title)
             {menuTitle.text=game.IsRunStage?TrialChampionCatalog.LevelName(game.Level):game.IsChampionStage?TrialChampionCatalog.LevelName(game.Level):"雾庭";menuCaption.text=game.IsEndless?"持续击杀获取经验，升级词条三选一。每 5 波精英来袭，挑战你的生存极限。":game.IsBossRush?"8 位 Boss 逐个挑战。开局 3 瓶药，全程不补充；每场胜利回满血量与耐力。":game.IsChampionStage?TrialChampionCatalog.Lesson(game.Level):"击败三名奶蛙，进入庭心。";mainButtonLabel.text="进入";}
@@ -254,6 +284,6 @@ namespace TomorinTrial
             Label("Caption",rect,caption,new Vector2(0,1),new Vector2(23,-14),size-new Vector2(38,10),22,ivory);
             button.transition=UnityEngine.UI.Selectable.Transition.None;rect.gameObject.AddComponent<TrialMenuFocus>();return button;
         }
-        void OnDestroy(){DisposeInkResult();DisposeDamageFeedback();if(ownsFont && font)Destroy(font);if(barSprite)Destroy(barSprite);}
+        void OnDestroy(){DisposeInkResult();DisposeDamageFeedback();DisposeSpellHud();if(ownsFont && font)Destroy(font);if(barSprite)Destroy(barSprite);}
     }
 }

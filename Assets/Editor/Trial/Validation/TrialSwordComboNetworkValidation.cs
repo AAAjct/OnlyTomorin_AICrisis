@@ -172,10 +172,10 @@ namespace TomorinTrial.Editor
                 remote.ReceiveHit(source,10,5);held=default;Send(held);
                 Until();while(Waiting(world.players.Any(s=>s.id==remoteId && s.parryReady>0)))yield return .01f;
                 Check(remote.ParryEmpowered,"A remote player's perfect guard arms an authoritative empowered choice");
-                held=new TrialControls{held=4};Send(new TrialControls{pressed=2,held=4});Until();while(Waiting(remote.Action==FighterAction.Charge && remote.Combo==TrialPlayer.FireDragon))yield return .01f;
+                held=new TrialControls{held=4};Send(new TrialControls{pressed=2,held=4});Until();while(Waiting(remote.Action==FighterAction.Charge && remote.Combo==TrialPlayer.ThunderDragon))yield return .01f;
                 Until();while(Waiting(remote.ChargeAmount>.45f))yield return .01f;
-                held=default;Send(held);Until();while(Waiting(events.Any(e=>e.player==remoteId && e.cue==TrialCombatCue.FireDragon)))yield return .01f;
-                var dragon=events.First(e=>e.player==remoteId && e.cue==TrialCombatCue.FireDragon);
+                held=default;Send(held);Until();while(Waiting(events.Any(e=>e.player==remoteId && e.cue==TrialCombatCue.ThunderDragon)))yield return .01f;
+                var dragon=events.First(e=>e.player==remoteId && e.cue==TrialCombatCue.ThunderDragon);
                 Check(dragon.amount>=.4f && dragon.amount<=1 && Vector3.Distance(dragon.position,dragon.end)>14,"TCP charged dragon event retains owner, power, and scaled range");
                 Until();while(Waiting(remote.Action==FighterAction.Free))yield return .01f;
                 remote.Restore(new Vector3(0,0,20));events.Clear();source.Teleport(remote.transform.position+Vector3.forward*3);
@@ -190,11 +190,11 @@ namespace TomorinTrial.Editor
                 remote.ReceiveHit(source,10,5);
                 Until();while(Waiting(events.Any(e=>e.player==remoteId && e.cue==TrialCombatCue.PerfectDodge) && remote.Progress>.72f))yield return .01f;
                 Send(new TrialControls{pressed=2,held=4});Until();while(Waiting(remote.Action==FighterAction.Heavy && remote.Combo==TrialPlayer.DodgeDragon && remote.transform.position.y>1))yield return .01f;
-                Check(!remote.DodgeDragonLanded && !events.Any(e=>e.player==remoteId && e.cue==TrialCombatCue.FireDragon),"Remote perfect-dodge heavy really leaps and reserves the dragon until landing");
+                Check(!remote.DodgeDragonLanded && !events.Any(e=>e.player==remoteId && e.cue==TrialCombatCue.ThunderDragon),"Remote perfect-dodge heavy really leaps and reserves the dragon until landing");
                 Until();while(Waiting(world.players.Any(s=>s.id==remoteId && s.combo==TrialPlayer.DodgeDragon && s.position.y>1)))yield return .01f;
                 Check(true,"TCP snapshots preserve the backward leap's actual height and move ID");
-                Until();while(Waiting(events.Any(e=>e.player==remoteId && e.cue==TrialCombatCue.FireDragon)))yield return .01f;
-                var leapDragon=events.First(e=>e.player==remoteId && e.cue==TrialCombatCue.FireDragon);
+                Until();while(Waiting(events.Any(e=>e.player==remoteId && e.cue==TrialCombatCue.ThunderDragon)))yield return .01f;
+                var leapDragon=events.First(e=>e.player==remoteId && e.cue==TrialCombatCue.ThunderDragon);
                 Check(remote.DodgeDragonLanded && remote.transform.position.y<.2f && Mathf.Abs(leapDragon.amount-.5f)<.01f,"Remote landing cleave emits one correctly powered dragon after touching ground");
                 Until();while(Waiting(remote.Action==FighterAction.Free))yield return .01f;
                 remote.Restore(new Vector3(0,0,20));events.Clear();source.Teleport(remote.transform.position+Vector3.forward*3);

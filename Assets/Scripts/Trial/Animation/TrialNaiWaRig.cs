@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 namespace TomorinTrial
 {
     // All hand targets use actor metres and the actual weighted NaiWa arm chain.
-    public sealed class TrialNaiWaRig : MonoBehaviour
+    public sealed partial class TrialNaiWaRig : MonoBehaviour
     {
         TrialEnemy owner;
         Transform visual,spine,leftArm,rightArm,leftForearm,rightForearm,leftHand,rightHand,leftThigh,rightThigh,leftShin,rightShin;
@@ -25,12 +25,14 @@ namespace TomorinTrial
             leftThigh=Find("thigh.L");rightThigh=Find("thigh.R");leftShin=Find("shin.L");rightShin=Find("shin.R");
             meshes=model.GetComponentsInChildren<Renderer>();originals=new Material[meshes.Length][];
             for(int i=0;i<meshes.Length;i++)originals[i]=meshes[i].sharedMaterials;
+            PrepareSeveredHead();
             leftTarget=new Vector3(-.34f,.73f,.04f);rightTarget=new Vector3(.34f,.73f,.04f);
         }
         Transform Find(string label){foreach(var bone in bones)if(bone.name==label)return bone;return null;}
         void Rotate(Transform bone,float x,float y,float z){if(bone)bone.rotation=Quaternion.AngleAxis(x,transform.right)*Quaternion.AngleAxis(y,transform.up)*Quaternion.AngleAxis(z,transform.forward)*bone.rotation;}
         public void ResetPresentation()
         {
+            ResetSeveredHead();
             for(int i=0;i<meshes.Length;i++){meshes[i].sharedMaterials=originals[i];meshes[i].enabled=true;meshes[i].shadowCastingMode=ShadowCastingMode.On;meshes[i].SetPropertyBlock(null);}
             foreach(var m in fadingMaterials)if(m)Destroy(m);fadingMaterials.Clear();
             wasDead=hidden=false;CorpseOpacity=1;gait=lastEmber=0;visual.localPosition=origin;visual.localRotation=rotation;
@@ -38,8 +40,9 @@ namespace TomorinTrial
         }
         void LateUpdate()
         {
-            if(!owner || owner.CombatFrozen || Time.deltaTime<=0)return;
-            if(owner.Alive && wasDead)ResetPresentation();
+            if(!owner || !visual.gameObject.activeSelf)return;
+            if(owner.Alive && (wasDead || HeadSevered))ResetPresentation();
+            if(owner.CombatFrozen || Time.deltaTime<=0)return;
             if(hidden)return;
             for(int i=0;i<bones.Length;i++)bones[i].localRotation=bind[i];
             visual.localPosition=origin;visual.localRotation=rotation;
@@ -73,6 +76,7 @@ namespace TomorinTrial
         void PoseCorpse()
         {
             wasDead=true;float age=owner.ActionTime;
+            if(HeadSevered)PoseFallingHead(age);
             float fall=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.06f,.72f,age));
             // Death has its own fixed limbs: gait never participates in this pose.
             Rotate(leftThigh,-14*fall,0,-8);Rotate(rightThigh,18*fall,0,6);
@@ -86,21 +90,22 @@ namespace TomorinTrial
             foreach(var m in fadingMaterials){var color=m.GetColor("_BaseColor");color.a=CorpseOpacity;m.SetColor("_BaseColor",color);}
             if(fade>0 && age-lastEmber>.15f && age<4.2f)
             {lastEmber=age;var game=owner.GetComponentInParent<TrialGame>();game.Effects.Burst(transform.position+transform.forward*-.6f+Vector3.up*.2f,new Color(.52f,.85f,.64f,CorpseOpacity),2);}
-            if(fade>=1){foreach(var mesh in meshes)mesh.enabled=false;hidden=true;}
+            if(fade>=1){foreach(var mesh in meshes)mesh.enabled=false;if(headRoot)headRoot.gameObject.SetActive(false);hidden=true;}
         }
         void BeginFade()
         {
-            foreach(var mesh in meshes)
+            foreach(var mesh in meshes)FadeRenderer(mesh);
+            if(HeadSevered)FadeRenderer(headRenderer);
+        }
+        void FadeRenderer(Renderer mesh)
+        {
+            foreach(var m in mesh.materials)
             {
-                var materials=mesh.materials;
-                foreach(var m in materials)
-                {
-                    m.SetFloat("_Surface",1);m.SetOverrideTag("RenderType","Transparent");m.renderQueue=3000;
-                    m.SetInt("_SrcBlend",(int)BlendMode.SrcAlpha);m.SetInt("_DstBlend",(int)BlendMode.OneMinusSrcAlpha);m.SetInt("_ZWrite",0);
-                    m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");m.DisableKeyword("_ALPHAPREMULTIPLY_ON");m.SetShaderPassEnabled("ShadowCaster",false);fadingMaterials.Add(m);
-                }
-                mesh.shadowCastingMode=ShadowCastingMode.Off;mesh.SetPropertyBlock(null);
+                m.SetFloat("_Surface",1);m.SetOverrideTag("RenderType","Transparent");m.renderQueue=3000;
+                m.SetInt("_SrcBlend",(int)BlendMode.SrcAlpha);m.SetInt("_DstBlend",(int)BlendMode.OneMinusSrcAlpha);m.SetInt("_ZWrite",0);
+                m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");m.DisableKeyword("_ALPHAPREMULTIPLY_ON");m.SetShaderPassEnabled("ShadowCaster",false);fadingMaterials.Add(m);
             }
+            mesh.shadowCastingMode=ShadowCastingMode.Off;mesh.SetPropertyBlock(null);
         }
         void OnDestroy(){foreach(var m in fadingMaterials)if(m)Destroy(m);}
     }

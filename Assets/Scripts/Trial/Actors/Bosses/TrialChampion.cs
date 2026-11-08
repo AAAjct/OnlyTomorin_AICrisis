@@ -128,7 +128,7 @@ namespace TomorinTrial
             targets.Clear();if(Mirror.NetworkServer.active){foreach(var actor in TrialNetworkManager.Current.Players)if(actor)targets.Add(actor);}else targets.Add(game.Player);
             if(IsRemnant && !Attacking && !Regrouping)SelectRemnantTarget();
             if(!fighter.Alive){CancelAttack(true);return;}
-            if(!game.CombatTarget || !game.CombatTarget.Alive){CancelAttack(true);return;}
+            if(!game.CombatTarget || !game.CombatTarget.Alive){CancelAttack(true);fighter.StopLocomotion();return;}
             if(!fighter.Awakened){HideWarnings();return;}
             if(TickSignatureIntro(dt))return;
             TickHazards(dt);

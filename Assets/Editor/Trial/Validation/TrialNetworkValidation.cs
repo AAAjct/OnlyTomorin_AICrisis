@@ -160,7 +160,7 @@ namespace TomorinTrial.Editor
                 var localInput = game.gameObject.AddComponent<TrialInput>();
                 localInput.ApplyNetwork(new TrialControls { held = 1 }); game.Player.Tick(0, localInput);
                 game.Player.ReceiveHit(null, 30, 20); UnityEngine.Object.Destroy(localInput);
-                Check(Notice(game) == "完美弹反" && Shake(game) > 0, "Host retains its own parry HUD and camera feedback");
+                Check(Notice(game) == "完美格挡 · 下一击强化" && Shake(game) > 0, "Host retains its own parry HUD and camera feedback");
                 Until(); while (Waiting(events.Any(e => e.cue == TrialCombatCue.Parry && e.player == network.LocalId))) yield return .01f;
                 Check(events.Count(e => e.cue == TrialCombatCue.Parry && e.player == network.LocalId) == 1, "Host parry broadcasts exactly one correctly owned event");
                 var bossState = game.Enemies.Last().Boss.CaptureNetwork();
@@ -176,13 +176,20 @@ namespace TomorinTrial.Editor
                 Check(game.Mode==TrialMode.Playing && game.Player.Alive,"One downed companion does not fail a living party");
                 yield return 5.2f;
                 Check(remote.Alive && game.Mode==TrialMode.Playing,"A downed companion still respawns while a teammate survives");
+                var movingBoss=game.Enemies.Last();
+                typeof(TrialFighter).GetProperty(nameof(TrialFighter.MoveBlend)).SetValue(movingBoss,1f);
                 game.Player.ReceiveHit(null,99999,100,true);remote.ReceiveHit(null,99999,100,true);
                 yield return .2f;
-                Check(game.Mode==TrialMode.Dead && world.defeat,"Team wipe fails the host and replicates the defeat snapshot");
+                Check(game.Mode==TrialMode.Dead && world.defeat && Time.timeScale==.5f,"Team wipe starts slow motion on the host and replicates the defeat snapshot");
+                Check(movingBoss.MoveBlend==0 && world.enemies.Last().movement==0,"Team wipe stops the boss gait on the host and in the peer snapshot");
                 float failedAt=game.PlaySeconds;yield return 5.2f;
-                Check(!game.Player.Alive && !remote.Alive && game.Mode==TrialMode.Dead && game.PlaySeconds==failedAt,"Team defeat stops simulation and cancels automatic respawns");
-                Send(new TrialRetryChallenge());yield return .25f;
-                Check(game.Mode==TrialMode.Playing && game.Player.Alive && remote.Alive && !world.defeat,"A peer can retry after defeat and restore the entire party");
+                Check(!game.Player.Alive && !remote.Alive && game.Mode==TrialMode.Dead && game.PlaySeconds==failedAt && Time.timeScale==0,"Team defeat pauses after slow motion and cancels automatic respawns");
+                Send(new TrialRetryChallenge());yield return .15f;
+                Check(game.Mode==TrialMode.Dead && world.defeat,"A peer cannot bypass the host-only retry");
+                var retry=game.Hud.GetComponentsInChildren<UnityEngine.UI.Button>().First(button=>button.name=="Begin");
+                Check(retry.interactable,"The host can retry from the defeat menu");
+                retry.onClick.Invoke();yield return .25f;
+                Check(game.Mode==TrialMode.Playing && game.Player.Alive && remote.Alive && !world.defeat,"Host retry from the defeat menu restores the entire party immediately");
                 game.Player.ChooseBoon(game.Player.OfferA);remote.ChooseBoon(remote.OfferA);
                 // Capture a real host-produced world for the receiving-client test.
                 world.players = new[] { game.Player.CaptureNetwork(0), remote.CaptureNetwork(1) };
@@ -201,7 +208,7 @@ namespace TomorinTrial.Editor
                 Send(world); yield return .15f;
                 Check(network.LocalId == 1 && !NetworkServer.active, "Game runs as remote client with the assigned ID");
                 world.defeat=true;Send(world);yield return .15f;
-                Check(game.Mode==TrialMode.Dead && game.CameraRig.Frozen && Cursor.visible,"Receiving client shows authoritative team defeat and releases the cursor");
+                Check(game.Mode==TrialMode.Dead && Time.timeScale==.5f && !game.CameraRig.Frozen && Cursor.visible,"Receiving client starts authoritative team defeat in slow motion and releases the cursor");
                 world.defeat=false;Send(world);yield return .15f;
                 Check(game.Mode==TrialMode.Playing && !game.CameraRig.Frozen && Time.timeScale>0,"Receiving client resumes after authoritative retry");
                 Check(game.Player.MaxStamina==world.players.First(p=>p.id==1).maxStamina && game.Player.MaxStamina>=180,"The real receiving client retains the authority's increased maximum stamina");
@@ -219,7 +226,7 @@ namespace TomorinTrial.Editor
                 Send(cue); yield return .08f;
                 Check(Notice(game) == "PEER_SENTINEL" && Shake(game) == 0 && Sparks(game) > before, "Observer sees remote parry sparks without receiving its HUD or camera feedback");
                 cue.player = 1; Send(cue);
-                Until(); while (Waiting(Notice(game) == "完美弹反")) yield return .01f;
+                Until(); while (Waiting(Notice(game) == "完美格挡 · 下一击强化")) yield return .01f;
                 Check(Shake(game) > 0, "Real remote client receives its own parry notice and camera feedback");
                 game.Hud.Notify("ONCE_SENTINEL", 10); yield return .15f;
                 Check(Notice(game) == "ONCE_SENTINEL", "Reapplying snapshots does not replay parry notifications");

@@ -28,7 +28,7 @@ namespace TomorinTrial
         public void CloseSettings()
         {
             if(!SettingsOpen)return;settingsView.Hide();
-            if(game.Mode==TrialMode.Paused){RefreshMenu();settingsButton.Select();}
+            if(game.Mode==TrialMode.Paused)RefreshMenu();
         }
     }
 }

@@ -12,7 +12,7 @@ namespace TomorinTrial
             18=>"反向上挑",19=>"重劈终结",20=>"插剑落地",22=>"收刀斩",
             AirBladeFirst=>"空中剑气一",AirBladeSecond=>"空中剑气二",AirBladeThird=>"空中剑气三",
             AirSandDive=>"俯冲落地",SakuraFollowup=>"追击樱花突刺",
-            ParryTriple=>"格挡三连刺",FireDragon=>"火龙",BehindThrust=>"背闪突刺",SpiralSword=>"投刀回旋",DodgeDragon=>"后跃火龙",
+            ParryTriple=>"格挡三连刺",ThunderDragon=>"雷吼炮·雷龙",BehindThrust=>"背闪突刺",SpiralSword=>"投刀回旋",DodgeDragon=>"后跃雷吼炮·雷龙",
             FlowingSweep=>"回身横扫",RisingBridge=>"进步上挑",MoonChase=>"月刃追刺",
             RollThrust=>"翻滚前刺",RollFlash=>"翻滚一闪",CrossDraw=>"交错斩",LowReap=>"低扫",
             DoubleFang=>"二连斩",WheelFinish=>"回旋终结",RetreatDraw=>"后撤抽刀",ThreadPierce=>"穿针突刺",
@@ -33,7 +33,7 @@ namespace TomorinTrial
                 if(ParryDodgeFollowup)return "完美格挡 · 远闪追击";
                 if(ParryEmpowered)return "完美格挡 · 选择反击";
                 if(weavePending)return "格挡变招 · "+SwordMoveName(GuardComboHeavy(GuardFollowupMove),GuardFollowupMove);
-                if(Action==FighterAction.Charge)return Combo==FireDragon?"强化 · 火龙蓄力":"蓄力 · 松开重击出招";
+                if(Action==FighterAction.Charge)return Combo==ThunderDragon?"强化 · 雷吼炮·雷龙蓄力":"蓄力 · 松开重击出招";
                 if(CanLinkDodgeAttack)return "闪避 · 选择追击";
                 if(LandingSakuraReady)return "落地 · 樱花追击";
                 bool attacking=Action==FighterAction.Light || Action==FighterAction.Heavy;
@@ -49,8 +49,8 @@ namespace TomorinTrial
             if(SwordGuardReturning)return "瞬移接刀 → 快速返斩至投刀起点";
             if(AutoSwordThrowGuard)return "投刀自动格挡 · 完美格挡后瞬移接刀返斩\n"+light+" 追剑收斩 / "+heavy+" 追剑升龙";
             if(ParryDodgeFollowup)return light+" 背闪突刺 / "+heavy+" 回旋刀";
-            if(ParryEmpowered)return light+" 三连刺 / "+heavy+" 火龙 / 闪避远闪";
-            if(Time.time<blinkReadyUntil)return light+" 闪身横斩 / "+heavy+" 后跃火龙";
+            if(ParryEmpowered)return light+" 三连刺 / "+heavy+" 雷吼炮·雷龙 / 闪避远闪";
+            if(Time.time<blinkReadyUntil)return light+" 闪身横斩 / "+heavy+" 后跃雷吼炮·雷龙";
             if(Action==FighterAction.Charge)return $"蓄力 {ChargeAmount*100:0}% · 松开释放 · 格挡 / 闪避取消";
             if(CanLinkDodgeAttack)return light+" 前刺 / "+heavy+" 一闪 / "+guard+" 投刀";
             if(LandingSakuraReady)return light+" → 追击樱花突刺 / "+heavy+" 重新起手\n触地轻击直接续接 · 松开停止";

@@ -38,6 +38,14 @@ namespace TomorinTrial
         public TrialInput Input { get; private set; }
         public IReadOnlyList<TrialEnemy> Enemies => enemies;
         public TrialMode Mode { get; private set; }
+        internal const float ResultSlowScale=.5f;
+        internal const float ResultInkDelay=.45f;
+        const float ResultSlowDuration=3f;
+        internal const float RespawnDelay=5f;
+        float resultStartedAt=float.NegativeInfinity;
+        internal bool HasResult=>Mode==TrialMode.Dead || Mode==TrialMode.Victory;
+        internal float ResultAge=>Time.unscaledTime-resultStartedAt;
+        internal bool ResultInProgress=>HasResult && ResultAge<ResultSlowDuration;
         public bool GateOpen { get; private set; }
         public int DefeatedGuards { get; private set; }
         public int Deaths { get; private set; }
@@ -163,6 +171,20 @@ namespace TomorinTrial
             }
             return found;
         }
+        internal int SpellTargetId(TrialFighter fighter)
+        {
+            if(fighter is TrialPlayer rival)return TrialNetworkManager.Current.IdOf(rival);
+            return IsRunStage?fighter.GetInstanceID():enemies.IndexOf(fighter as TrialEnemy);
+        }
+        internal TrialFighter SpellTarget(int id)
+        {
+            if(IsArena)return TrialNetworkManager.Current?TrialNetworkManager.Current.PlayerById(id):null;
+            if(!IsRunStage)return id>=0 && id<enemies.Count?enemies[id]:null;
+            if(Mirror.NetworkClient.active && !Mirror.NetworkServer.active)
+                return runReplicas.TryGetValue(id,out var replica)?replica:null;
+            foreach(var enemy in enemies)if(enemy && enemy.GetInstanceID()==id)return enemy;
+            return null;
+        }
         public void SealArena()
         {
             if(World.ArenaEntrance.activeSelf)return;
@@ -189,6 +211,7 @@ namespace TomorinTrial
         {
             if(!Ready)return;
             Input.Read();Effects.TickTime();
+            if(HasResult)TickResult();
             if(TrialNetworkManager.SessionActive){networkDriven=true;TrialNetworkManager.Current.TickGame(this);return;}
             // StopClient clears network flags before the menu scene finishes loading.
             // Replicas must not run the standalone simulation during that gap.
@@ -197,13 +220,8 @@ namespace TomorinTrial
             {if(Input.Confirm)StartTrial();return;}
             if(Mode==TrialMode.Paused)
             {if(Input.Pause)HandlePauseInput();return;}
-            if(Mode==TrialMode.Dead || Mode==TrialMode.Victory)
-            {
-                if(Mode==TrialMode.Dead)foreach(var enemy in enemies)if(!enemy.Alive)enemy.Tick(Time.unscaledDeltaTime);
-                // Death-screen confirmation belongs to the selected UI button, so
-                // confirming Exit cannot also trigger the old unconditional respawn.
-                return;
-            }
+            // Result screens handle confirmation through their selected UI button.
+            if(HasResult)return;
             if(Input.Pause){Pause();return;}
             if(Input.Upgrade && Player.OpenRunUpgrade())return;
             if(Player.ChoosingBoon){SetCursor(false);return;}
@@ -240,7 +258,7 @@ namespace TomorinTrial
             RestartTrial();
             if(IsRunStage)return;
             if(IsChampionStage){Hud.Notify(TrialChampionCatalog.Lesson(Level),5);return;}
-            for(int i=0;i<3;i++)enemies[i].ReceiveHit(Player,10000,100,true);
+            for(int i=0;i<3;i++)enemies[i].ReceiveHit(null,10000,100,true);
             Player.Restore(new Vector3(0,0,19));CameraRig.Snap();
             Hud.Notify("",0);
         }
@@ -266,10 +284,11 @@ namespace TomorinTrial
         {
             Deaths++;if(TrialNetworkManager.SessionActive){Hud.Notify(IsArena?"3 秒后重生":"5 秒后重生",3);return;}
             foreach(var enemy in enemies)if(enemy.Champion)enemy.Champion.CancelAttack(true);
-            Mode=TrialMode.Dead;SetCursor(false);
+            EnterDefeat();
         }
-        public void OnEnemyDied(TrialEnemy enemy,TrialPlayer killer=null)
+        public void OnEnemyDied(TrialEnemy enemy,TrialPlayer killer=null,bool awardSpellEnergy=true)
         {
+            if(killer && awardSpellEnergy)killer.AwardSpellEnergyForKill();
             if(IsRunStage){Run.EnemyDied(enemy,killer);(killer?killer:Player).OnRunKill(enemy);return;}
             if(enemy.IsBoss)
             {
@@ -280,16 +299,42 @@ namespace TomorinTrial
             if(DefeatedGuards>=3)
             {GateOpen=true;World.Gate.SetActive(false);Hud.Notify("庭门已开",1.8f);Effects.Sound("heal",Player.transform.position,.8f);}
         }
-        void EnterVictory(){Mode=TrialMode.Victory;Input.ResetSprint();CameraRig.Frozen=true;Time.timeScale=0;SetCursor(false);}
-        public void EnterDefeat(){Mode=TrialMode.Dead;Input.ResetSprint();CameraRig.Frozen=true;Time.timeScale=0;SetCursor(false);Hud.Notify("",0);}
+        void EnterVictory()=>EnterResult(TrialMode.Victory);
+        public void EnterDefeat()
+        {
+            EnterResult(TrialMode.Dead);
+            Hud.Notify("",0);
+        }
+        void EnterResult(TrialMode mode)
+        {
+            if(Mode==mode)return;
+            Mode=mode;
+            resultStartedAt=Time.unscaledTime;
+            foreach(var enemy in enemies)enemy.StopLocomotion();
+            Input.ResetSprint();
+            CameraRig.Frozen=false;
+            Time.timeScale=ResultSlowScale;
+            SetCursor(false);
+        }
+        void TickResult()
+        {
+            CameraRig.Frozen=!ResultInProgress;
+            if(CameraRig.Frozen || (networkDriven && !Mirror.NetworkServer.active))return;
+
+            // Advance presentation while combat, input and the run timer are stopped.
+            float dt=Time.deltaTime;
+            foreach(var enemy in enemies)if(!enemy.Alive)enemy.Tick(dt);
+            if(!TrialNetworkManager.SessionActive)Player.AdvanceResultPose(dt);
+        }
         public void RetryChallenge()
         {
             if(TrialNetworkManager.SessionActive)TrialNetworkManager.Current.RetryChallenge();
-            else RestartTrial();
+            else if(Mode!=TrialMode.Dead)RestartTrial();
+            else if(!networkDriven && !ResultInProgress)Respawn();
         }
         public void Respawn(){if(IsRunStage){RestartTrial();return;}Player.Restore(Checkpoint);ResetEnemies();CameraRig.Snap();StartTrial();Hud.Notify("",0);}
-        public void RestartTrial(){if(IsRunStage){RestartRun();return;}Checkpoint=IsChampionStage?new Vector3(0,0,8):new Vector3(0,0,-21);Deaths=0;PlaySeconds=0;Player.ResetRunBoon();var fish=enemies.Count>0?enemies[enemies.Count-1].Boss:null;if(fish)fish.ClearBoon();Respawn();}
-        void ResetEnemies(){World.ArenaEntrance.SetActive(false);foreach(var enemy in enemies)enemy.ResetFighter();DefeatedGuards=0;GateOpen=IsChampionStage;World.Gate.SetActive(!IsChampionStage);}
+        public void RestartTrial(){Player.ResetSpellProgress();if(IsRunStage){Effects.ClearSpellVisuals();RestartRun();return;}Checkpoint=IsChampionStage?new Vector3(0,0,8):new Vector3(0,0,-21);Deaths=0;PlaySeconds=0;Player.ResetRunBoon();var fish=enemies.Count>0?enemies[enemies.Count-1].Boss:null;if(fish)fish.ClearBoon();Respawn();}
+        void ResetEnemies(){Effects.ClearSpellVisuals();World.ArenaEntrance.SetActive(false);foreach(var enemy in enemies)enemy.ResetFighter();DefeatedGuards=0;GateOpen=IsChampionStage;World.Gate.SetActive(!IsChampionStage);}
         public TrialEnemy NearestEnemy(Vector3 point,float range)
         {
             TrialEnemy found=null;float closest=range*range;

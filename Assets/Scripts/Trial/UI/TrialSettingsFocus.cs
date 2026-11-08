@@ -6,7 +6,7 @@ namespace TomorinTrial
 {
     // Paint actual graphic colors: ColorTint multiplies the translucent paper tint,
     // which otherwise makes keyboard/controller selection almost invisible.
-    public sealed class TrialSettingsFocus : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    public sealed class TrialSettingsFocus : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, ISelectHandler
     {
         Selectable control;
         TrialSettingsPanel panel;
@@ -34,5 +34,9 @@ namespace TomorinTrial
         void OnDisable(){hover=false;if(background)background.color=idle;if(outline)outline.enabled=false;}
         public void OnPointerEnter(PointerEventData e){hover=true;}
         public void OnPointerExit(PointerEventData e){hover=false;}
+        public void OnSelect(BaseEventData e)
+        {
+            if(panel && !(e is PointerEventData))panel.RevealBinding((RectTransform)transform);
+        }
     }
 }

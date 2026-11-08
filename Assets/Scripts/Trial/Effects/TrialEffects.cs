@@ -10,7 +10,7 @@ namespace TomorinTrial
         readonly List<AudioSource> sources=new List<AudioSource>();
         Material particles;
         TrialGame game;
-        float stopUntil;
+        float stopUntil,perfectDodgeSlowUntil;
         int nextSource,nextWarningSource;
 
         public void Initialize(TrialGame owner)
@@ -34,9 +34,12 @@ namespace TomorinTrial
             CreateSound("swing",.32f,180,.23f,1);CreateSound("hit",.22f,90,.35f,2);
             CreateSound("parry",.65f,820,.29f,3);CreateSound("warning",.36f,280,.14f,3);
             CreateSound("dodge",.27f,75,.13f,1);CreateSound("heal",.9f,520,.13f,3);CreateSound("death",.9f,65,.24f,2);
+            CreateSound("spellThunder",.5f,126,.32f,2);
+            CreateSound("spellGlass",.67f,1750,.22f,3);
+            CreateSound("spellCoffin",.85f,82,.30f,2);
             for(int i=0;i<14;i++){var voice=new GameObject("SFX voice "+i);voice.transform.SetParent(transform,false);var s=voice.AddComponent<AudioSource>();s.spatialBlend=.65f;s.rolloffMode=AudioRolloffMode.Linear;s.minDistance=2;s.maxDistance=24;s.volume=.55f;sources.Add(s);}
             CreateAmbience();
-            InitializeImpactEffects();InitializeTides();LoadCombatAudio();
+            InitializeImpactEffects();InitializeTides();LoadCombatAudio();InitializeSpellVoices();
             AmbientParticles(owner.World.Root,owner.World.ShrinePosition+Vector3.up,26,new Color(1,.58f,.16f),.035f,1.2f);
             AmbientParticles(owner.World.Root,new Vector3(0,5,5),100,new Color(.65f,.11f,.035f),.065f,.7f,24);
         }
@@ -111,12 +114,14 @@ namespace TomorinTrial
         public void HitStop(float duration){stopUntil=Mathf.Max(stopUntil,Time.unscaledTime+duration);}
         public void PlayCombat(TrialCombatEvent value,bool localPlayer)
         {
+            if(PlaySpellCue(value,localPlayer))return;
             PolishPlayerArt(value);
             if(PlaySwordCue(value,localPlayer))return;
             if(TrialNetworkManager.SessionActive)
             {
                 float hold=value.cue==TrialCombatCue.Parry?.115f:value.cue==TrialCombatCue.Block?.03f:value.cue==TrialCombatCue.Kill || value.cue==TrialCombatCue.FinisherHit?.12f:value.cue==TrialCombatCue.HeavyHit?.095f:value.cue==TrialCombatCue.Hit?.065f:0;
-                if(hold>0)TrialNetworkManager.Current.PlayerById(value.player)?.HoldCombat(hold);
+                if(value.cue==TrialCombatCue.HeavyHit && value.amount==TrialCombatEvent.BlinkSlashImpact)hold=TrialCombatEvent.BlinkSlashHitStop;
+                if(hold>0 && value.amount!=TrialCombatEvent.ContactOnlyImpact)TrialNetworkManager.Current.PlayerById(value.player)?.HoldCombat(hold);
             }
             if(PlayImpactCue(value,localPlayer))return;
             if(value.cue==TrialCombatCue.Parry)
@@ -141,8 +146,17 @@ namespace TomorinTrial
             else if(localPlayer && value.cue==TrialCombatCue.Death)game.OnPlayerDied();
         }
         public void TickTime()
-        {TickSignatureEffects();TickImpactEffects();TickTides();TickCombatAudio();TickSwordEffects();Time.timeScale=game.Mode==TrialMode.Victory || game.Mode==TrialMode.Dead?0:TrialNetworkManager.SessionActive?(Time.unscaledTime<slowUntil?.35f:1):game.Mode==TrialMode.Playing && !game.Player.ChoosingBoon?(Time.unscaledTime<stopUntil?.08f:Time.unscaledTime<slowUntil?.30f:1):0;}
-        public void ResumeSwordReturn(){stopUntil=slowUntil=0;}
-        void OnDestroy(){if(signatureMaterial)Destroy(signatureMaterial);DisposeImpactEffects();DisposeSwordArtEffects();Time.timeScale=1;foreach(var clip in generatedSounds)if(clip)Destroy(clip);if(particles)Destroy(particles);if(petalMesh)Destroy(petalMesh);}
+        {
+            TickSignatureEffects();TickImpactEffects();TickTides();TickCombatAudio();TickSwordEffects();TickSpellVisuals();
+            float now=Time.unscaledTime;
+            if(game.HasResult)Time.timeScale=game.ResultInProgress?TrialGame.ResultSlowScale:0;
+            else if(TrialNetworkManager.SessionActive)Time.timeScale=now<slowUntil?.35f:1;
+            else if(game.Mode!=TrialMode.Playing || game.Player.ChoosingBoon)Time.timeScale=0;
+            else if(now<stopUntil)Time.timeScale=.08f;
+            else if(now<slowUntil)Time.timeScale=.30f;
+            else Time.timeScale=Mathf.Lerp(.30f,1,Mathf.InverseLerp(perfectDodgeSlowUntil,perfectDodgeSlowUntil+.065f,now));
+        }
+        public void ResumeSwordReturn(){stopUntil=slowUntil=perfectDodgeSlowUntil=0;}
+        void OnDestroy(){if(signatureMaterial)Destroy(signatureMaterial);DisposeImpactEffects();DisposeSwordArtEffects();DisposeSpellVisuals();Time.timeScale=1;foreach(var clip in generatedSounds)if(clip)Destroy(clip);if(particles)Destroy(particles);if(petalMesh)Destroy(petalMesh);}
     }
 }

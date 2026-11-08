@@ -122,9 +122,9 @@ namespace TomorinTrial.Editor
                 {boss.Champion.BeginMove(i);for(int j=0;j<12;j++)boss.Champion.Tick(.08f);Check(Mathf.Abs(boss.transform.position.y)<.5f,"Anon move "+i+" remains grounded");boss.Champion.CancelAttack(true);}
                 reset();boss.Teleport(new Vector3(0,0,22));boss.Champion.BeginMove(1);tick(new TrialControls{pressed=1},.01f);tick(default,.12f);
                 Check(p.CombatFrozen && boss.CombatFrozen && boss.Recoil.sqrMagnitude>.1f,"Blade contact holds both poses and produces boss body recoil");
-                yield return .2f;reset();boss.ReceiveHit(p,100000,0,true);Call(game.Hud,"UpdateInkResult");
-                Check(Field<Text>(game.Hud,"resultCharacter").text=="斩" && Field<CanvasGroup>(game.Hud,"resultInk").gameObject.activeSelf,"Boss victory displays the ink slash character while time is stopped");
-                game.Respawn();game.Player.ResetRunBoon();game.enabled=false;p.ReceiveHit(null,10000,0,true);Call(game.Hud,"UpdateInkResult");
+                yield return .2f;reset();boss.ReceiveHit(p,100000,0,true);yield return .6f;Call(game.Hud,"UpdateInkResult");
+                Check(Field<Text>(game.Hud,"resultCharacter").text=="斩" && Field<CanvasGroup>(game.Hud,"resultInk").gameObject.activeSelf,"Boss victory displays the ink slash character during slow motion");
+                game.Respawn();game.Player.ResetRunBoon();game.enabled=false;p.ReceiveHit(null,10000,0,true);yield return .6f;Call(game.Hud,"UpdateInkResult");
                 Check(Field<Text>(game.Hud,"resultCharacter").text=="菜","Player death displays the ink defeat character");
                 Check(!Field<CanvasGroup>(game.Hud,"resultInk").blocksRaycasts,"Ink verdict never blocks retry or exit controls");
                 Check(errors==0,"No runtime exceptions during the regression suite");

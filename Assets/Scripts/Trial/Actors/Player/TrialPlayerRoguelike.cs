@@ -52,6 +52,7 @@ namespace TomorinTrial
         {
             if(!game.IsEndless || !Alive || game.Mode!=TrialMode.Playing || PendingRunChoices<=0 || runChoiceOpen)return false;
             runChoiceOpen=true;
+            StopLocomotion();PlanarVelocity=Vector3.zero;LocalMotion=Vector2.zero;Sprinting=false;TurnLean=0;
             if(!hasRunOffers)RollAffixes();
             if(this!=game.Player)return true;
             if(!TrialNetworkManager.SessionActive)Time.timeScale=0;game.Input.ResetSprint();game.Input.SuppressCombat();

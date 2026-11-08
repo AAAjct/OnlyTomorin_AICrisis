@@ -161,7 +161,7 @@ namespace TomorinTrial
         {
             if(!fighter.Alive){CancelAttack();return;}
             if(fighter.CombatFrozen)return;
-            if(!game.CombatTarget.Alive){CancelAttack();fighter.BossMotion(0);return;}
+            if(!game.CombatTarget.Alive){CancelAttack();fighter.StopLocomotion();return;}
             TickHazards(dt);
             duel.Tick(game.CombatTarget,dt);
             reactiveCooldown=Mathf.Max(0,reactiveCooldown-dt);

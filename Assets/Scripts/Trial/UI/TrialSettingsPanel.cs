@@ -12,6 +12,7 @@ namespace TomorinTrial
     {
         Font font;
         RectTransform card;
+        ScrollRect bindingScroll;
         Action back;
         UnityEngine.UI.Slider volume;
         Slider editingVolume;
@@ -71,25 +72,45 @@ namespace TomorinTrial
             Label("键鼠主键",card,538,145,124,25,16,Grey);
             Label("键鼠备用键",card,674,145,124,25,16,Grey);
             Label("手柄操作",card,810,145,262,25,16,Grey);
+            const float rowHeight=32,viewportHeight=480;
+            float contentHeight=TrialBindings.Entries.Length*rowHeight;
+            var viewport=Box("Binding viewport",card,380,182,674,viewportHeight,Color.clear);
+            viewport.gameObject.AddComponent<RectMask2D>();
+            var content=Box("Binding rows",viewport,0,0,674,contentHeight,Color.clear);
+            content.GetComponent<Image>().raycastTarget=false;
+            bindingScroll=viewport.gameObject.AddComponent<ScrollRect>();
+            bindingScroll.viewport=viewport;
+            bindingScroll.content=content;
+            bindingScroll.horizontal=false;
+            bindingScroll.movementType=ScrollRect.MovementType.Clamped;
+            bindingScroll.scrollSensitivity=48;
+            var scrollbar=BuildBindingScrollbar(viewportHeight);
+            bindingScroll.verticalScrollbar=scrollbar;
             int row=0;
             foreach(var entry in TrialBindings.Entries)
             {
-                float y=182+row++*32;Label(entry.Label,card,380,y,138,30,18,Ink);
+                float y=row++*rowHeight;Label(entry.Label,content,0,y,138,30,18,Ink);
                 for(int slot=0;slot<3;slot++)
                 {
-                    int captured=slot;float x=528+slot*136;float width=slot==2?272:124;
+                    int captured=slot;float x=148+slot*136;float width=slot==2?254:124;
                     if(entry.Defaults[slot]==null)
                     {
-                        Label(BindingCaption(entry,slot),card,x+10,y,width-20,30,16,Grey);
+                        Label(BindingCaption(entry,slot),content,x+10,y,width-20,30,16,Grey);
                         continue;
                     }
-                    UnityEngine.UI.Button button=null;button=Button("Bind "+entry.Id+" "+slot,card,x,y,width,30,"",()=>BeginRebind(entry,captured,button));
+                    UnityEngine.UI.Button button=null;button=Button("Bind "+entry.Id+" "+slot,content,x,y,width,30,"",()=>BeginRebind(entry,captured,button));
                     var label=button.GetComponentInChildren<UnityEngine.UI.Text>();refreshBindings.Add(()=>label.text=BindingCaption(entry,captured));
                 }
             }
             status=Label("",card,380,666,692,42,16,Red);
-            Button("Restore bindings",card,380,718,300,48,"恢复默认键位",()=>{TrialBindings.ResetDefaults();Refresh();status.text="已恢复默认键位。";});
-            Button("Back",card,772,718,300,48,"返回",()=>back());
+            var restore=Button("Restore bindings",card,380,718,300,48,"恢复默认键位",()=>{TrialBindings.ResetDefaults();Refresh();status.text="已恢复默认键位。";});
+            var close=Button("Back",card,772,718,300,48,"返回",()=>back());
+            // Order the footer after every row when linking keyboard and controller navigation.
+            var overflow=Vector2.down*Mathf.Max(0,contentHeight-viewportHeight);
+            var restoreRect=(RectTransform)restore.transform;
+            var closeRect=(RectTransform)close.transform;
+            restoreRect.anchoredPosition+=overflow;
+            closeRect.anchoredPosition+=overflow;
             foreach(var control in navigation)
             {
                 control.navigation=new Navigation
@@ -102,16 +123,51 @@ namespace TomorinTrial
                 };
                 if(control is Slider slider)BindVolumeEditing(slider);
             }
+            restoreRect.anchoredPosition-=overflow;
+            closeRect.anchoredPosition-=overflow;
+            TrialMenuLayout.StretchContents(content);
+            content.anchorMin=new Vector2(0,1-contentHeight/viewportHeight);
+            content.anchorMax=Vector2.one;
+            content.offsetMin=content.offsetMax=Vector2.zero;
             TrialMenuLayout.StretchContents(card);
             card.anchorMin=Vector2.zero;card.anchorMax=Vector2.one;
             card.offsetMin=card.offsetMax=Vector2.zero;
         }
 
+        Scrollbar BuildBindingScrollbar(float height)
+        {
+            var track=Box("Binding scrollbar",card,1062,182,10,height,new Color(.15f,.14f,.12f,.12f));
+            var handleArea=new GameObject("Sliding area",typeof(RectTransform)).GetComponent<RectTransform>();
+            handleArea.SetParent(track,false);
+            handleArea.anchorMin=Vector2.zero;
+            handleArea.anchorMax=Vector2.one;
+            handleArea.offsetMin=handleArea.offsetMax=Vector2.zero;
+            var handle=Box("Handle",handleArea,0,0,10,30,Red);
+            handle.offsetMin=handle.offsetMax=Vector2.zero;
+            var scrollbar=track.gameObject.AddComponent<Scrollbar>();
+            scrollbar.direction=Scrollbar.Direction.BottomToTop;
+            scrollbar.handleRect=handle;
+            scrollbar.targetGraphic=handle.GetComponent<Image>();
+            scrollbar.navigation=new Navigation{mode=Navigation.Mode.None};
+            return scrollbar;
+        }
+
+        internal void RevealBinding(RectTransform row)
+        {
+            if(!bindingScroll || row.parent!=bindingScroll.content)return;
+            var viewport=bindingScroll.viewport;
+            var bounds=RectTransformUtility.CalculateRelativeRectTransformBounds(viewport,row);
+            float delta=bounds.max.y>viewport.rect.yMax?viewport.rect.yMax-bounds.max.y:
+                Mathf.Max(0,viewport.rect.yMin-bounds.min.y);
+            if(Mathf.Approximately(delta,0))return;
+            bindingScroll.StopMovement();
+            bindingScroll.content.anchoredPosition+=Vector2.up*delta;
+        }
+
         Selectable FindNeighbor(Selectable control,Vector2 direction)
         {
-            // All controls share the card's top-left anchor and pivot.
             var origin=(RectTransform)control.transform;
-            Vector2 center=origin.anchoredPosition+origin.rect.center;
+            Vector2 center=card.InverseTransformPoint(origin.TransformPoint(origin.rect.center));
             bool vertical=direction.x==0;
             Selectable nearest=null;
             Selectable wrap=null;
@@ -122,7 +178,7 @@ namespace TomorinTrial
             foreach(var candidate in navigation)
             {
                 var target=(RectTransform)candidate.transform;
-                Vector2 delta=target.anchoredPosition+target.rect.center-center;
+                Vector2 delta=(Vector2)card.InverseTransformPoint(target.TransformPoint(target.rect.center))-center;
                 float forward=Vector2.Dot(delta,direction);
                 float offset=Mathf.Abs(vertical?delta.x:delta.y);
                 float halfWidths=(origin.rect.width+target.rect.width)*.5f;
@@ -212,7 +268,7 @@ namespace TomorinTrial
             track.gameObject.AddComponent<TrialSettingsFocus>();slider.SetValueWithoutNotify(value);slider.onValueChanged.AddListener(change);navigation.Add(slider);return slider;
         }
         public void Show()
-        {gameObject.SetActive(true);transform.SetAsLastSibling();active=this;openedFrame=Time.frameCount;volume.SetValueWithoutNotify(AudioListener.volume);for(int i=0;i<soundVolumes.Length;i++)soundVolumes[i].SetValueWithoutNotify(TrialPreferences.AudioLevel(i));Refresh();status.text="";first.Select();}
+        {gameObject.SetActive(true);transform.SetAsLastSibling();active=this;openedFrame=Time.frameCount;bindingScroll.StopMovement();bindingScroll.content.anchoredPosition=Vector2.zero;volume.SetValueWithoutNotify(AudioListener.volume);for(int i=0;i<soundVolumes.Length;i++)soundVolumes[i].SetValueWithoutNotify(TrialPreferences.AudioLevel(i));Refresh();status.text="";first.Select();}
         public void Hide(){gameObject.SetActive(false);}
         void Refresh()
         {
@@ -230,7 +286,7 @@ namespace TomorinTrial
         }
         void ArmCapture()
         {
-            captureAction=new InputAction("Rebind",InputActionType.Button);captureAction.AddBinding(TrialBindings.Path(pendingEntry,pendingSlot));
+            captureAction=new InputAction("Rebind",InputActionType.Button);captureAction.AddBinding(pendingEntry.Defaults[pendingSlot]);
             operation=captureAction.PerformInteractiveRebinding(0).WithExpectedControlType("Button").WithCancelingThrough("<Keyboard>/escape").WithMatchingEventsBeingSuppressed().WithTimeout(12).OnMatchWaitForAnother(.08f);
             if(pendingSlot==2)operation.WithControlsHavingToMatchPath("<Gamepad>/*");
             else operation.WithControlsExcluding("<Gamepad>").WithControlsExcluding("<Touchscreen>").WithControlsExcluding("<Joystick>").WithControlsExcluding("<XRController>");
@@ -242,7 +298,12 @@ namespace TomorinTrial
         {
             var current=operation;operation=null;current?.Dispose();captureAction?.Dispose();captureAction=null;rebinding=false;
             suppressFrame=Time.frameCount+1;foreach(var item in navigation)item.interactable=true;Refresh();
-            if(message!=null)status.text=message;if(captureButton && gameObject.activeInHierarchy)captureButton.Select();
+            if(message!=null)status.text=message;
+            if(captureButton && gameObject.activeInHierarchy)
+            {
+                RevealBinding((RectTransform)captureButton.transform);
+                captureButton.Select();
+            }
         }
         void Update()
         {

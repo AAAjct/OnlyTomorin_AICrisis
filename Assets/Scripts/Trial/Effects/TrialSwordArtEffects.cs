@@ -30,14 +30,12 @@ namespace TomorinTrial
         readonly SwordArtVisual[] swordArts=new SwordArtVisual[40];
         int nextSwordArt;
         Mesh dragonHeadMesh;
-        ParticleSystem dragonFlames;
-        Material flameMaterial;
-        Texture2D flameTexture;
         Texture2D swordGlowTexture;
         Material swordGlowMaterial;
         Material crimsonEdgeMaterial,crimsonGlowMaterial;
         static readonly Color CrimsonWave=new Color(1,.012f,.045f);
         static readonly Color SakuraPink=new Color(1,.44f,.68f);
+        static readonly Color ThunderGold=new Color(1,.80f,.14f);
         static readonly Vector3[] DragonOutline={new Vector3(-.18f,.1f,-.7f),new Vector3(-.52f,.65f,-.8f),new Vector3(-.28f,.27f,-.24f),new Vector3(-.25f,.16f,.23f),new Vector3(-.13f,.1f,.75f),new Vector3(.13f,.1f,.75f),new Vector3(.25f,.16f,.23f),new Vector3(.28f,.27f,-.24f),new Vector3(.52f,.65f,-.8f),new Vector3(.18f,.1f,-.7f),new Vector3(.3f,-.16f,-.1f),new Vector3(.16f,-.20f,.56f),new Vector3(-.16f,-.20f,.56f),new Vector3(-.3f,-.16f,-.1f),new Vector3(-.25f,.05f,.30f),new Vector3(-.72f,.14f,.45f),new Vector3(-1,.28f,.18f),new Vector3(-.72f,.14f,.45f),new Vector3(-.25f,.05f,.30f),new Vector3(.25f,.05f,.30f),new Vector3(.72f,.14f,.45f),new Vector3(1,.28f,.18f)};
 
         SwordArtVisual Art(TrialCombatEvent cue,float duration,bool flight=false)
@@ -72,7 +70,7 @@ namespace TomorinTrial
             art.cue=cue;art.age=0;art.duration=duration;art.flight=flight;
             art.waveStopAge=-1;art.wavePreviousAge=0;
             if(art.wakeSurface)art.wakeSurface.enabled=false;
-            art.nextEmber=0;art.head.gameObject.SetActive(cue.cue==TrialCombatCue.FireDragon);
+            art.nextEmber=0;art.head.gameObject.SetActive(cue.cue==TrialCombatCue.ThunderDragon);
             art.owner=TrialNetworkManager.SessionActive?TrialNetworkManager.Current.PlayerById(cue.player):game.Player;
             art.surface.enabled=true;art.detail.enabled=false;
             art.core.enabled=art.glow.enabled=art.filament.enabled=true;
@@ -92,7 +90,7 @@ namespace TomorinTrial
             art.core.sharedMaterial=art.filament.sharedMaterial=crimson?crimsonEdgeMaterial:particles;
             art.glow.sharedMaterial=crimson?crimsonGlowMaterial:swordGlowMaterial;
             art.detail.sharedMaterial=crimson?crimsonGlowMaterial:particles;
-            if(crimson || cue.style>0)ApplySwordPalette(art);
+            if(cue.cue!=TrialCombatCue.ThunderDragon && (crimson || cue.style>0))ApplySwordPalette(art);
             UpdateArt(art);return art;
         }
         bool PlaySwordArtCue(TrialCombatEvent cue,bool local)
@@ -128,11 +126,17 @@ namespace TomorinTrial
             }
             if(cue.cue==TrialCombatCue.CrimsonBlade || cue.cue==TrialCombatCue.MoonBlade)
             {Art(cue,TrialSwordFlight.Lifetime(cue.cue)+CrescentTrailSeconds);Sound(cue.cue==TrialCombatCue.MoonBlade?"skillMoon":"skillCrimson",cue.position);return true;}
-            if(cue.cue==TrialCombatCue.FireDragon || cue.cue==TrialCombatCue.SpiralSword)
+            if(cue.cue==TrialCombatCue.ThunderDragon || cue.cue==TrialCombatCue.SpiralSword)
             {
                 Art(cue,TrialParryFlight.Duration(cue.cue,cue.amount),true);
-                Sound(cue.cue==TrialCombatCue.FireDragon?"skillFire":"skillSpiral",cue.position);
-                if(local){game.CameraRig.Kick(cue.cue==TrialCombatCue.FireDragon?.28f:.10f);Rumble(.25f,.45f,.1f);}return true;
+                bool thunder=cue.cue==TrialCombatCue.ThunderDragon;
+                Sound(thunder?"spellThunder":"skillSpiral",cue.position);
+                if(local)
+                {
+                    if(thunder)game.Hud.Notify("破道之六十三 · 雷吼炮 · 雷龙",1.4f);
+                    game.CameraRig.Kick(thunder?.28f:.10f);Rumble(.25f,.45f,.1f);
+                }
+                return true;
             }
             if(cue.cue==TrialCombatCue.RisingCut || cue.cue==TrialCombatCue.CrescentCut || cue.cue==TrialCombatCue.ThrustTrace || cue.cue==TrialCombatCue.EmpoweredStep)
             {Art(cue,cue.cue==TrialCombatCue.EmpoweredStep?.45f:.28f);return true;}
@@ -265,7 +269,7 @@ namespace TomorinTrial
             var cue=art.cue;float t=Mathf.Clamp01(art.age/art.duration),fade=1-Mathf.SmoothStep(0,1,t);
             Vector3 forward=cue.forward.sqrMagnitude>.01f?cue.forward.normalized:Vector3.forward,right=Vector3.Cross(Vector3.up,forward).normalized;
             Color tint=cue.style>0?StyleColor(cue.style):SakuraPink;float width=.045f;
-            bool dragon=cue.cue==TrialCombatCue.FireDragon,spiral=cue.cue==TrialCombatCue.SpiralSword;
+            bool dragon=cue.cue==TrialCombatCue.ThunderDragon,spiral=cue.cue==TrialCombatCue.SpiralSword;
             Vector3 hand=art.owner?art.owner.transform.position+Vector3.up:cue.position;
             if(art.flight && art.age>0)
             {
@@ -275,7 +279,7 @@ namespace TomorinTrial
                 if(step.sqrMagnitude>.00001f && Physics.SphereCast(from,radius,step.normalized,out _,step.magnitude,1,QueryTriggerInteraction.Ignore))
                 {art.root.gameObject.SetActive(false);if(art.owner && art.owner.Weapon)art.owner.Weapon.gameObject.SetActive(true);return;}
             }
-            if(dragon)tint=new Color(1,.32f,.055f);
+            if(dragon)tint=ThunderGold;
             else if(spiral)tint=new Color(.42f,.78f,1);
             else if(cue.style==0 && (cue.cue==TrialCombatCue.RisingCut || cue.cue==TrialCombatCue.CrescentCut))tint=new Color(1,.83f,.60f);
             float scale=dragon?Mathf.Lerp(.75f,1.35f,cue.amount):1;
@@ -317,7 +321,19 @@ namespace TomorinTrial
             if(cue.cue==TrialCombatCue.EmpoweredStep){width=.025f;tint=new Color(.5f,.85f,1);}
             PaintLine(art.core,art.points,Color.Lerp(tint,Color.white,.75f),width,art.flight?1:fade);
             PaintLine(art.glow,art.points,new Color(tint.r,tint.g,tint.b,.22f),width*4,fade);
-            for(int i=0;i<65;i++)art.points[i]+=Vector3.up*(Mathf.Sin(i*.42f-art.age*18)*.05f)+right*.07f;
+            if(dragon)
+            {
+                float frame=InkMainMenu.ReducedMotion?0:Mathf.Floor(art.age*42);
+                for(int i=0;i<65;i++)
+                {
+                    float spread=Mathf.Sin(i/64f*Mathf.PI)*scale;
+                    float seed=i*2.79f;
+                    Vector3 jitter=right*(Mathf.PerlinNoise(seed,frame*.52f)-.5f)+
+                        Vector3.up*(Mathf.PerlinNoise(seed+17,frame*.65f)-.5f);
+                    art.points[i]+=jitter*(1.25f*spread)+right*.07f;
+                }
+            }
+            else for(int i=0;i<65;i++)art.points[i]+=Vector3.up*(Mathf.Sin(i*.42f-art.age*18)*.05f)+right*.07f;
             PaintLine(art.filament,art.points,tint,width*.35f,fade);
             if(dragon)DragonHead(art,t,hand,scale,fade);
             if(spiral)FlyingSword(art,t,hand,fade);
@@ -370,7 +386,11 @@ namespace TomorinTrial
             art.detail.enabled=true;art.detail.positionCount=shape.Length;
             for(int i=0;i<shape.Length;i++)art.detail.SetPosition(i,head+(right*shape[i].x+Vector3.up*shape[i].y+forward*shape[i].z)*scale);
             art.detail.startColor=art.detail.endColor=new Color(1,.79f,.24f,Mathf.Max(.2f,fade));art.detail.widthMultiplier=.075f*scale;
-            if(art.age>=art.nextEmber){art.nextEmber=art.age+.025f;EmitDragonFlames(head,forward,scale);}
+            if(art.age>=art.nextEmber)
+            {
+                art.nextEmber=art.age+.085f;
+                Burst(head,ThunderGold,6);
+            }
         }
         void BuildDragonHead()
         {
@@ -379,27 +399,10 @@ namespace TomorinTrial
             {
                 float angle=j*Mathf.PI*.25f,radius=ring==0?.12f:ring==1?.34f:ring==2?.27f:.11f;
                 int v=ring*8+j;vertices[v]=new Vector3(Mathf.Cos(angle)*radius,Mathf.Sin(angle)*radius*.72f+.025f,Mathf.Lerp(-.58f,.72f,ring/3f));
-                colors[v]=j<4?new Color(1,.56f,.08f,.86f):new Color(.96f,.15f,.02f,.8f);
+                colors[v]=j<4?new Color(1,.94f,.52f,.86f):new Color(1,.69f,.12f,.8f);
                 if(ring<3){int k=(ring*8+j)*6,a=v,b=ring*8+(j+1)%8;triangles[k]=a;triangles[k+1]=b;triangles[k+2]=a+8;triangles[k+3]=b;triangles[k+4]=b+8;triangles[k+5]=a+8;}
             }
-            dragonHeadMesh=new Mesh{name="Flame dragon sculpted muzzle"};dragonHeadMesh.vertices=vertices;dragonHeadMesh.colors=colors;dragonHeadMesh.triangles=triangles;dragonHeadMesh.RecalculateNormals();
-        }
-        void EmitDragonFlames(Vector3 head,Vector3 forward,float scale)
-        {
-            if(!dragonFlames)
-            {
-                flameTexture=new Texture2D(32,32,TextureFormat.RGBA32,false){name="Soft flame falloff",wrapMode=TextureWrapMode.Clamp};
-                var pixels=new Color[1024];for(int y=0;y<32;y++)for(int x=0;x<32;x++){float r=new Vector2((x-15.5f)/15.5f,(y-15.5f)/15.5f).magnitude;pixels[y*32+x]=new Color(1,1,1,Mathf.Pow(Mathf.Clamp01(1-r),2));}flameTexture.SetPixels(pixels);flameTexture.Apply();
-                flameMaterial=new Material(particles);flameMaterial.SetTexture("_BaseMap",flameTexture);
-                var obj=new GameObject("Dragon flame plumes and embers");obj.transform.SetParent(transform,false);dragonFlames=obj.AddComponent<ParticleSystem>();dragonFlames.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);
-                var main=dragonFlames.main;main.playOnAwake=false;main.loop=false;main.startLifetime=new ParticleSystem.MinMaxCurve(.25f,.7f);main.startSize=new ParticleSystem.MinMaxCurve(.14f,.46f);main.simulationSpace=ParticleSystemSimulationSpace.World;main.maxParticles=500;
-                var emission=dragonFlames.emission;emission.enabled=false;var shape=dragonFlames.shape;shape.enabled=false;
-                var color=dragonFlames.colorOverLifetime;color.enabled=true;var gradient=new Gradient();gradient.SetKeys(new[]{new GradientColorKey(new Color(1,.9f,.35f),0),new GradientColorKey(new Color(1,.28f,.025f),.35f),new GradientColorKey(new Color(.5f,.04f,.01f),1)},new[]{new GradientAlphaKey(.9f,0),new GradientAlphaKey(.65f,.4f),new GradientAlphaKey(0,1)});color.color=gradient;
-                var size=dragonFlames.sizeOverLifetime;size.enabled=true;size.size=new ParticleSystem.MinMaxCurve(1,new AnimationCurve(new Keyframe(0,.5f),new Keyframe(.25f,1),new Keyframe(1,0)));
-                var renderer=dragonFlames.GetComponent<ParticleSystemRenderer>();renderer.sharedMaterial=flameMaterial;renderer.renderMode=ParticleSystemRenderMode.Billboard;
-            }
-            dragonFlames.Play();int count=Application.isMobilePlatform?4:9;
-            for(int j=0;j<count;j++)dragonFlames.Emit(new ParticleSystem.EmitParams{position=head+Random.insideUnitSphere*.35f*scale-forward*Random.Range(0,.9f),velocity=-forward*Random.Range(1,3)+Vector3.up*Random.Range(.3f,1.5f)+Random.insideUnitSphere*.8f,startColor=Color.white,startSize=Random.Range(.16f,.5f)*scale},1);
+            dragonHeadMesh=new Mesh{name="Thunder dragon sculpted muzzle"};dragonHeadMesh.vertices=vertices;dragonHeadMesh.colors=colors;dragonHeadMesh.triangles=triangles;dragonHeadMesh.RecalculateNormals();
         }
         void FlyingSword(SwordArtVisual art,float t,Vector3 hand,float fade)
         {
@@ -434,6 +437,6 @@ namespace TomorinTrial
             if(owner.Weapon)owner.Weapon.gameObject.SetActive(true);
         }
         void DisposeSwordArtEffects()
-        {DisposeSwordPalette();foreach(var art in swordArts)if(art!=null){if(art.mesh)Destroy(art.mesh);if(art.wakeMesh)Destroy(art.wakeMesh);}if(dragonHeadMesh)Destroy(dragonHeadMesh);if(flameMaterial)Destroy(flameMaterial);if(flameTexture)Destroy(flameTexture);if(swordGlowMaterial)Destroy(swordGlowMaterial);if(swordGlowTexture)Destroy(swordGlowTexture);if(crimsonEdgeMaterial)Destroy(crimsonEdgeMaterial);if(crimsonGlowMaterial)Destroy(crimsonGlowMaterial);}
+        {DisposeSwordPalette();foreach(var art in swordArts)if(art!=null){if(art.mesh)Destroy(art.mesh);if(art.wakeMesh)Destroy(art.wakeMesh);}if(dragonHeadMesh)Destroy(dragonHeadMesh);if(swordGlowMaterial)Destroy(swordGlowMaterial);if(swordGlowTexture)Destroy(swordGlowTexture);if(crimsonEdgeMaterial)Destroy(crimsonEdgeMaterial);if(crimsonGlowMaterial)Destroy(crimsonGlowMaterial);}
     }
 }

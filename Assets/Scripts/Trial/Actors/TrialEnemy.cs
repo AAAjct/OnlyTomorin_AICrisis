@@ -20,6 +20,9 @@ namespace TomorinTrial
         bool attackLanded,phaseAnnounced;
         int attackIndex,chain;
         TrialNaiWaRig frogRig;
+        TrialPlayer coffinCaster;
+        float coffinExecutionAt,coffinReplicaHideUntil;
+        bool CoffinSealed=>coffinExecutionAt>0;
         public Vector3 Recoil {get;private set;}
         public float FlinchRemaining {get;private set;}
         public bool Flinching=>FlinchRemaining>0;
@@ -107,9 +110,15 @@ namespace TomorinTrial
 
         public void Tick(float dt)
         {
+            if(CoffinSealed)
+            {
+                if(Time.time>=coffinExecutionAt)AdvanceCoffinExecution();
+                return;
+            }
             TickRunStatuses(dt);
             TickResolve(dt);
             if(CombatFrozen)return;
+            if(TickSpellControl(dt))return;
             flinchCooldown=Mathf.Max(0,flinchCooldown-dt);
             if(!Alive)FlinchRemaining=0;
             if(Flinching)
@@ -193,13 +202,32 @@ namespace TomorinTrial
 
         }
 
+        internal void SeverHead(){if(frogRig && !Alive)frogRig.SeverHead();}
         public void ApplyReplica(TrialActorState state,float dt)
-        {ApplyNetwork(state,dt);Awakened=state.awake;Recoil=state.recoil;resolveTime=state.bossResolve;FlinchRemaining=state.bossFlinch;}
-        public override TrialActorState CaptureNetwork(int id){var state=base.CaptureNetwork(id);state.enemyKind=(byte)(Champion?2+(int)Champion.Kind:IsBoss?1:0);state.recoil=Recoil;state.bossResolve=resolveTime;state.bossFlinch=FlinchRemaining;return state;}
+        {
+            ApplyNetwork(state,dt);Awakened=state.awake;Recoil=state.recoil;resolveTime=state.bossResolve;FlinchRemaining=state.bossFlinch;
+            if(state.spellExecuted)coffinReplicaHideUntil=0;
+            bool spellHidden=state.spellExecuted || Time.unscaledTime<coffinReplicaHideUntil;
+            if(Visual.gameObject.activeSelf==spellHidden)Visual.gameObject.SetActive(!spellHidden);
+            if(state.headSevered)SeverHead();
+            else if(frogRig && frogRig.HeadSevered)frogRig.ResetPresentation();
+        }
+
+        internal void PresentCoffinExecution()
+        {
+            // A reliable effect cue can arrive before the snapshot carrying the execution.
+            coffinReplicaHideUntil=Time.unscaledTime+.5f;
+            Visual.gameObject.SetActive(false);
+        }
+
+        public override TrialActorState CaptureNetwork(int id){var state=base.CaptureNetwork(id);state.enemyKind=(byte)(Champion?2+(int)Champion.Kind:IsBoss?1:0);state.recoil=Recoil;state.bossResolve=resolveTime;state.bossFlinch=FlinchRemaining;state.headSevered=frogRig && frogRig.HeadSevered;state.spellExecuted=!Visual.gameObject.activeSelf;return state;}
 
         public override bool ReceiveHit(TrialFighter attacker,float damage,float postureDamage,bool unblockable=false)
+            =>ReceiveEnemyHit(attacker,damage,postureDamage,unblockable,awardSpellEnergy:true);
+
+        bool ReceiveEnemyHit(TrialFighter attacker,float damage,float postureDamage,bool unblockable,bool awardSpellEnergy)
         {
-            if(!Alive || (IsBoss && !game.GateOpen))return false;
+            if(!Alive || (!IsBoss && CoffinSealed) || (IsBoss && !game.GateOpen))return false;
             if(attacker is TrialPlayer && Invulnerable)return false;
             if(attacker is TrialPlayer runPlayer)damage=runPlayer.ModifyRunDamage(this,damage,ref postureDamage);
             bool exposed=Action==FighterAction.Stagger;
@@ -210,20 +238,71 @@ namespace TomorinTrial
                 bool swordGuard=!counterStance && !exposed && Champion.TryGuardHit(attacker,unblockable);
                 Impact(attacker,damage*(exposed?1.65f:countered?.15f:swordGuard?.18f:1));
                 if(attacker && !ResolveActive)Recoil=Vector3.ProjectOnPlane(transform.position-attacker.transform.position,Vector3.up).normalized*(attacker.Action==FighterAction.Heavy?1.0f:.65f);
-                if(!Alive){Champion.CancelAttack(true);game.OnEnemyDied(this,attacker as TrialPlayer);return true;}
+                if(!Alive){Champion.CancelAttack(true);game.OnEnemyDied(this,attacker as TrialPlayer,awardSpellEnergy);return true;}
                 Awakened=true;if(!ResolveActive)AddChampionPosture(postureDamage*(swordGuard?1.2f:.75f));
                 if(!countered && !swordGuard)HitFlinch(attacker);
                 RecordPressure(attacker);return true;
             }
             if(!IsBoss && attacker){Recoil=Vector3.ProjectOnPlane(transform.position-attacker.transform.position,Vector3.up).normalized*Mathf.Clamp(damage*.045f,1,4);recoilVelocity=Recoil;}
             Impact(attacker,damage*(exposed?1.65f:1)*(Boss && Boss.Boon==TrialBossBoon.IronScales?.92f:1));
-            if(!Alive) {game.OnEnemyDied(this,attacker as TrialPlayer);return true;}
+            if(!Alive) {game.OnEnemyDied(this,attacker as TrialPlayer,awardSpellEnergy);return true;}
             if(IsBoss && !Awakened)game.SealArena();
             Awakened=true;if(!ResolveActive)Posture+=postureDamage;
             if(!exposed && (Posture>=PostureLimit || (!IsBoss && Action==FighterAction.Free)))
             {Posture=0;Begin(FighterAction.Stagger,IsBoss?1.35f:.55f);cooldown=.6f;if(Boss)Boss.CancelAttack();}
             RecordPressure(attacker);
             HitFlinch(attacker);
+            return true;
+        }
+        internal void InterruptForSpell()
+        {
+            if(Champion)Champion.CancelAttack(true);
+            if(Boss)Boss.CancelAttack();
+            Recoil=recoilVelocity=Vector3.zero;
+            FlinchRemaining=0;
+        }
+        internal bool SealInCoffin(TrialPlayer caster,float stagger)
+        {
+            if(!CanBeCoffined)return false;
+            coffinCaster=caster;
+            float sealDuration=TrialPlayer.CoffinSealDuration+stagger;
+            coffinExecutionAt=Time.time+sealDuration;
+            InterruptForSpell();
+            StopLocomotion();
+            if(!IsBoss)Begin(FighterAction.Stagger,sealDuration);
+            else if(!Vulnerable)Begin(FighterAction.Free,0);
+            return true;
+        }
+
+        void AdvanceCoffinExecution()
+        {
+            var caster=coffinCaster;
+            var presenter=caster?caster:game.Player;
+            coffinExecutionAt=0;coffinCaster=null;
+            if(IsBoss)
+            {
+                presenter.PlayCoffinCue(this,TrialCoffinStage.BreakShell);
+                if(DamageWithSpell(caster?caster:null,TrialPlayer.CoffinBossDamage,55,awardSpellEnergy:false))
+                    presenter.PlayCoffinCue(this,TrialCoffinStage.DamageBoss);
+                return;
+            }
+            if(!ExecuteWithSpell())return;
+            presenter.PlayCoffinCue(this,TrialCoffinStage.ShatterEnemy);
+            game.OnEnemyDied(this,caster,awardSpellEnergy:false);
+        }
+
+        internal bool CanBeSpellExecuted=>Alive && isActiveAndEnabled && !IsBoss && !CoffinSealed;
+        internal bool CanBeSpellDamaged=>IsBoss && Alive && isActiveAndEnabled && game.GateOpen && !Invulnerable && !CoffinSealed;
+        internal bool CanBeCoffined=>CanBeSpellExecuted || CanBeSpellDamaged;
+
+        internal bool DamageWithSpell(TrialPlayer caster,float healthFraction,float postureDamage,bool awardSpellEnergy)
+            =>CanBeSpellDamaged && ReceiveEnemyHit(caster,MaxHealth*healthFraction,postureDamage,unblockable:true,awardSpellEnergy:awardSpellEnergy);
+
+        internal bool ExecuteWithSpell()
+        {
+            if(!CanBeSpellExecuted)return false;
+            Impact(null,Health,true);
+            Visual.gameObject.SetActive(false);
             return true;
         }
         public void Parried()
@@ -261,6 +340,10 @@ namespace TomorinTrial
         }
         public void ResetFighter()
         {
+            coffinExecutionAt=0;coffinCaster=null;
+            coffinReplicaHideUntil=0;
+            ClearSpellControl();
+            Visual.gameObject.SetActive(true);
             FlinchRemaining=flinchCooldown=0;
             if(Champion){Champion.ResetEncounter();ScaleForParty(game.PartySize);}
             ClearCombatHold();

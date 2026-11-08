@@ -73,6 +73,20 @@ public static partial class TrialComboFlowValidation
     }
         static void ResponsivenessChecks(float fps)
         {
+            Reset();
+            const byte sprint=2;
+            for(int i=0;i<Mathf.CeilToInt(.2f/step);i++)Tick(step,0,sprint,Vector2.up);
+            Check(p.Sprinting,"Forward movement reaches sprint speed at "+fps+" FPS");
+            Tick(step,1,sprint,Vector2.up);
+            Check(p.Action==FighterAction.Light && p.Combo==12,"Sprint light opens with a running slash at "+fps+" FPS");
+            Tick(step,1,sprint,Vector2.up);
+            for(int i=1;i<Mathf.FloorToInt(.30f/step) && p.Combo==12;i++)
+            {
+                Tick(step,0,sprint,Vector2.up);
+                Check(p.Action==FighterAction.Light,"Sprint light links without returning to locomotion at "+fps+" FPS");
+            }
+            Check(p.Combo==1,"Buffered sprint light reaches the second cut within 300 ms at "+fps+" FPS");
+
             Reset();Tick(.001f,1);Tick(.001f,1);Tick(.001f,1);Tick(.001f,2);
             Advance(.52f);
             Check(p.Action==FighterAction.Heavy && p.Combo==5,
@@ -137,8 +151,64 @@ public static partial class TrialComboFlowValidation
             "The second quick light stays buffered through the next dodge at "+fps+" FPS");
     }
 
+    static void CrowdLightChecks()
+    {
+        Reset();
+        var stopUntil=typeof(TrialEffects).GetField("stopUntil",Private);
+        var guards=new[]{game.Enemies[0],game.Enemies[1],game.Enemies[2]};
+        try
+        {
+            foreach(var guard in guards){guard.ResetFighter();guard.Teleport(new Vector3(35,0,40));}
+            Physics.SyncTransforms();
+            Tick(.001f,1);
+            for(int i=0;i<guards.Length;i++)
+            {
+                var guard=guards[i];float health=guard.Health;
+                guard.Teleport(p.transform.position+p.transform.forward*1.8f+p.transform.right*(i-1)*.7f);
+                Physics.SyncTransforms();
+                game.Effects.ResumeSwordReturn();
+                Tick(p.ActionDuration*(i==0?.28f:.07f));
+                Check(guard.Health<health && guard.CombatFrozen,"Staggered contact damages and holds guard "+(i+1));
+                Check(p.CombatFrozen==(i==0) && ((float)stopUntil.GetValue(game.Effects)>Time.unscaledTime)==(i==0),
+                    "Only first contact in a light swing pauses the player and world");
+                if(i==0)
+                {
+                    input.ApplyNetwork(new TrialControls{pressed=1});
+                    p.Tick(.01f,input);
+                    Check(p.Combo==0,"Light press is buffered during the first hit-stop");
+                }
+            }
+            Tick(p.ActionDuration*.17f);
+            Check(p.Action==FighterAction.Light && p.Combo==1,"Buffered light links after hitting three guards");
+            Tick(p.ActionDuration*.30f);
+            Check(p.CombatFrozen,"The next light swing can trigger its own hit-stop");
+
+            foreach(var guard in guards)guard.ResetFighter();
+            Reset();Move(TrialPlayer.WheelFinish);
+            Tick(p.ActionDuration*.34f);
+            Vector3 flightDirection=Quaternion.AngleAxis(-12,Vector3.up)*p.transform.forward;
+            Move(0);
+            var flightTarget=guards[0];float flightHealth=flightTarget.Health;
+            flightTarget.Teleport(p.transform.position+flightDirection*2.5f);
+            Physics.SyncTransforms();game.Effects.ResumeSwordReturn();
+            Tick(.06f);
+            Check(flightTarget.Health<flightHealth && !p.CombatFrozen && (float)stopUntil.GetValue(game.Effects)<=Time.unscaledTime,
+                "A light finisher projectile can damage an enemy after the next light starts without pausing it");
+            var nextTarget=guards[1];float nextHealth=nextTarget.Health;
+            nextTarget.Teleport(p.transform.position+p.transform.forward*1.7f);
+            Physics.SyncTransforms();
+            Tick(p.ActionDuration*.35f-p.ActionTime);
+            Check(nextTarget.Health<nextHealth && p.CombatFrozen,"An earlier projectile does not consume the next light swing's hit-stop");
+        }
+        finally
+        {
+            game.Effects.ResumeSwordReturn();
+            foreach(var guard in guards)guard.ResetFighter();
+        }
+    }
     static void Checks()
     {
+        CrowdLightChecks();
         foreach(float fps in new[]{30f,60f,144f})
         {
             step=1/fps;
@@ -411,7 +481,7 @@ public static partial class TrialComboFlowValidation
         {
             Reset();typeof(TrialPlayer).GetMethod("EmpowerParry",Private).Invoke(p,null);
             Tick(.001f,heavy?(byte)2:(byte)1);
-            Check(p.Combo==(heavy?TrialPlayer.FireDragon:TrialPlayer.ParryTriple),"Perfect guard choice is not replaced by ordinary weaving");
+            Check(p.Combo==(heavy?TrialPlayer.ThunderDragon:TrialPlayer.ParryTriple),"Perfect guard choice is not replaced by ordinary weaving");
             Link(heavy?(byte)1:(byte)2);
             Check(p.Combo==(heavy?TrialPlayer.MoonChase:TrialPlayer.SpiralSword),"Perfect route has a distinct ranged or pursuit extension");
             Link(heavy?(byte)2:(byte)1);
@@ -438,7 +508,7 @@ public static partial class TrialComboFlowValidation
             {writer.Write(state);using(var reader=NetworkReaderPool.Get(writer.ToArraySegment()))copy=reader.Read<TrialActorState>();}
             Check(copy.combo==move,"New perfect move "+move+" survives Mirror snapshots");
         }
-        foreach(int root in new[]{0,TrialPlayer.AirStep,TrialPlayer.RollThrust,TrialPlayer.RollFlash,TrialPlayer.GuardNeedle,TrialPlayer.GuardBloom,TrialPlayer.ParryTriple,TrialPlayer.FireDragon,TrialPlayer.BehindThrust,TrialPlayer.SpiralSword,TrialPlayer.SwordRecallCut,TrialPlayer.SwordRecallRise})
+        foreach(int root in new[]{0,TrialPlayer.AirStep,TrialPlayer.RollThrust,TrialPlayer.RollFlash,TrialPlayer.GuardNeedle,TrialPlayer.GuardBloom,TrialPlayer.ParryTriple,TrialPlayer.ThunderDragon,TrialPlayer.BehindThrust,TrialPlayer.SpiralSword,TrialPlayer.SwordRecallCut,TrialPlayer.SwordRecallRise})
             foreach(bool heavy in new[]{false,true})
                 Check(Visit(heavy,root,new HashSet<int>())<=16,"Every choice from root "+root+"/"+heavy+" reaches a recovery boundary within sixteen moves");
         SwordGuardReturnChecks();
@@ -460,6 +530,25 @@ public static partial class TrialComboFlowValidation
             using(var reader=NetworkReaderPool.Get(writer.ToArraySegment()))
                 Check(reader.Read<TrialActorState>().landingSakuraFlow,"Mirror snapshots preserve the flowing sakura pose at "+fps+" FPS");
         }
+        var weakGuard=game.Enemies[0];
+        var healthyGuard=game.Enemies[1];
+        var start=p.transform.position;
+        var forward=p.transform.forward;
+        try
+        {
+            weakGuard.ResetFighter();healthyGuard.ResetFighter();
+            typeof(TrialFighter).GetProperty(nameof(TrialFighter.Health)).SetValue(weakGuard,30f);
+            weakGuard.Teleport(start+forward*.95f);
+            healthyGuard.Teleport(start+forward*3.5f);
+            Physics.SyncTransforms();
+            Advance(.40f);
+            Check(!weakGuard.Alive && weakGuard.CaptureNetwork(0).headSevered,
+                "Landing Sakura severs a guard crossed before the active window at "+fps+" FPS");
+            Check(healthyGuard.Alive && healthyGuard.Health<healthyGuard.MaxHealth &&
+                Vector3.Dot(p.transform.position-healthyGuard.transform.position,forward)>healthyGuard.BodyRadius,
+                "Landing Sakura hits and passes a surviving guard at "+fps+" FPS");
+        }
+        finally{weakGuard.ResetFighter();healthyGuard.ResetFighter();}
         foreach(bool heavyLanding in new[]{false,true})foreach(bool buffered in new[]{false,true})
         {
             Reset();Tick(step,64|1);Advance(.32f);Link(1);Link(1);

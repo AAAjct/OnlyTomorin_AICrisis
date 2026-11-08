@@ -35,6 +35,27 @@ namespace TomorinTrial
         protected float recoveryDelay;
         protected float verticalSpeed;
         protected float hitFlash;
+        float spellControlRemaining;
+        protected bool SpellControlled => spellControlRemaining>0;
+        internal void ApplySpellControl(float duration)
+        {
+            if(!Alive || !motor.enabled)return;
+            if(this is TrialEnemy enemy)enemy.InterruptForSpell();
+            else if(this is TrialPlayer player)player.InterruptForSpell();
+            spellControlRemaining=Mathf.Max(spellControlRemaining,duration);
+            Begin(FighterAction.Stagger,spellControlRemaining);
+            StopLocomotion();
+        }
+        protected bool TickSpellControl(float dt)
+        {
+            if(!Alive || !SpellControlled)return false;
+            TickBase(dt);
+            if(!Alive)return true;
+            spellControlRemaining-=dt;
+            if(spellControlRemaining<=0 && Alive)Begin(FighterAction.Free,0);
+            return true;
+        }
+        protected void ClearSpellControl()=>spellControlRemaining=0;
         protected Renderer[] renderers;
         protected MaterialPropertyBlock flashProperties;
         Color[] authoredEmission;
@@ -66,7 +87,7 @@ namespace TomorinTrial
             if(game && game.Effects)
             {
                 if(Health<previousHealth)HoldCombat(Alive?.04f:.09f);
-                if(Health<previousHealth){game.Effects.Burst(transform.position+Vector3.up,new Color(1,.65f,.23f),18);game.Effects.Sound(Alive?"hit":"death",transform.position);}
+                if(Health<previousHealth && !state.spellExecuted){game.Effects.Burst(transform.position+Vector3.up,new Color(1,.65f,.23f),18);game.Effects.Sound(Alive?"hit":"death",transform.position);}
                 if((Action==FighterAction.Light||Action==FighterAction.Heavy)&&(Action!=previousAction||Combo!=previousCombo))
                 {
                     if(this is TrialPlayer)game.Effects.MoveSound(Combo,Action==FighterAction.Heavy,transform.position);
@@ -104,6 +125,13 @@ namespace TomorinTrial
         {
             Action = next; ActionTime = 0; ActionDuration = duration;
             Guarding = false;
+        }
+
+        internal void AdvanceResultPose(float dt)
+        {
+            if(CombatFrozen || ActionTime>=ActionDuration || (Action!=FighterAction.Light && Action!=FighterAction.Heavy))return;
+            ActionTime=Mathf.Min(ActionTime+dt,ActionDuration);
+            if(trail)trail.emitting=AttackActive;
         }
 
         protected void TickBase(float dt)
@@ -154,6 +182,7 @@ namespace TomorinTrial
             Stamina -= amount; recoveryDelay = StaminaRecoveryDelay; return true;
         }
 
+        internal void StopLocomotion(){MoveBlend=0;}
         protected void Move(Vector3 velocity, float dt) { motor.Move(velocity * dt); }
         public void Teleport(Vector3 point)
         {
@@ -177,15 +206,16 @@ namespace TomorinTrial
         }
 
         public abstract bool ReceiveHit(TrialFighter attacker, float damage, float postureDamage, bool unblockable = false);
-        protected void Impact(TrialFighter attacker, float damage)
+        protected void Impact(TrialFighter attacker, float damage,bool spellExecution=false)
         {
             float previousHealth=Health;
             Health = Mathf.Max(0,Health-damage);
+            if (Health <= 0) { MoveBlend=0;Begin(FighterAction.Dead, 1.4f); motor.enabled = false; }
+            if(spellExecution)return;
             hitFlash = .16f;
             game.Effects.Burst(transform.position + Vector3.up * 1.05f, new Color(1,.65f,.23f), 18);
             game.Effects.Sound(Health <= 0 ? "death" : "hit", transform.position);
             if(!TrialNetworkManager.SessionActive || this==game.Player || attacker==game.Player)game.CameraRig.Kick(.13f);
-            if (Health <= 0) { MoveBlend=0;Begin(FighterAction.Dead, 1.4f); motor.enabled = false; }
             if(this is TrialEnemy runEnemy && attacker is TrialPlayer runPlayer)runPlayer.OnRunHit(runEnemy,previousHealth-Health);
         }
     }

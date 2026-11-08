@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace TomorinTrial
@@ -94,24 +94,24 @@ namespace TomorinTrial
         }
         void PolishPlayerArt(TrialCombatEvent cue)
         {
-            if(cue.cue!=TrialCombatCue.FireDragon && cue.cue!=TrialCombatCue.SpiralSword && cue.cue!=TrialCombatCue.SakuraScatter && cue.cue!=TrialCombatCue.ThrustTrace)return;
-            bool fire=cue.cue==TrialCombatCue.FireDragon,petal=cue.cue==TrialCombatCue.SakuraScatter;
-            Color color=fire?new Color(1,.35f,.075f):petal?new Color(1,.48f,.72f):new Color(.4f,.85f,1);
-            if(cue.style>0 && !fire && !petal)color=StyleColor(cue.style);
+            if(cue.cue!=TrialCombatCue.ThunderDragon && cue.cue!=TrialCombatCue.SpiralSword && cue.cue!=TrialCombatCue.SakuraScatter && cue.cue!=TrialCombatCue.ThrustTrace)return;
+            bool thunder=cue.cue==TrialCombatCue.ThunderDragon,petal=cue.cue==TrialCombatCue.SakuraScatter;
+            Color color=thunder?ThunderGold:petal?new Color(1,.48f,.72f):new Color(.4f,.85f,1);
+            if(cue.style>0 && !thunder && !petal)color=StyleColor(cue.style);
             Vector3 forward=cue.forward.sqrMagnitude>.1f?cue.forward.normalized:Vector3.forward;
             Vector3 side=Vector3.Cross(Vector3.up,forward).normalized;
             for(int j=0;j<2;j++)
             {
-                var r=Ribbon(color,fire?.24f:.12f,fire?.55f:.4f,41);
+                var r=Ribbon(color,thunder?.24f:.12f,thunder?.55f:.4f,41);
                 for(int i=0;i<41;i++)
                 {
                     float t=i/40f,a=t*Mathf.PI*4+j*Mathf.PI;
-                    float radius=Mathf.Sin(t*Mathf.PI)*(fire?.8f:.5f);
-                    Vector3 p=cue.position+forward*(t*(fire?3.2f:2.1f))+(side*Mathf.Sin(a)+Vector3.up*Mathf.Cos(a))*radius;
+                    float radius=Mathf.Sin(t*Mathf.PI)*(thunder?.8f:.5f);
+                    Vector3 p=cue.position+forward*(t*(thunder?3.2f:2.1f))+(side*Mathf.Sin(a)+Vector3.up*Mathf.Cos(a))*radius;
                     RibbonPoint(r,i,p);
                 }
             }
-            Burst(cue.position,color,fire?32:18);
+            Burst(cue.position,color,thunder?32:18);
         }
         void TickSignatureEffects()
         {

@@ -12,20 +12,21 @@ namespace TomorinTrial
         bool AwaitingDragonLanding=>Combo==DodgeDragon && !dodgeDragonLanded;
         public bool ParryEmpowered=>Time.time<parryReadyUntil;
         public bool ParryDodgeFollowup=>Time.time<parryDodgeUntil;
-        public float SwordCharge=>Action==FighterAction.Charge && Combo==FireDragon?Mathf.Clamp01(ActionTime/DragonChargeLimit):dragonPower;
+        public float SwordCharge=>Action==FighterAction.Charge && Combo==ThunderDragon?Mathf.Clamp01(ActionTime/DragonChargeLimit):dragonPower;
         readonly List<ParryFlight> parryFlights=new List<ParryFlight>();
         sealed class ParryFlight
         {
             public TrialCombatCue cue;
             public Vector3 start,end,point,direction,origin;
             public float age,power;
+            public int moveId;
             public readonly HashSet<TrialFighter> hits=new HashSet<TrialFighter>();
         }
 
         void EmpowerParry()
         {
             parryReadyUntil=Time.time+5;parryDodgeUntil=0;dragonPower=0;
-            if(this==game.Player)game.Hud.Notify("完美格挡 · 轻：三连刺 / 重：蓄力火龙 / 闪：远闪追击",2.2f);
+            if(this==game.Player)game.Hud.Notify("完美格挡 · 轻：三连刺 / 重：蓄力雷吼炮·雷龙 / 闪：远闪追击",2.2f);
         }
         int EmpoweredBranch(bool heavy,int requested)
         {
@@ -35,20 +36,20 @@ namespace TomorinTrial
                 if(heavy && Time.time<blinkReadyUntil){blinkReadyUntil=0;return DodgeDragon;}
                 return requested;
             }
-            parryReadyUntil=0;blinkReadyUntil=0;return heavy?FireDragon:ParryTriple;
+            parryReadyUntil=0;blinkReadyUntil=0;return heavy?ThunderDragon:ParryTriple;
         }
         bool BeginDragonCharge(TrialInput input)
         {
             if(!ParryEmpowered || !input.HeavyHeld)return false;
             if(!Spend(8))return false;
             parryReadyUntil=0;blinkReadyUntil=0;ClearAttackInputs(false);
-            protectedUntil=0;dragonPower=0;chargeReady=false;chargeTime=0;Combo=FireDragon;
+            protectedUntil=0;dragonPower=0;chargeReady=false;chargeTime=0;Combo=ThunderDragon;
             Begin(FighterAction.Charge,DragonChargeLimit);return true;
         }
         void PrepareEmpoweredArt()
         {
             if(Combo==SwordRecallCut || Combo==SwordRecallRise)RecallSwordAndStep();
-            if(Combo!=FireDragon)dragonPower=Combo==DodgeDragon?.5f:0;
+            if(Combo!=ThunderDragon)dragonPower=Combo==DodgeDragon?.5f:0;
             if(Combo==DodgeDragon){dodgeDragonLanded=false;verticalSpeed=9.6f;airborneCombo=false;}
             if(Combo==BehindThrust)
             {
@@ -71,7 +72,7 @@ namespace TomorinTrial
         bool TickEmpoweredMotion(float dt)
         {
             if(Combo==DodgeDragon){MoveSwordDistance(-swordHeading,4.2f,.03f,.60f);return true;}
-            if(Combo==FireDragon)
+            if(Combo==ThunderDragon)
             {
                 float t=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.04f,.43f,Progress));
                 float old=swordMotionProgress;swordMotionProgress=t;
@@ -99,10 +100,10 @@ namespace TomorinTrial
                     motor.Move(transform.forward*.5f);
                 }
             }
-            if(Combo==FireDragon && Progress>=.54f && swordEmissions==0)
+            if(Combo==ThunderDragon && Progress>=.54f && swordEmissions==0)
             {
                 swordEmissions++;
-                LaunchParryFlight(TrialCombatCue.FireDragon,dragonPower);
+                LaunchParryFlight(TrialCombatCue.ThunderDragon,dragonPower);
             }
             if(Combo==SpiralSword && Progress>=.18f && swordEmissions==0)
             {
@@ -110,7 +111,7 @@ namespace TomorinTrial
                 LaunchParryFlight(TrialCombatCue.SpiralSword,1);
             }
             if(Combo==DodgeDragon && dodgeDragonLanded && Progress>=.74f && swordEmissions==0)
-            {swordEmissions++;LaunchParryFlight(TrialCombatCue.FireDragon,dragonPower);}
+            {swordEmissions++;LaunchParryFlight(TrialCombatCue.ThunderDragon,dragonPower);}
         }
         void LaunchParryFlight(TrialCombatCue cue,float power)
         {
@@ -121,8 +122,15 @@ namespace TomorinTrial
             var target=Locked?LockTarget:game.NearestOpponent(this,22);
             Vector3 direction=cue==TrialCombatCue.SpiralSword?transform.forward:target?Vector3.ProjectOnPlane(target.transform.position-transform.position,Vector3.up).normalized:transform.forward;
             if(direction.sqrMagnitude<.01f)direction=transform.forward;
+            if(cue==TrialCombatCue.ThunderDragon)
+            {
+                start=transform.position+Vector3.up*1.10f;
+                float clearance=Physics.Raycast(start,direction,out var wall,.55f,1,QueryTriggerInteraction.Ignore)
+                    ?Mathf.Max(0,wall.distance-.04f):.55f;
+                start+=direction*clearance;
+            }
             Vector3 end=start+direction*(cue==TrialCombatCue.SpiralSword?12:Mathf.Lerp(9,24,power));
-            parryFlights.Add(new ParryFlight{cue=cue,start=start,end=end,point=start,direction=direction,power=power,origin=transform.position});
+            parryFlights.Add(new ParryFlight{cue=cue,start=start,end=end,point=start,direction=direction,power=power,origin=transform.position,moveId=swordMoveId});
             if(cue==TrialCombatCue.SpiralSword)BeginSwordThrowGuard();
             EmitSwordCue(cue,start,direction,end,power);
         }
@@ -139,11 +147,43 @@ namespace TomorinTrial
                 float duration=TrialParryFlight.Duration(flight.cue,flight.power);
                 Vector3 to=TrialParryFlight.Point(flight.cue,flight.start,flight.end,transform.position+Vector3.up,flight.age/duration,flight.power);
                 Vector3 step=to-flight.point;
-                float radius=flight.cue==TrialCombatCue.FireDragon?Mathf.Lerp(.8f,1.3f,flight.power):.52f;
+                float radius=flight.cue==TrialCombatCue.ThunderDragon?Mathf.Lerp(.8f,1.3f,flight.power):.52f;
                 bool wall=step.sqrMagnitude>.00001f && Physics.SphereCast(flight.point,radius,step.normalized,out _,step.magnitude,1,QueryTriggerInteraction.Ignore);
-                if(!wall)SwordSegment(flight.point,to,radius,flight.cue==TrialCombatCue.FireDragon?Mathf.Lerp(65,155,flight.power):85,65,flight.hits,flight.cue==TrialCombatCue.SpiralSword);
+                bool thrownSword=flight.cue==TrialCombatCue.SpiralSword;
+                if(!wall)SwordSegment(flight.point,to,radius,thrownSword?85:Mathf.Lerp(65,155,flight.power),65,flight.hits,thrownSword,
+                    lightMove:0,finisherMoveId:thrownSword?flight.moveId:null,thunderPower:thrownSword?-1:flight.power);
+                if(i>=parryFlights.Count || parryFlights[i]!=flight)return;
                 flight.point=to;
                 if(wall || flight.age>=duration)parryFlights.RemoveAt(i);
+            }
+        }
+
+        void ConductThunder(TrialFighter source,HashSet<TrialFighter> hits,float power)
+        {
+            source.ApplySpellControl(Mathf.Lerp(.75f,1.25f,power));
+            Vector3 origin=source.transform.position+Vector3.up;
+            for(int hop=0;hop<2;hop++)
+            {
+                TrialFighter next=null;
+                float nearest=5.5f*5.5f;
+                foreach(var target in game.Opponents(this))
+                {
+                    if(!target || !target.Alive || hits.Contains(target) ||
+                        target is TrialEnemy enemy && enemy.IsBoss && !game.GateOpen ||
+                        target is TrialPlayer rival && rival.SpawnProtected)continue;
+                    Vector3 point=target.transform.position+Vector3.up;
+                    float distance=(point-origin).sqrMagnitude;
+                    if(distance>=nearest || Physics.Linecast(origin,point,1,QueryTriggerInteraction.Ignore))continue;
+                    next=target;
+                    nearest=distance;
+                }
+                if(!next)break;
+                hits.Add(next);
+                Vector3 end=next.transform.position+Vector3.up;
+                EmitSwordCue(TrialCombatCue.ThunderChain,origin,Vector3.zero,end,0);
+                if(!next.ReceiveHit(this,Mathf.Lerp(24,38,power),16,true))break;
+                next.ApplySpellControl(.8f);
+                origin=end;
             }
         }
         void EmitSwordCue(TrialCombatCue cue,Vector3 from,Vector3 direction,Vector3 end,float amount)

@@ -80,10 +80,10 @@ namespace TomorinTrial.Editor
 
                 void Loop(string label,float duration,float speed,float stowed) =>
                     BakeClip(actor,targets,controller,label,duration,true,p=>rig.PreviewSwordLocomotion(speed,p,stowed),speed==0?15:30);
-                Loop("SheathedIdle",2.51f,0,1);
+                Loop("SheathedIdle",TrialRig.IdleCycleDuration,0,1);
                 Loop("SheathedWalk",.66f,1.08f,1);
                 Loop("SheathedRun",.48f,1.6f,1);
-                Loop("SwordReadyIdle",2.51f,0,0);
+                Loop("SwordReadyIdle",TrialRig.IdleCycleDuration,0,0);
                 Loop("SwordWalk",.66f,1.08f,0);
                 Loop("SwordRun",.48f,1.6f,0);
                 BakeClip(actor,targets,controller,"SheatheSword",TrialRig.SheatheDuration,false,p=>rig.PreviewSwordLocomotion(0,0,p));
@@ -122,7 +122,7 @@ namespace TomorinTrial.Editor
                 if(!controller)controller=AnimatorController.CreateAnimatorControllerAtPath(controllerPath);
                 var machine=controller.layers[0].stateMachine;
                 foreach(var state in machine.states.ToArray())machine.RemoveState(state.state);
-                BakeClip(actor,rig,targets,controller,"Idle",FighterAction.Free,2,0,0,false,true);
+                BakeClip(actor,targets,controller,"Idle",TrialRig.IdleCycleDuration,true,p=>rig.PreviewSwordLocomotion(0,p,0),15);
                 BakeClip(actor,rig,targets,controller,"Run",FighterAction.Free,.70f,0,1,false,true);
                 BakeClip(actor,rig,targets,controller,"Sprint",FighterAction.Free,.48f,0,1.5f,false,true);
                 BakeClip(actor,rig,targets,controller,"Slash01",FighterAction.Light,.38f,0,0,false,false);

@@ -5,6 +5,7 @@ namespace TomorinTrial
     public sealed partial class TrialRig
     {
         public const float SheatheDuration = .82f;
+        public const float IdleCycleDuration = 4f;
         const float DrawDuration = .11f;
         const float CombatReadyTime = .55f;
         const float MouthOnBlade = .143f;
@@ -62,7 +63,6 @@ namespace TomorinTrial
         {
             float travel = Mathf.Clamp01(movement/1.08f);
             float step = Mathf.Sin(walkPhase), lift = Mathf.Cos(walkPhase);
-            float breath = Mathf.Sin(idlePhase)*(1-travel);
             float relaxed = Ease(Seated,1,sheathProgress);
             float stride = Mathf.Lerp(34,56,run) * travel;
             GaitLeg(leftLeg,leftFoot,-step,lift,stride,travel,run);
@@ -70,10 +70,10 @@ namespace TomorinTrial
 
             float stanceDrop = (1-Mathf.Cos(step*stride*Mathf.Deg2Rad))*.27f;
             model.localPosition += new Vector3(step*Mathf.Lerp(.010f,.006f,run)*travel,
-                breath*.009f - stanceDrop + lift*lift*.026f*run,0);
+                -stanceDrop + lift*lift*.026f*run,0);
             lean = Mathf.Lerp(4,1,relaxed) + travel*Mathf.Lerp(3,17,run);
             twist = Mathf.Lerp(-9,-2,relaxed)*(1-travel) - step*travel*Mathf.Lerp(4,5,run);
-            bank += lift*travel*Mathf.Lerp(2,1,run) + breath*1.6f;
+            bank += lift*travel*Mathf.Lerp(2,1,run);
 
             // Keep the arms at the sides and lead with the arm opposite the forward foot.
             float drive = step*travel;
@@ -88,11 +88,33 @@ namespace TomorinTrial
                 Mathf.Lerp(.15f,-.05f,run)+drive*Mathf.Lerp(.035f,.09f,run));
             var swingRight = new Vector3(side,height+rightLift*liftAmount,.09f+drive*swing);
             var swingLeft = new Vector3(-side,height+leftLift*liftAmount,.09f-drive*swing);
-            var idleRight = Vector3.Lerp(new Vector3(.44f,.73f+breath*.016f,.24f),new Vector3(.37f,.54f,.06f),relaxed);
+            var idleRight = Vector3.Lerp(new Vector3(.44f,.73f,.24f),new Vector3(.37f,.54f,.06f),relaxed);
             var idleLeft = Vector3.Lerp(new Vector3(-.32f,.73f,.14f),new Vector3(-.37f,.55f,.07f),relaxed);
             hand = Vector3.Lerp(idleRight,Vector3.Lerp(carrySword,swingRight,relaxed),movingArms);
             offhand = Vector3.Lerp(idleLeft,swingLeft,movingArms);
             swordAngles = new Vector3(-110-run*5+drive*2,0,-24-run*4);
+        }
+
+        Vector3 PlayerIdle(float weight,ref Vector3 hand,ref Vector3 offhand,ref Vector3 swordAngles,
+            ref float lean,ref float twist,ref float bank)
+        {
+            float relaxed = scabbard ? Ease(Seated,1,sheathProgress) : 0;
+            float breath = (1-Mathf.Cos(idlePhase))*.5f;
+            float shift = Mathf.Sin(idlePhase);
+            float cycle = idlePhase/(2*Mathf.PI);
+            float glance = Ease(.22f,.43f,cycle)*(1-Ease(.57f,.86f,cycle))*relaxed;
+
+            // The spine moves above the planted legs. The head leads the turn and settles back.
+            lean -= breath*Mathf.Lerp(1.4f,2.4f,relaxed)*weight;
+            twist += (shift*.85f + glance*2.2f)*weight;
+            bank += shift*Mathf.Lerp(1.1f,3.6f,relaxed)*weight;
+
+            float ready = (1-relaxed)*weight;
+            hand += new Vector3(shift*.012f,breath*.022f,-breath*.014f)*ready;
+            offhand += new Vector3(shift*.009f,breath*.013f,breath*.018f)*ready;
+            swordAngles += new Vector3(breath*3,0,-shift*2)*ready;
+
+            return new Vector3(-glance*3.3f,glance*8f-shift*.9f,-shift*Mathf.Lerp(.5f,2.0f,relaxed))*weight;
         }
 
         static Vector3 LocomotionElbowHint(Transform shoulder,Vector3 wrist,Vector3 lateral)

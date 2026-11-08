@@ -14,6 +14,10 @@ namespace TomorinTrial
             public Entry(string id,string label,string action,string primary,string alternate,string pad)
             {Id=id;Label=label;Action=action;Defaults=new[]{primary,alternate,pad};}
         }
+        internal static readonly Entry[] Spells={
+            new Entry("Spell1","黑棺","SwordCombat/Spell1","<Keyboard>/1","<Keyboard>/numpad1",null),
+            new Entry("Spell2","镜花水月","SwordCombat/Spell2","<Keyboard>/2","<Keyboard>/numpad2",null)
+        };
         public static readonly Entry[] Entries={
             new Entry("Up","向前移动","Player/Move","<Keyboard>/w","<Keyboard>/upArrow",null),
             new Entry("Down","向后移动","Player/Move","<Keyboard>/s","<Keyboard>/downArrow",null),
@@ -29,14 +33,30 @@ namespace TomorinTrial
             new Entry("Lock","锁定 / 解除锁定","SwordCombat/Lock","<Keyboard>/tab","<Mouse>/middleButton","<Gamepad>/rightStickPress"),
             new Entry("Interact","交互","Player/Interact","<Keyboard>/e",null,"<Gamepad>/buttonSouth"),
             new Entry("Pause","暂停菜单","SwordCombat/Pause","<Keyboard>/escape",null,"<Gamepad>/start"),
-            new Entry("Upgrade","打开升级选项","SwordCombat/Upgrade","<Keyboard>/t",null,"<Gamepad>/dpad/down")
+            new Entry("Upgrade","打开升级选项","SwordCombat/Upgrade","<Keyboard>/t",null,"<Gamepad>/dpad/down"),
+            Spells[0],Spells[1]
         };
         public static int Version {get;private set;}
         static string Key(Entry entry,int slot)=>"Ink.Binding."+entry.Id+"."+slot;
-        public static string Path(Entry entry,int slot)=>entry.Defaults[slot]==null?null:PlayerPrefs.GetString(Key(entry,slot),entry.Defaults[slot]);
+        public static string Path(Entry entry,int slot)
+        {
+            var fallback=entry.Defaults[slot];
+            if(fallback==null)return null;
+            var saved=PlayerPrefs.GetString(Key(entry,slot),"");
+            if(saved.Length!=0)return saved;
+            if(entry==Spells[0] || entry==Spells[1])
+            {
+                // Older saves could already have assigned a spell's new default to another slot.
+                foreach(var other in Entries)
+                    for(int i=0;i<other.Defaults.Length;i++)
+                        if(other.Defaults[i]!=null && string.Equals(PlayerPrefs.GetString(Key(other,i),""),fallback,StringComparison.OrdinalIgnoreCase))
+                            return "";
+            }
+            return fallback;
+        }
         public static string Display(Entry entry,int slot)
         {
-            var path=Path(entry,slot);if(path==null)return "—";
+            var path=Path(entry,slot);if(string.IsNullOrEmpty(path))return "—";
             if(path=="<Mouse>/leftButton")return "鼠标左键";if(path=="<Mouse>/rightButton")return "鼠标右键";if(path=="<Mouse>/middleButton")return "鼠标中键";
             if(slot==2)
             {

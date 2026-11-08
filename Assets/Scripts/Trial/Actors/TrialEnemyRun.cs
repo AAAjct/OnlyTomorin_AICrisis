@@ -14,7 +14,7 @@ namespace TomorinTrial
             runSlow=runSlowUntil=burnUntil=burnClock=burnDamage=0;burnOwner=null;
         }
         public void WakeForRun(){Awakened=true;}
-        public void PullForRun(Vector3 displacement){if(Alive && !IsBoss && motor.enabled)motor.Move(displacement);}
+        public void PullForRun(Vector3 displacement){if(Alive && !IsBoss && !CoffinSealed && motor.enabled)motor.Move(displacement);}
         public void ApplyRunSlow(float amount){if(!IsBoss){runSlow=Mathf.Min(.54f,amount);runSlowUntil=Time.time+2;}}
         public void ApplyRunBurn(TrialPlayer owner,float damage){burnOwner=owner;burnDamage=damage;burnUntil=Time.time+4;}
         void TickRunStatuses(float dt)

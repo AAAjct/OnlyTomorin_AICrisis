@@ -47,14 +47,16 @@ namespace TomorinTrial
             }
             if(choiceNavigation && !hasSelection && EventSystem.current)buttons[0].Select();
         }
+        void InitializeImpactFlash()
+        {
+            var rect=Panel("Impact flash",root,Vector2.zero,Vector2.zero,Vector2.zero,Color.clear);rect.anchorMax=Vector2.one;rect.offsetMin=rect.offsetMax=Vector2.zero;
+            impactFlash=rect.GetComponent<UnityEngine.UI.Image>();impactFlash.raycastTarget=false;
+        }
+
         public void Flash(Color color)
         {
             if(InkMainMenu.ReducedMotion)return;
-            if(!impactFlash)
-            {
-                var rect=Panel("Impact flash",root,Vector2.zero,Vector2.zero,Vector2.zero,Color.clear);rect.anchorMax=Vector2.one;rect.offsetMin=rect.offsetMax=Vector2.zero;
-                impactFlash=rect.GetComponent<UnityEngine.UI.Image>();impactFlash.raycastTarget=false;
-            }
+            if(!impactFlash)InitializeImpactFlash();
             flashTint=color;flashUntil=Time.unscaledTime+.16f;impactFlash.transform.SetAsLastSibling();
         }
 

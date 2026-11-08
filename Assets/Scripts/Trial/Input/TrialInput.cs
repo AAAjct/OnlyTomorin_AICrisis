@@ -25,15 +25,19 @@ namespace TomorinTrial
         public bool Upgrade { get; private set; }
         public bool UsingGamepad {get;private set;}
         int suppressUntilFrame=-1;
-        public void SuppressCombat(){suppressUntilFrame=Time.frameCount+2;Upgrade=Attack=AttackHeld=Heavy=HeavyHeld=Dodge=Jump=Guard=Heal=Interact=Lock=false;}
+        public void SuppressCombat(){suppressUntilFrame=Time.frameCount+2;Upgrade=Attack=AttackHeld=Heavy=HeavyHeld=Dodge=Jump=Guard=Heal=Interact=Lock=false;Spells=touchSpells=0;}
         bool sprintToggled;
         bool toggleSprint;
         int bindingVersion=-1;
         public Vector2 TouchMove, TouchLook;
         public bool TouchGuard,TouchSprint,TouchHeavy,TouchLight;
         byte touchPressed;
+        byte touchSpells;
+        public byte Spells { get; private set; }
+        readonly InputAction[] spellActions=new InputAction[TrialPlayer.SpellCount];
         public void PressTouch(byte action){touchPressed|=action;}
-        public void ClearTouch(){TouchMove=TouchLook=Vector2.zero;TouchGuard=TouchSprint=TouchHeavy=TouchLight=false;touchPressed=0;}
+        public void PressSpell(int slot){if(slot>=0 && slot<spellActions.Length)touchSpells|=(byte)(1<<slot);}
+        public void ClearTouch(){TouchMove=TouchLook=Vector2.zero;TouchGuard=TouchSprint=TouchHeavy=TouchLight=false;touchPressed=touchSpells=0;}
         public void ResetSprint(){sprintToggled=false;Sprint=false;ClearTouch();}
         void OnApplicationFocus(bool focused){if(!focused)ResetSprint();}
         InputAction move,look,attack,interact,sprint,heavy,dodge,jump,guard,heal,target,pause,confirm,upgrade;
@@ -44,13 +48,13 @@ namespace TomorinTrial
         public void SetNetworkYaw(float yaw) { NetworkDirected=true; NetworkYaw=yaw; }
         public TrialControls CaptureNetwork(float yaw) => new TrialControls
         {
-            move=Move, yaw=yaw,
+            move=Move, yaw=yaw, spells=Spells,
             held=(byte)((Guard?1:0)|(Sprint?2:0)|(HeavyHeld?4:0)|(AttackHeld?8:0)),
             pressed=(byte)((Attack?1:0)|(Heavy?2:0)|(Dodge?4:0)|(Heal?8:0)|(Lock?16:0)|(Interact?32:0)|(Jump?64:0))
         };
         public void ApplyNetwork(TrialControls value)
         {
-            NetworkDirected=true;NetworkYaw=value.yaw;Move=value.move;Look=Vector2.zero;
+            NetworkDirected=true;NetworkYaw=value.yaw;Move=value.move;Look=Vector2.zero;Spells=value.spells;
             AttackHeld=(value.held&8)!=0;HeavyHeld=(value.held&4)!=0;Guard=(value.held&1)!=0;Sprint=(value.held&2)!=0;
             Attack=(value.pressed&1)!=0;Heavy=(value.pressed&2)!=0;Dodge=(value.pressed&4)!=0;
             Jump=(value.pressed&64)!=0;
@@ -74,6 +78,11 @@ namespace TomorinTrial
             pause=Button("Pause","<Keyboard>/escape","<Gamepad>/start");
             confirm=Button("Confirm","<Keyboard>/enter","<Gamepad>/buttonSouth");
             upgrade=Button("Upgrade","<Keyboard>/t","<Gamepad>/dpad/down");
+            for(int i=0;i<spellActions.Length;i++)
+            {
+                var entry=TrialBindings.Spells[i];
+                spellActions[i]=Button(entry.Id,entry.Defaults[0],entry.Defaults[1]);
+            }
             actions.FindActionMap("Player",true).Enable();combat.Enable();
             foreach(var map in actions.actionMaps)foreach(var action in map.actions)action.performed+=TrackDevice;
             foreach(var action in combat.actions)action.performed+=TrackDevice;
@@ -92,6 +101,7 @@ namespace TomorinTrial
         void RefreshBindings(){TrialBindings.Apply(actions,combat);bindingVersion=TrialBindings.Version;ResetSprint();}
         public void Read()
         {
+            Spells=0;
             if(bindingVersion!=TrialBindings.Version)RefreshBindings();
             if(TrialSettingsPanel.InputBlocked || Time.frameCount<=suppressUntilFrame)
             {
@@ -115,6 +125,13 @@ namespace TomorinTrial
             Heal|=(touchPressed&8)!=0;Lock|=(touchPressed&16)!=0;Interact|=(touchPressed&32)!=0;
             Jump|=(touchPressed&64)!=0;
             Pause|=(touchPressed&128)!=0;Guard|=TouchGuard;touchPressed=0;
+            Spells=touchSpells;touchSpells=0;
+            for(int i=0;i<spellActions.Length;i++)
+            {
+                var spell=spellActions[i];
+                if(spell.WasPressedThisFrame() && !(Application.isMobilePlatform && spell.activeControl?.device is Mouse))
+                    Spells|=(byte)(1<<i);
+            }
         }
         void OnDestroy(){combat?.Dispose();if(actions){actions.Disable();Destroy(actions);}}
     }

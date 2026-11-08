@@ -12,7 +12,7 @@ namespace TomorinTrial
         sealed class SoundBag { public int[] order;public int cursor,last=-1; }
         readonly Dictionary<string,SoundBag> soundBags=new Dictionary<string,SoundBag>();
         readonly Dictionary<string,float> nextFlightSound=new Dictionary<string,float>();
-        static readonly string[] ComboAudioKeys={"cutLight","cutHeavy","cutThrust","cutRise","cutSweep","cutDraw","cutSpin","cutAir","moveHilt","moveKick","skillCrimson","skillMoon","skillFire","skillSpiral","skillSakura","skillSand","skillRecall","impactBody","impactPierce"};
+        static readonly string[] ComboAudioKeys={"cutLight","cutHeavy","cutThrust","cutRise","cutSweep","cutDraw","cutSpin","cutAir","moveHilt","moveKick","skillCrimson","skillMoon","spellThunder","skillSpiral","skillSakura","skillSand","skillRecall","impactBody","impactPierce"};
         static readonly HashSet<string> ComboAudioSet=new HashSet<string>(ComboAudioKeys);
         float nextFootstep;
         void LoadCombatAudio()

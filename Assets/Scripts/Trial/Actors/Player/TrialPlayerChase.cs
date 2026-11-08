@@ -1,13 +1,11 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace TomorinTrial
 {
     public sealed partial class TrialPlayer
     {
         TrialFighter chaseTarget;
-        float chaseRemaining,perfectGhostUntil;
-        public void ShowPerfectDodge()
-        {perfectGhostUntil=Time.unscaledTime+.35f;game.Effects.Afterimage(this);}
+        float chaseRemaining;
 
         TrialFighter FindChaseTarget()
         {

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace TomorinTrial
 {
@@ -101,7 +101,8 @@ namespace TomorinTrial
                     if(height>2.5f || delta.magnitude>reach+body || Vector3.Angle(transform.forward,delta)>(Combo==OrbitCut || Combo==VaultSweep?145:85))continue;
                     if(Physics.Linecast(transform.position+Vector3.up,enemy.transform.position+Vector3.up,1,QueryTriggerInteraction.Ignore))continue;
                     float damage=Combo==SwordRecallCut?48:Combo==ParryMirror?32:Combo==SwordRecallRise || Combo==ParryAscend?52:Combo==HiltStrike?16:Combo==HeelTurn?20:Combo==ElbowBreak?24:Combo==ScissorKick?18:Combo==CloudRake?24:Combo==FallingDraw?48:36;
-                    SwordDamage(enemy,damage,Combo==SwordRecallRise || Combo==ParryAscend?45:IsBodyStrike(Combo)?36:28,Combo==FallingDraw);
+                    int? finisherMoveId=Combo==SwordRecallCut || Combo==SwordRecallRise?swordMoveId:null;
+                    SwordDamage(enemy,damage,Combo==SwordRecallRise || Combo==ParryAscend?45:IsBodyStrike(Combo)?36:28,Combo==FallingDraw,finisherMoveId:finisherMoveId);
                 }
                 EmitSwordCue(TrialCombatCue.MartialStroke,transform.position,swordHeading,transform.position+transform.forward*2+(Combo==ParryMirror?Vector3.up*(swordEmissions==1?1:-1):Vector3.zero),Combo);
                 if(Combo==ParryMirror || Combo==ParryAscend)game.Effects.Afterimage(this);

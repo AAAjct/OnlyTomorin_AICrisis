@@ -86,12 +86,15 @@ namespace TomorinTrial.Editor
                 InputSystem.QueueStateEvent(pad,new GamepadState().WithButton(GamepadButton.Start));yield return .12f;
                 InputSystem.QueueStateEvent(pad,new GamepadState());yield return .12f;
                 Check(game.Mode==TrialMode.Paused,"Gamepad Start opens pause");
+                Check(!EventSystem.current.currentSelectedGameObject,"Pause opens without a selected button");
+                InputSystem.QueueStateEvent(pad,new GamepadState().WithButton(GamepadButton.DpadDown));yield return .12f;
+                InputSystem.QueueStateEvent(pad,new GamepadState());yield return .1f;
                 var selected=EventSystem.current.currentSelectedGameObject;
-                Check(selected && selected.name=="Begin","Pause defaults focus to Continue");
+                Check(selected && selected.name=="Begin","First D-pad move focuses Continue");
                 Check(selected.GetComponent<UnityEngine.UI.Image>().color.r>.9f,"Focused pause button has a bright gold background");
                 InputSystem.QueueStateEvent(pad,new GamepadState().WithButton(GamepadButton.DpadDown));yield return .12f;
                 InputSystem.QueueStateEvent(pad,new GamepadState());yield return .1f;
-                Check(EventSystem.current.currentSelectedGameObject.name=="Boss challenge or title","D-pad down selects the lower pause item");
+                Check(EventSystem.current.currentSelectedGameObject.name=="Settings","D-pad down selects Settings");
                 InputSystem.QueueStateEvent(pad,new GamepadState().WithButton(GamepadButton.DpadUp));yield return .12f;
                 InputSystem.QueueStateEvent(pad,new GamepadState());yield return .1f;
                 Check(EventSystem.current.currentSelectedGameObject.name=="Begin","D-pad up selects the upper pause item");
