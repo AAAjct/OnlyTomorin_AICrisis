@@ -48,6 +48,7 @@ namespace TomorinTrial.Editor
             var transport=(TelepathyTransport)network.transport;
             ushort originalPort=transport.port;
             TrialLevel originalLevel=network.SelectedLevel;
+            int originalCapacity=network.RoomCapacity;
             try
             {
                 transport.port=18102;network.SelectLevel(TrialLevel.Arena);network.Host();
@@ -94,6 +95,7 @@ namespace TomorinTrial.Editor
                 yield return .2f;
 
                 network=TrialNetworkManager.Current;((TelepathyTransport)network.transport).port=18102;
+                network.AdjustRoomCapacity(5-network.RoomCapacity);
                 network.SelectLevel(TrialLevel.BigFish);network.Host();ConnectEncounterPeer(network);
                 Until();while(Waiting(lobby && network.Members.Length==2))yield return .02f;
                 Check(receivedLevel==TrialLevel.BigFish,"Changing the host's level is reflected in the next room handshake");
@@ -129,7 +131,7 @@ namespace TomorinTrial.Editor
                 Check(network.Players.Where(p=>p!=host).All(p=>p.transform.position.z>=18),"Late joiners spawn inside the sealed boss arena instead of being trapped outside the gate");
                 for(int i=0;i<3;i++)ConnectExtraPeer(network,i);
                 Until();while(Waiting(network.Members.Length==5 && network.Players.Count()==5))yield return .02f;
-                Check(game.PartySize==5 && Mathf.Abs(boss.MaxHealth-7000)<.1f && network.maxConnections>100000,"Five real TCP participants exceed the old four-player limit and give exactly five times boss health");
+                Check(game.PartySize==5 && Mathf.Abs(boss.MaxHealth-7000)<.1f && NetworkServer.maxConnections==5,"Five TCP participants fill the configured room and give exactly five times boss health");
                 foreach(var extra in encounterPeers)extra.Disconnect();encounterPeers.Clear();
                 Until();while(Waiting(network.Members.Length==2))yield return .02f;
 
@@ -164,6 +166,7 @@ namespace TomorinTrial.Editor
                     if(TrialNetworkManager.SessionActive)TrialNetworkManager.Current.Leave();
                     ((TelepathyTransport)TrialNetworkManager.Current.transport).port=originalPort;
                     TrialNetworkManager.Current.SelectLevel(originalLevel);
+                    TrialNetworkManager.Current.AdjustRoomCapacity(originalCapacity-TrialNetworkManager.Current.RoomCapacity);
                 }
             }
         }

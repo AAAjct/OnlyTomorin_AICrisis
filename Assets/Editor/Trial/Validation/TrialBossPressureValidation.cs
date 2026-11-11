@@ -52,6 +52,12 @@ namespace TomorinTrial.Editor
                 Vector3 bearing=Vector3.ProjectOnPlane(game.Player.LockTarget.transform.position-game.Player.transform.position,Vector3.up);
                 Check(Vector3.Angle(game.Player.transform.forward,bearing)<1,level+" lock turns the player toward the boss without movement input");
                 game.Player.ToggleLock();
+                if(level==TrialLevel.Anon)
+                {
+                    foreach(string result in TrialTerraceValidation.Run().Split('\n'))results.Add(result);
+                    game.enabled=true;game.Input.enabled=true;
+                    continue;
+                }
                 foreach(var enemy in game.Enemies)
                 {
                     if(!enemy.IsBoss)continue;

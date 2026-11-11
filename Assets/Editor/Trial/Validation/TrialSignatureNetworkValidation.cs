@@ -9,7 +9,7 @@ namespace TomorinTrial.Editor
 {
     public static partial class TrialNetworkValidation
     {
-        [MenuItem("Tools/Tomorin/Validate sword garden over TCP (Play Mode)")]
+        [MenuItem("Tools/Tomorin/Validate Crimson Sword Terrace over TCP (Play Mode)")]
         public static void RunSignatureNetwork()
         {
             if(!EditorApplication.isPlaying || routine!=null || !TrialNetworkManager.Current || TrialNetworkManager.SessionActive)throw new InvalidOperationException("Run InkStart in Play Mode outside a network session.");
@@ -25,7 +25,7 @@ namespace TomorinTrial.Editor
                 network.SelectLevel(TrialLevel.Anon);transport.port=18485;network.Host();
                 incoming=new Unbatcher();lobby=sceneReceived=false;world=default;held=default;
                 client=new Telepathy.Client(65536){NoDelay=true};
-                client.OnConnected=()=>{Send(new ReadyMessage());Send(new TrialHello{name="SwordGardenPeer"});};
+                client.OnConnected=()=>{Send(new ReadyMessage());Send(new TrialHello{name="TerracePeer"});};
                 client.OnData=Receive;client.Connect("127.0.0.1",transport.port);
                 Until();while(Waiting(lobby && network.Members.Length==2))yield return .02f;
                 Check(receivedLevel==TrialLevel.Anon,"TCP lobby selects the sword saint encounter");network.BeginTogether();
@@ -35,26 +35,48 @@ namespace TomorinTrial.Editor
                 game.Player.ChooseBoon(game.Player.OfferA);var remote=network.Players.First(p=>p!=game.Player);Send(new TrialChooseBoon{boon=remote.OfferA});
                 Until();while(Waiting(!remote.ChoosingBoon))yield return .02f;
                 var boss=game.Enemies[0];var brain=boss.Champion;
-                Until();while(Waiting(world.champions[0].introAge>.1f && !world.champions[0].introPlayed))yield return .02f;
-                Check(!world.champions[0].introPlayed,"Real TCP peer receives the landing / sword-draw timeline");
-                Until();while(Waiting(world.champions[0].introPlayed))yield return .02f;
-                Check(world.players.All(p=>p.maxStamina>=TrialPlayer.BaseStamina),"All real TCP actors use the increased stamina maximum");
-                boss.HoldCombat(60);brain.CancelAttack(true);game.Player.Restore(new Vector3(-15,0,8));remote.Restore(new Vector3(0,0,22));boss.Teleport(new Vector3(0,0,29));
-                brain.BeginMove(4);brain.Tick(.92f);
-                Until();while(Waiting(world.champions[0].hazards.Count(h=>h.kind==(byte)ChampionHazardKind.SwordRain)==15))yield return .02f;
+                Check(!world.enemies[0].awake,"TCP clients can stage south of the opening line");
+                game.Player.Teleport(new Vector3(-3,0,16));
+                remote.Teleport(new Vector3(0,0,TrialWorld.TerraceEntryZ+.05f));
+                Until();while(Waiting(world.enemies[0].awake && world.champions[0].move==0))yield return .02f;
                 var snapshot=world.champions[0];
-                Check(snapshot.hazards.Count(h=>h.kind==(byte)ChampionHazardKind.StarEdge)==5,"Real TCP peer receives every pentagram edge");
-                Check(snapshot.hazards.Where(h=>h.kind==(byte)ChampionHazardKind.SwordRain).All(h=>h.aux>=.9f && h.radius>.5f),"Real TCP peer receives sword warning delay and collision radius");
-                brain.Tick(.8f);
-                Until();while(Waiting(world.champions[0].move==10 && world.champions[0].hazards.Length>0))yield return .02f;
-                Check(world.champions[0].move==10,"TCP snapshots preserve simultaneous close combat and persistent sword hazards");
-                brain.CancelAttack(true);typeof(TrialPlayer).GetProperty("Action").SetValue(remote,FighterAction.Light);boss.ReceiveHit(remote,1,0);
-                Until();while(Waiting(world.enemies[0].bossFlinch>0))yield return .02f;
-                Check(world.enemies[0].bossFlinch>=.12f,"A real remote player hit broadcasts the boss short flinch");
+                Check(snapshot.terraceWindup==.68f && snapshot.hazards.Length==0,"TCP receives a grounded rush and its full windup");
+
+                boss.HoldCombat(60);
                 brain.CancelAttack(true);
-                Until();while(Waiting(world.champions[0].hazards.Length==0))yield return .02f;
-                Check(world.champions[0].hazards.Length==0,"Hazard cancellation reaches the TCP peer");
-                Check(runtimeErrors==0,"TCP sword-garden encounter completes without runtime errors");
+                boss.Teleport(TrialWorld.TerraceBossSpawn);
+                remote.Teleport(new Vector3(0,0,25));
+                held=new TrialControls{held=1};Send(held);
+                Until();while(Waiting(remote.Guarding && remote.GuardAge>=.5f))yield return .02f;
+                game.SetCombatTarget(remote);
+                brain.Tick(.5f);
+                boss.Teleport(TrialWorld.TerraceBossSpawn);
+                boss.transform.rotation=Quaternion.LookRotation(remote.transform.position-boss.transform.position);
+                brain.Tick(.26f);
+                Until();while(Waiting(world.champions[0].move==8))yield return .02f;
+                Check(world.champions[0].terraceWindup==.76f,
+                    "A remote held guard selects the sweep on the authority and replicates its complete tell");
+                held=default;Send(held);
+                brain.CancelAttack(true);
+                boss.Teleport(TrialWorld.TerraceBossSpawn);
+                remote.Teleport(new Vector3(0,0,25));
+                boss.ReceiveHit(remote,boss.MaxHealth*.5f,0);
+                brain.Tick(.08f);
+                Until();while(Waiting(world.champions[0].terracePhase>0))yield return .02f;
+                Check(world.champions[0].phase==1,"Transition clock reaches the peer before the phase changes");
+                for(int i=0;i<22;i++)brain.Tick(.1f);
+                Until();while(Waiting(world.champions[0].phase==2))yield return .02f;
+
+                game.SetCombatTarget(remote);
+                brain.BeginMove(10);
+                game.SetCombatTarget(game.Player);
+                Until();while(Waiting(world.champions[0].move==10))yield return .02f;
+                Check(world.champions[0].terraceWindup==.46f,"TCP receives the distinct second-phase tell");
+                for(int i=0;i<30;i++)brain.Tick(.02f);
+                Until();while(Waiting(world.champions[0].move==11))yield return .02f;
+                Check(world.champions[0].terraceRecovery==1.05f && world.champions[0].hazards.Length==0,
+                    "TCP receives the fourth cut and its recoverable finish without persistent hazards");
+                Check(runtimeErrors==0,"TCP terrace encounter completes without runtime errors");
             }
             finally
             {

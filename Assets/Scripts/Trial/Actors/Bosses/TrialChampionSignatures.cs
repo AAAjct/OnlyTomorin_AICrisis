@@ -10,7 +10,7 @@ namespace TomorinTrial
         TrialSignatureProp introProp;
         Material signatureCore;
         Vector3 introCenter;
-        public bool Introducing=>Kind==ChampionKind.Anon && !introPlayed;
+        public bool Introducing=>Kind==ChampionKind.Anon && !TerraceDuel && !introPlayed;
         public float IntroProgress=>Mathf.Clamp01(introAge/3.5f);
         public int SwordRainCount {get {int n=0;foreach(var h in hazards)if(h.active && h.kind==ChampionHazardKind.SwordRain)n++;return n;}}
 
@@ -19,7 +19,7 @@ namespace TomorinTrial
             signatureCore=new Material(game.World.Glow){name=Kind+" signature core"};
             var tint=TrialChampionCatalog.Color(Kind);signatureCore.SetColor("_BaseColor",tint);
             if(signatureCore.HasProperty("_EmissionColor"))signatureCore.SetColor("_EmissionColor",tint*2);
-            if(Kind!=ChampionKind.Anon)return;
+            if(Kind!=ChampionKind.Anon || TerraceDuel)return;
             introProp=TrialSignatureProp.Create(transform);introSword=introProp.transform;
             introCenter=new Vector3(0,0,25);
         }

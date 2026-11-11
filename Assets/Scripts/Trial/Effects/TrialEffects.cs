@@ -40,6 +40,7 @@ namespace TomorinTrial
             for(int i=0;i<14;i++){var voice=new GameObject("SFX voice "+i);voice.transform.SetParent(transform,false);var s=voice.AddComponent<AudioSource>();s.spatialBlend=.65f;s.rolloffMode=AudioRolloffMode.Linear;s.minDistance=2;s.maxDistance=24;s.volume=.55f;sources.Add(s);}
             CreateAmbience();
             InitializeImpactEffects();InitializeTides();LoadCombatAudio();InitializeSpellVoices();
+            if(owner.Level==TrialLevel.Anon)return;
             AmbientParticles(owner.World.Root,owner.World.ShrinePosition+Vector3.up,26,new Color(1,.58f,.16f),.035f,1.2f);
             AmbientParticles(owner.World.Root,new Vector3(0,5,5),100,new Color(.65f,.11f,.035f),.065f,.7f,24);
         }
@@ -114,6 +115,28 @@ namespace TomorinTrial
         public void HitStop(float duration){stopUntil=Mathf.Max(stopUntil,Time.unscaledTime+duration);}
         public void PlayCombat(TrialCombatEvent value,bool localPlayer)
         {
+            if(value.cue is TrialCombatCue.TerraceParry or TrialCombatCue.TerraceBlock)
+            {
+                bool parry=value.cue==TrialCombatCue.TerraceParry;
+                bool broken=parry && value.amount>=3;
+                Vector3 point=value.position;
+                if(parry)PlayParryVisuals(point,value.forward,value.player,localPlayer);
+                else Burst(point,new Color(1,.63f,.30f),10);
+                TerraceClashSparks(point,value.forward,broken,parry);
+                Sound(parry?"parry":"block",point,parry?.90f+.095f*value.amount:.92f);
+                if(broken)Sound("counter",point,.83f);
+                if(localPlayer)
+                {
+                    if(broken)
+                    {
+                        game.CameraRig.BladeClash();
+                        game.Hud.Notify("脱拍失衡 · 近身重击可处决",1.65f);
+                    }
+                    else game.CameraRig.Kick(parry?.19f+.06f*value.amount:.12f);
+                    Rumble(broken?.55f:.22f,broken?.84f:.4f,broken?.13f:.065f);
+                }
+                return;
+            }
             if(PlaySpellCue(value,localPlayer))return;
             PolishPlayerArt(value);
             if(PlaySwordCue(value,localPlayer))return;
@@ -127,13 +150,9 @@ namespace TomorinTrial
             if(value.cue==TrialCombatCue.Parry)
             {
                 Vector3 contact=value.position+value.forward*.8f+Vector3.up;
-                InkBloom(contact,-value.forward*.8f,2.1f);
-                Burst(contact,new Color(2.4f,.16f,.045f),72);
+                PlayParryVisuals(contact,value.forward,value.player,localPlayer);
                 Sound("parry",value.position,.86f);Sound("impactHeavy",value.position,.68f);
-                SlashEffect(contact,value.forward,new Color(1,.12f,.08f),2.7f,true);
-                SlashEffect(contact,value.forward,new Color(1,.76f,.38f),1.6f);
-                Art(new TrialCombatEvent{cue=TrialCombatCue.CrescentCut,position=contact,forward=value.forward,player=value.player},.24f);
-                if(localPlayer){game.CameraRig.BladeClash();HitStop(.12f);Rumble(.8f,1,.19f);game.Hud.Flash(new Color(1,.45f,.22f,.15f));game.Hud.Notify("完美格挡 · 下一击强化",1.5f);}
+                if(localPlayer){game.CameraRig.BladeClash();HitStop(.12f);Rumble(.8f,1,.19f);game.Hud.Notify("完美格挡 · 下一击强化",1.5f);}
             }
             else if(value.cue is TrialCombatCue.Block or TrialCombatCue.PerfectBlock)
             {
@@ -157,6 +176,15 @@ namespace TomorinTrial
                 game.Hud.Notify("架势崩溃",1.2f);
             }
             else if(localPlayer && value.cue==TrialCombatCue.Death)game.OnPlayerDied();
+        }
+        void PlayParryVisuals(Vector3 contact,Vector3 forward,int player,bool localPlayer)
+        {
+            InkBloom(contact,-forward*.8f,2.1f);
+            Burst(contact,new Color(2.4f,.16f,.045f),72);
+            SlashEffect(contact,forward,new Color(1,.12f,.08f),2.7f,true);
+            SlashEffect(contact,forward,new Color(1,.76f,.38f),1.6f);
+            Art(new TrialCombatEvent{cue=TrialCombatCue.CrescentCut,position=contact,forward=forward,player=player},.24f);
+            if(localPlayer)game.Hud.Flash(new Color(1,.45f,.22f,.15f));
         }
         public void TickTime()
         {

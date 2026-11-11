@@ -42,6 +42,17 @@ namespace TomorinTrial.Editor
                 read.Tick(player,10);Check(!read.EarlyDodge,"changed behavior erases dodge habit",results);
                 Set(player,"Action",FighterAction.Light);read.Tick(player,0);read.Tick(player,.2f);
                 Check(read.Weight(TrialChampionCatalog.Move(ChampionKind.Anon,8))>read.Weight(gold),"light pressure invites a baitable counter stance",results);
+                Set(player,"Combo",1);read.Tick(player,.2f);
+                Check(read.RepeatingLight && !read.Ready,"consecutive basic lights are counted even when the action enum does not change",results);
+                Set(player,"Combo",TrialPlayer.BehindThrust);read.Tick(player,.25f);read.Tick(player,.2f);
+                Check(!read.LightPressure,"a specialized light followup is distinct from basic light pressure",results);
+                var parry=typeof(TrialDuelRead).GetMethod("ObserveParry",Flags);
+                parry.Invoke(read,new object[]{second});parry.Invoke(read,new object[]{second});
+                Check(!read.RepeatingParry,"another player's deflects do not train the current matchup",results);
+                parry.Invoke(read,new object[]{player});read.Tick(player,2);parry.Invoke(read,new object[]{player});read.Tick(player,2);
+                Check(read.RepeatingParry && read.Weight(red)>read.Weight(gold),"repeated parries influence the next turn even after recovery",results);
+                read.Tick(player,12);
+                Check(!read.RepeatingParry && !read.RepeatingLight,"old offense and defense patterns decay",results);
                 read.Tick(second,0);Check(!read.LightPressure && read.DodgeHabit==0,"switching multiplayer target clears opponent memory",results);
                 foreach(ChampionKind kind in Enum.GetValues(typeof(ChampionKind)))
                 {
@@ -74,8 +85,16 @@ namespace TomorinTrial.Editor
             Check(champion.Age==0 && champion.WindingUp && champion.Move.windup>=.45f,"branch restarts full warning",results);
             Check((int)type.GetField("chainDepth",Flags).GetValue(champion)==2,"branch spends entire extension budget",results);
             Check(!(bool)branch.Invoke(champion,null),"cannot recursively branch",results);
-            champion.CancelAttack(true);champion.BeginMove(0);champion.Deflected();
+            champion.CancelAttack(true);champion.BeginMove(0);
+            var enemy=champion.GetComponent<TrialEnemy>();
+            float posture=enemy.Posture;
+            enemy.Parried(player,true);
+            Check(champion.Attacking && enemy.Posture==posture,"deflecting a projectile does not interrupt the source's current move",results);
+            enemy.Parried(player);
+            Check(champion.Attacking && enemy.Posture>posture,"a direct deflect builds posture and preserves committed beats",results);
             Check(!(bool)type.GetMethod("TryChainPressure",Flags).Invoke(champion,new object[]{champion.Move,0}),"successful deflect denies followup",results);
+            int answer=(int)type.GetMethod("ChooseDuelResponse",Flags).Invoke(champion,new object[]{3f,false});
+            Check(answer>=0 && TrialChampionCatalog.Move(champion.Kind,answer).Unblockable,"the next attack answers repeated deflects with a peril",results);
             champion.CancelAttack(true);read.Reset();Set(player,"Guarding",false);
             Check((int)type.GetMethod("ChooseDuelFollowup",Flags).Invoke(champion,new object[]{3f})==-1,"disciplined neutral play earns end of string",results);
             champion.ResetEncounter();return string.Join("\n",results);

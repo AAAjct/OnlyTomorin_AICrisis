@@ -4,14 +4,20 @@ namespace TomorinTrial
 {
     public sealed partial class TrialEnemy : TrialFighter
     {
+        const float TerraceHealth=1800;
         public bool IsBoss { get; private set; }
-        public float BodyRadius => IsBoss?.75f:.38f;
+        public float BodyRadius => IsBoss?.75f:RunGuardKind==TrialRunGuardKind.Takosaki?.62f:.38f;
         public bool Awakened { get; private set; }
         public bool PhaseTwo => IsBoss && Health < MaxHealth * .55f;
-        public string DisplayName => Champion?TrialChampionCatalog.Name(Champion.Kind):IsBoss?"大肥鱼 · DeepSeek":"奶蛙 · 拳卫";
+        public string DisplayName => Champion?TrialChampionCatalog.Name(Champion.Kind):IsBoss?"大肥鱼 · DeepSeek":RunGuardKind switch
+        {
+            TrialRunGuardKind.DoroXueLian => "雪莲 · 冰咒师",
+            TrialRunGuardKind.Takosaki => "章鱼小祥 · 潮击",
+            _ => "奶蛙 · 拳卫"
+        };
         bool unblockable;
         public bool Unblockable { get => Champion?Champion.Unblockable:Boss?Boss.Unblockable:unblockable; private set=>unblockable=value; }
-        public bool WindingUp => Champion?Champion.WindingUp:Boss?Boss.WindingUp:(Action==FighterAction.Light || Action==FighterAction.Heavy) && Progress<.33f;
+        public bool WindingUp => Champion?Champion.WindingUp:Boss?Boss.WindingUp:HasRunSkill?RunWarningProgress<1 && RunSkillActive:(Action==FighterAction.Light || Action==FighterAction.Heavy) && Progress<.33f;
         public TrialBoss Boss { get; private set; }
         public TrialChampion Champion {get;private set;}
         public bool Vulnerable => Action==FighterAction.Stagger;
@@ -27,9 +33,21 @@ namespace TomorinTrial
         public float FlinchRemaining {get;private set;}
         public bool Flinching=>FlinchRemaining>0;
         float flinchCooldown;
+        internal bool MaintainsInitiativeAgainst(TrialFighter attacker)
+            =>TrialDuelRead.IsBasicLight(attacker) &&
+                (Champion && Champion.Attacking && !Champion.Recovering || Boss && Boss.Skill!=DeepFishSkill.None && !Boss.Recovering);
+
         void HitFlinch(TrialFighter attacker)
         {
             if(!IsBoss || !Alive || Vulnerable || ResolveActive || flinchCooldown>0)return;
+            if(Champion && Champion.TerraceDuel)
+            {
+                if(!attacker || !Champion.TerraceCanFlinch)return;
+                FlinchRemaining=attacker.Action==FighterAction.Heavy?.26f:.16f;
+                flinchCooldown=.42f;MoveBlend=0;
+                return;
+            }
+            if(MaintainsInitiativeAgainst(attacker))return;
             FlinchRemaining=attacker && attacker.Action==FighterAction.Heavy?.22f:.13f;
             // Later phases can finish their telegraphed strings under light pressure.
             if(Champion && Champion.Attacking)FlinchRemaining*=Champion.Phase==3?.65f:Champion.Phase==2?.85f:1;
@@ -42,10 +60,11 @@ namespace TomorinTrial
         bool resolvePending;
         bool resolveGlow;
         public bool ResolveActive=>IsBoss && resolveTime>0;
-        protected override bool CanRecoverPosture => !(Champion && Champion.IsRemnant && Champion.Attacking);
+        protected override bool CanRecoverPosture => !(Champion && (Champion.TerraceDuel || Champion.IsRemnant && Champion.Attacking));
         public bool BreakoutInvulnerable=>ResolveActive && resolveTime>1.8f;
         void LateUpdate()
         {
+            if(HasRunSkill)PresentRunVariant();
             if(!ResolveActive && !resolveGlow)return;
             resolveGlow=ResolveActive;
             SetHitEmission(ResolveActive?new Color(.15f,.65f,1.8f):Color.black);
@@ -54,7 +73,7 @@ namespace TomorinTrial
         void TickResolve(float dt)
         {
             pressureClock+=dt;resolveTime=Mathf.Max(0,resolveTime-dt);resolveCooldown=Mathf.Max(0,resolveCooldown-dt);
-            if(!Alive || !IsBoss)return;
+            if(!Alive || !IsBoss || Champion && Champion.TerraceDuel)return;
             // A posture break always keeps its full execution window, even when escape is queued.
             if(resolvePending && (!Vulnerable || ActionTime>=ActionDuration))
             {
@@ -78,7 +97,8 @@ namespace TomorinTrial
         public void InitializeChampion(TrialGame owner,Vector3 point,ChampionKind kind,GameObject model)
         {
             IsBoss=true;Spawn=point;transform.position=point;
-            Configure(owner,TrialChampionCatalog.Health(kind),100,.48f,1.9f);PostureLimit=kind==ChampionKind.Remnant?340:kind==ChampionKind.Anon?240:180;
+            bool terrace=kind==ChampionKind.Anon;
+            Configure(owner,terrace?TerraceHealth:TrialChampionCatalog.Health(kind),100,.48f,1.9f);PostureLimit=terrace?100:kind==ChampionKind.Remnant?340:180;
             Champion=gameObject.AddComponent<TrialChampion>();Champion.Initialize(this,owner,kind,model);
             Visual=Champion.Visual;renderers=Visual.GetComponentsInChildren<Renderer>();name=DisplayName;transform.rotation=Quaternion.Euler(0,180,0);
         }
@@ -125,7 +145,8 @@ namespace TomorinTrial
             if(Flinching)
             {
                 FlinchRemaining=Mathf.Max(0,FlinchRemaining-dt);TickGravity(dt);
-                if(Champion)Champion.TickDuringFlinch(dt);
+                if(Champion && Champion.TerraceDuel)Champion.TickTerraceRecoil(dt);
+                else if(Champion)Champion.TickDuringFlinch(dt);
                 if(Boss)Boss.TickDuringFlinch(dt);
                 return;
             }
@@ -134,7 +155,7 @@ namespace TomorinTrial
             {
                 if(!Alive){ActionTime+=dt;Champion.Tick(dt);return;}
                 TickBase(dt);
-                if(!Awakened && game.Mode==TrialMode.Playing && game.GateOpen){Awakened=true;game.SealArena();}
+                if(!Awakened && game.Mode==TrialMode.Playing && game.GateOpen && (!Champion.TerraceDuel || game.CombatTarget.transform.position.z>=TrialWorld.TerraceEntryZ)){Awakened=true;game.SealArena();}
                 Champion.Tick(dt);return;
             }
             if(Boss)
@@ -146,11 +167,13 @@ namespace TomorinTrial
                 Boss.Tick(dt);return;
             }
             if(!Alive) {MoveBlend=0;ActionTime+=dt;return;}
-            TickBase(dt);cooldown-=dt;
-            if(recoilVelocity.sqrMagnitude>.01f){Move(recoilVelocity,dt);recoilVelocity=Vector3.MoveTowards(recoilVelocity,Vector3.zero,dt*20);}
+            TickBase(dt);
+            if(!Alive)return;
+            cooldown-=dt;
+            if(!RunSkillActive && recoilVelocity.sqrMagnitude>.01f){Move(recoilVelocity,dt);recoilVelocity=Vector3.MoveTowards(recoilVelocity,Vector3.zero,dt*20);}
             if(Action!=FighterAction.Free)MoveBlend=0;
             var target=game.CombatTarget;
-            if(!target.Alive) {MoveBlend=0;return;}
+            if(!target.Alive && !RunSkillActive) {MoveBlend=0;return;}
             var delta=target.transform.position-transform.position;delta.y=0;
             float distance=delta.magnitude;
             if(!Awakened && distance<(IsBoss?10:8.5f) && (!IsBoss || game.GateOpen))
@@ -160,6 +183,7 @@ namespace TomorinTrial
             {phaseAnnounced=true;game.Hud.Notify("二阶段",1.2f);game.Effects.Burst(transform.position+Vector3.up,Color.red,60);}
             if(Action==FighterAction.Stagger)
             {if(ActionTime>ActionDuration)Begin(FighterAction.Free,0);return;}
+            if(HasRunSkill){TickRunVariant(delta,distance,dt);return;}
             if(Action==FighterAction.Light || Action==FighterAction.Heavy)
             {
                 if(Progress<.25f)Turn(delta,IsBoss?100:155,dt);
@@ -181,15 +205,7 @@ namespace TomorinTrial
             float desired=IsBoss?3.1f:1.65f;
             MoveBlend=0;
             if(distance>desired)
-            {
-                var direction=delta.normalized;
-                if(Physics.SphereCast(transform.position+Vector3.up,.35f,direction,out var hit,1.4f,1,QueryTriggerInteraction.Ignore))
-                    direction=Vector3.Cross(Vector3.up,hit.normal).normalized;
-                foreach(var other in game.Enemies)
-                    if(other!=this && other.Alive && (other.transform.position-transform.position).sqrMagnitude<1.8f)
-                        direction+=Vector3.ProjectOnPlane(transform.position-other.transform.position,Vector3.up).normalized*.7f;
-                Move(direction.normalized*(IsBoss?2.4f:1.8f)*(Time.time<runSlowUntil?1-runSlow:1),dt);MoveBlend=1;
-            }
+                ApproachGuard(delta,IsBoss?2.4f:1.8f,dt);
             else if(cooldown<=0)
             {
                 attackIndex++;
@@ -203,10 +219,26 @@ namespace TomorinTrial
 
         }
 
+        void ApproachGuard(Vector3 delta,float speed,float dt)
+        {
+            var direction=delta.normalized;
+            if(Physics.SphereCast(transform.position+Vector3.up,.35f,direction,out var hit,1.4f,1,QueryTriggerInteraction.Ignore))
+                direction=Vector3.Cross(Vector3.up,hit.normal).normalized;
+            foreach(var other in game.Enemies)
+                if(other!=this && other.Alive && (other.transform.position-transform.position).sqrMagnitude<1.8f)
+                    direction+=Vector3.ProjectOnPlane(transform.position-other.transform.position,Vector3.up).normalized*.7f;
+            Move(direction.normalized*speed*(Time.time<runSlowUntil?1-runSlow:1),dt);MoveBlend=1;
+        }
+
         internal void SeverHead(){if(frogRig && !Alive)frogRig.SeverHead();}
         public void ApplyReplica(TrialActorState state,float dt)
         {
             ApplyNetwork(state,dt);Awakened=state.awake;Recoil=state.recoil;resolveTime=state.bossResolve;FlinchRemaining=state.bossFlinch;
+            if(RunSkillActive)
+            {
+                runSkillOrigin=state.position;
+                runSkillForward=Quaternion.Euler(0,state.yaw,0)*Vector3.forward;
+            }
             if(state.spellExecuted)coffinReplicaHideUntil=0;
             bool spellHidden=state.spellExecuted || Time.unscaledTime<coffinReplicaHideUntil;
             if(Visual.gameObject.activeSelf==spellHidden)Visual.gameObject.SetActive(!spellHidden);
@@ -221,7 +253,7 @@ namespace TomorinTrial
             Visual.gameObject.SetActive(false);
         }
 
-        public override TrialActorState CaptureNetwork(int id){var state=base.CaptureNetwork(id);state.enemyKind=(byte)(Champion?2+(int)Champion.Kind:IsBoss?1:0);state.recoil=Recoil;state.bossResolve=resolveTime;state.bossFlinch=FlinchRemaining;state.headSevered=frogRig && frogRig.HeadSevered;state.spellExecuted=!Visual.gameObject.activeSelf;return state;}
+        public override TrialActorState CaptureNetwork(int id){var state=base.CaptureNetwork(id);state.enemyKind=(byte)(Champion?2+(int)Champion.Kind:IsBoss?1:(int)RunGuardKind);state.recoil=Recoil;state.bossResolve=resolveTime;state.bossFlinch=FlinchRemaining;state.headSevered=frogRig && frogRig.HeadSevered;state.spellExecuted=!Visual.gameObject.activeSelf;return state;}
 
         public override bool ReceiveHit(TrialFighter attacker,float damage,float postureDamage,bool unblockable=false)
             =>ReceiveEnemyHit(attacker,damage,postureDamage,unblockable,awardSpellEnergy:true);
@@ -229,26 +261,48 @@ namespace TomorinTrial
         bool ReceiveEnemyHit(TrialFighter attacker,float damage,float postureDamage,bool unblockable,bool awardSpellEnergy)
         {
             if(!Alive || (!IsBoss && CoffinSealed) || (IsBoss && !game.GateOpen))return false;
+            if(Champion && Champion.TerraceDuel && (!Awakened || Champion.TerraceChangingPhase))return false;
             if(attacker is TrialPlayer && Invulnerable)return false;
             if(attacker is TrialPlayer runPlayer)damage=runPlayer.ModifyRunDamage(this,damage,ref postureDamage);
-            bool exposed=Action==FighterAction.Stagger;
+            bool exposed=Vulnerable;
+            if(Champion && Champion.TerraceDuel)
+            {
+                if(Champion.TerraceReceiveStrike(attacker,postureDamage))return false;
+                Impact(attacker,damage);
+                if(attacker)
+                {
+                    Vector3 away=TrialChampion.Planar(transform.position-attacker.transform.position).normalized;
+                    bool heavy=attacker.Action==FighterAction.Heavy;
+                    Recoil=away*(heavy?.8f:.35f);
+                    if(Alive)Champion.TerraceStrikeRecoil(away,heavy);
+                }
+                if(!Alive){Champion.CancelAttack(true);game.OnEnemyDied(this,attacker as TrialPlayer,awardSpellEnergy);}
+                else if(postureDamage>0)HitFlinch(attacker);
+                return true;
+            }
+            bool braced=!exposed && !unblockable && postureDamage>0 &&
+                (Champion && Champion.BracesAgainst(attacker) || Boss && Boss.BracesAgainst(attacker)) &&
+                Vector3.Dot(transform.forward,Vector3.ProjectOnPlane(attacker.transform.position-transform.position,Vector3.up))>0;
             if(Champion)
             {
                 bool counterStance=Champion.CounterReady;
-                bool countered=attacker is TrialPlayer && Champion.TryCounter(attacker.Action==FighterAction.Heavy);
+                bool countered=!unblockable && postureDamage>0 && attacker is TrialPlayer &&
+                    (attacker.Action==FighterAction.Heavy || TrialDuelRead.IsBasicLight(attacker)) &&
+                    Vector3.Angle(transform.forward,attacker.transform.position-transform.position)<=85 &&
+                    Champion.TryCounter(attacker.Action==FighterAction.Heavy);
                 bool swordGuard=!counterStance && !exposed && Champion.TryGuardHit(attacker,unblockable);
-                Impact(attacker,damage*(exposed?1.65f:countered?.15f:swordGuard?.18f:1));
+                Impact(attacker,damage*(exposed?1.65f:countered?.15f:swordGuard?.18f:braced?.65f:1));
                 if(attacker && !ResolveActive)Recoil=Vector3.ProjectOnPlane(transform.position-attacker.transform.position,Vector3.up).normalized*(attacker.Action==FighterAction.Heavy?1.0f:.65f);
                 if(!Alive){Champion.CancelAttack(true);game.OnEnemyDied(this,attacker as TrialPlayer,awardSpellEnergy);return true;}
-                Awakened=true;if(!ResolveActive)AddChampionPosture(postureDamage*(swordGuard?1.2f:.75f));
+                Awakened=true;if(!ResolveActive)AddChampionPosture(postureDamage*(swordGuard?1.2f:countered||braced?.35f:.75f));
                 if(!countered && !swordGuard)HitFlinch(attacker);
                 RecordPressure(attacker);return true;
             }
             if(!IsBoss && attacker){Recoil=Vector3.ProjectOnPlane(transform.position-attacker.transform.position,Vector3.up).normalized*Mathf.Clamp(damage*.045f,1,4);recoilVelocity=Recoil;}
-            Impact(attacker,damage*(exposed?1.65f:1)*(Boss && Boss.Boon==TrialBossBoon.IronScales?.92f:1));
+            Impact(attacker,damage*(exposed?1.65f:braced?.65f:1)*(Boss && Boss.Boon==TrialBossBoon.IronScales?.92f:1));
             if(!Alive) {game.OnEnemyDied(this,attacker as TrialPlayer,awardSpellEnergy);return true;}
             if(IsBoss && !Awakened)game.SealArena();
-            Awakened=true;if(!ResolveActive)Posture+=postureDamage;
+            Awakened=true;if(!ResolveActive)Posture+=postureDamage*(braced?.45f:1);
             if(!exposed && (Posture>=PostureLimit || (!IsBoss && Action==FighterAction.Free)))
             {Posture=0;Begin(FighterAction.Stagger,IsBoss?1.35f:.55f);cooldown=.6f;if(Boss)Boss.CancelAttack();}
             RecordPressure(attacker);
@@ -306,22 +360,35 @@ namespace TomorinTrial
             Visual.gameObject.SetActive(false);
             return true;
         }
-        public void Parried()
+        public void Parried(TrialPlayer defender=null,bool hazard=false)
         {
+            if(Champion && Champion.TerraceDuel){if(!hazard)Champion.TerraceDeflect(defender);return;}
+            if(Champion)Champion.ObserveParry(defender);
+            if(Boss)Boss.ObserveParry(defender);
+            // Deflecting a projectile deals with that projectile, even if its owner has started another move.
+            if(hazard)return;
             resolveTime=0;resolvePending=false;pressureHits=0;
             if(Champion){Champion.Deflected();return;}
-            if(IsBoss){Posture+=55;if(Posture<PostureLimit){Begin(FighterAction.Stagger,.55f);Boss.CancelAttack();return;}}
+            if(Boss)
+            {
+                Posture+=55;
+                if(Posture<PostureLimit)
+                {
+                    if(defender && Boss.RetainNextBeat())return;
+                    Begin(FighterAction.Stagger,.55f);Boss.CancelAttack();return;
+                }
+            }
             Posture=0;Begin(FighterAction.Stagger,IsBoss?1.8f:2.0f);cooldown=.6f;if(Boss)Boss.CancelAttack();
         }
         public void ScaleForParty(int players)
         {
             int extra=Mathf.Max(1,players)-1;
-            float maximum=Champion?TrialChampionCatalog.Health(Champion.Kind)*(1f+extra):IsBoss?1400*(1f+extra):105*(1+Mathf.Min(3,extra)*.55f);
+            float maximum=Champion?(Champion.TerraceDuel?TerraceHealth:TrialChampionCatalog.Health(Champion.Kind))*(1f+extra):IsBoss?1400*(1f+extra):GuardBaseHealth*(1+Mathf.Min(3,extra)*.55f);
             maximum*=runHealthScale*TrialDifficultySettings.HealthScale(game.Difficulty)*(Champion?Champion.KillHealthScale:1);
             if(Mathf.Approximately(MaxHealth,maximum))return;
             float ratio=MaxHealth>0?Health/MaxHealth:1;
             MaxHealth=maximum;Health=maximum*ratio;
-            float limit=(Champion?(Champion.IsRemnant?340:Champion.Kind==ChampionKind.Anon?240:180):100)*(1+extra*(IsBoss?.55f:.2f))*(Champion?Champion.KillPostureScale:1);
+            float limit=(Champion && !Champion.TerraceDuel?(Champion.IsRemnant?340:180):100)*(1+extra*(IsBoss?.55f:.2f))*(Champion?Champion.KillPostureScale:1);
             Posture=Posture/PostureLimit*limit;PostureLimit=limit;
         }
         internal void BossBegin(FighterAction next,float duration)=>Begin(next,duration);
@@ -331,6 +398,15 @@ namespace TomorinTrial
         internal void BossMove(Vector3 velocity,float dt)=>Move(velocity,dt);
         internal void BossFace(Vector3 direction,float speed,float dt)=>Turn(direction,speed,dt);
         internal void BossMotion(float movement){MoveBlend=Mathf.MoveTowards(MoveBlend,movement,Time.deltaTime*7);}
+        internal bool AddTerracePosture(float amount,bool force)
+        {
+            if(Vulnerable)return false;
+            Posture+=amount;
+            if(!force && Posture<PostureLimit)return false;
+            Posture=0;
+            return true;
+        }
+        internal void DecayTerracePosture(float amount){Posture=Mathf.Max(0,Posture-amount);}
         internal void AddChampionPosture(float amount)
         {
             Posture+=amount;
@@ -352,9 +428,11 @@ namespace TomorinTrial
             Health=MaxHealth;Stamina=MaxStamina;Posture=0;Awakened=false;phaseAnnounced=false;
             Recoil=recoilVelocity=Vector3.zero;
             hitFlash=0;foreach(var r in renderers)if(r)r.SetPropertyBlock(null);if(trail){trail.Clear();trail.emitting=false;}
-            attackIndex=chain=0;cooldown=1.1f;Unblockable=false;motor.enabled=true;Teleport(Spawn);
+            attackIndex=chain=0;attackLanded=false;cooldown=1.1f;Unblockable=false;motor.enabled=true;Teleport(Spawn);
             transform.rotation=Quaternion.Euler(0,180,0);Visual.localRotation=Quaternion.identity;Begin(FighterAction.Free,0);
-            MoveBlend=0;if(frogRig)frogRig.ResetPresentation();if(Boss)Boss.ResetBoss();if(Champion)Champion.ResetEncounter();
+            MoveBlend=0;
+            if(HasRunSkill){runGait=0;PresentRunVariant();}
+            if(frogRig)frogRig.ResetPresentation();if(Boss)Boss.ResetBoss();if(Champion)Champion.ResetEncounter();
         }
     }
 }

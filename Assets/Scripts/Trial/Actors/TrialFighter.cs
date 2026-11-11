@@ -26,7 +26,20 @@ namespace TomorinTrial
         public bool Alive => Health > 0;
         public float Progress => ActionDuration > 0 ? Mathf.Clamp01(ActionTime / ActionDuration) : 0;
         public bool AttackActive => (!(this is TrialPlayer) || TrialPlayer.HasSwordContact(Combo)) && (Action == FighterAction.Light || Action == FighterAction.Heavy || (this is TrialPlayer && Action==FighterAction.Dodge && Combo==7)) && Progress >= (this is TrialPlayer && Action==FighterAction.Light?.22f:.33f) && Progress <= (this is TrialPlayer && Action==FighterAction.Light?.54f:.63f);
-        public bool Invulnerable => this is TrialEnemy enemy && (enemy.BreakoutInvulnerable || enemy.Champion && (enemy.Champion.Evading || enemy.Champion.Introducing)) || Action == FighterAction.Dodge && ActionTime >= .025f && ActionTime <= TrialPlayer.DodgeInvulnerabilityEnd || this is TrialPlayer player && (player.RollThrustEvading || Action==FighterAction.Heavy && Combo==TrialPlayer.SwordGuardReturn && Progress<.68f || Action==FighterAction.Light && (Combo==9 || Combo==TrialPlayer.BehindThrust) && Progress<.32f || Action==FighterAction.Heavy && Combo==10 && Progress<.48f);
+        public bool Invulnerable
+        {
+            get
+            {
+                if(this is TrialEnemy enemy && (enemy.BreakoutInvulnerable || enemy.Champion &&
+                    (enemy.Champion.Evading || enemy.Champion.Introducing || enemy.Champion.TerraceChangingPhase)))return true;
+                var player=this as TrialPlayer;
+                if(Action==FighterAction.Dodge)
+                    return ActionTime>=(player?player.DodgeSafeStart:.025f) && ActionTime<=(player?player.DodgeSafeEnd:TrialPlayer.DodgeInvulnerabilityEnd);
+                return player && (player.RollThrustEvading || Action==FighterAction.Heavy && Combo==TrialPlayer.SwordGuardReturn && Progress<.68f ||
+                    Action==FighterAction.Light && (Combo==9 || Combo==TrialPlayer.BehindThrust) && Progress<.32f ||
+                    Action==FighterAction.Heavy && Combo==10 && Progress<.48f);
+            }
+        }
         public Transform Visual { get; protected set; }
         public Transform Weapon { get; protected set; }
         protected TrialGame game;

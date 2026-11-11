@@ -10,12 +10,24 @@ using UnityEngine.SceneManagement;
 namespace TomorinTrial
 {
     // The host owns the existing combat simulation. Peers send controls, never damage or transforms.
-    public sealed class TrialNetworkManager : NetworkManager
+    public sealed partial class TrialNetworkManager : NetworkManager
     {
         public const string MenuScene = "Assets/Scenes/InkStart.unity";
         public const string GameScene = "Assets/Scenes/AshenCourt.unity";
         public static TrialNetworkManager Current => singleton as TrialNetworkManager;
         public static bool SessionActive => NetworkServer.active || NetworkClient.active;
+        static bool reopenMultiplayerMenu;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetMultiplayerMenuRequest() => reopenMultiplayerMenu = false;
+
+        internal static bool ConsumeMultiplayerMenuRequest()
+        {
+            bool reopen = reopenMultiplayerMenu;
+            reopenMultiplayerMenu = false;
+            return reopen;
+        }
+
         public string Status { get; private set; } = "尚未连接";
         public string[] Members { get; private set; } = Array.Empty<string>();
         public int LocalId { get; private set; } = -1;
@@ -32,10 +44,30 @@ namespace TomorinTrial
         }
 
         float RespawnRemaining(int id)=>reviveAt.TryGetValue(id,out var deadline)?Mathf.Max(0,deadline-Time.time):0;
+        public const int MinRoomCapacity = 2;
+        public const int MaxRoomCapacity = 16;
+        public int RoomCapacity { get; private set; } = 8;
+        int remoteRoomCapacity;
+        public int ActiveRoomCapacity => IsHost ? RoomCapacity : remoteRoomCapacity;
+        public int RoomCapacityFloor => IsHost ? Mathf.Max(MinRoomCapacity, NetworkServer.connections.Count) : MinRoomCapacity;
+        public bool CanAdjustRoomCapacity => !Busy || (IsHost && SceneManager.GetActiveScene().path == MenuScene &&
+            (!NetworkServer.isLoadingScene || networkSceneName == MenuScene));
         public bool IsHost => NetworkServer.active;
-        public bool Busy => NetworkClient.active || NetworkServer.active;
-        public ushort GamePort => ((TelepathyTransport)transport).port;
-        public string PlayerName { get; set; } = "旅人";
+        public bool Busy => preparingRelay || SessionActive;
+        public ushort GamePort => directTransport.port;
+        public string PlayerName { get; set; }
+        internal static string SavedPlayerName
+        {
+            get
+            {
+                string value=PlayerPrefs.GetString("Ink.Name","");
+                if(!string.IsNullOrWhiteSpace(value) && value!="旅人" && value!="房主")return value;
+                value="玩家"+Guid.NewGuid().ToString("N").Substring(0,8);
+                PlayerPrefs.SetString("Ink.Name",value);
+                PlayerPrefs.Save();
+                return value;
+            }
+        }
         public TrialLevel SelectedLevel { get; private set; }
         public TrialDifficulty SelectedDifficulty { get; private set; }
         public void SelectDifficulty(TrialDifficulty difficulty)
@@ -79,13 +111,15 @@ namespace TomorinTrial
         {
             if(singleton && singleton!=this){Destroy(gameObject);return;}
             base.Awake();
-            maxConnections=int.MaxValue;
+            directTransport = transport as TelepathyTransport;
+            PlayerName=SavedPlayerName;
             Application.runInBackground=true;
             Application.logMessageReceivedThreaded += CaptureTransportFailure;
         }
 
         public override void OnDestroy()
         {
+            CancelRelay();
             Application.logMessageReceivedThreaded -= CaptureTransportFailure;
             base.OnDestroy();
         }
@@ -137,21 +171,48 @@ namespace TomorinTrial
             }
             return false;
         }
-        public bool Configure(string address, string portText, string nickname)
+        public bool Configure(string address, string portText, string nickname) => ConfigureConnection(address, portText, nickname, joining: true);
+        internal bool ConfigureHostPort(string portText, string nickname) => ConfigureConnection(null, portText, nickname, joining: false);
+
+        bool ConfigureConnection(string address, string portText, string nickname, bool joining)
         {
             if (Busy) return false;
             if (!TryPort(portText, out var port)) { SetStatus("端口请输入 1–65535 之间的整数"); return false; }
-            address = (address ?? "").Trim();
-            if (address.Length == 0 || address.Contains("://") || address.Contains("/") || address.Contains(" "))
-            { SetStatus("请输入 IP 或域名，端口填写在右侧"); return false; }
-            networkAddress = address; ((TelepathyTransport)transport).port = port;
-            PlayerName = string.IsNullOrWhiteSpace(nickname) ? "旅人" : nickname.Trim().Substring(0, Math.Min(12, nickname.Trim().Length));
-            PlayerPrefs.SetString("Ink.Address", address); PlayerPrefs.SetInt("Ink.Port", port); PlayerPrefs.SetString("Ink.Name", PlayerName); PlayerPrefs.Save();
+            if (joining)
+            {
+                address = (address ?? "").Trim();
+                if (address.Length == 0 || address.Contains("://") || address.Contains("/") || address.Contains(" "))
+                { SetStatus("请输入有效的 IP 或域名"); return false; }
+                networkAddress = address;
+                PlayerPrefs.SetString("Ink.Address", address);
+            }
+            directTransport.port = port;
+            PlayerPrefs.SetInt("Ink.Port", port);
+            SaveNickname(nickname);
             return true;
         }
+        void SaveNickname(string nickname)
+        {
+            var value = string.IsNullOrWhiteSpace(nickname) ? SavedPlayerName : nickname.Trim();
+            PlayerName = value.Substring(0, Math.Min(12, value.Length));
+            PlayerPrefs.SetString("Ink.Name", PlayerName); PlayerPrefs.Save();
+        }
+        public void AdjustRoomCapacity(int change)
+        {
+            if (!CanAdjustRoomCapacity) return;
+            RoomCapacity = (int)Math.Clamp((long)RoomCapacity + change, RoomCapacityFloor, MaxRoomCapacity);
+            if (IsHost)
+            {
+                maxConnections = NetworkServer.maxConnections = RoomCapacity;
+                BroadcastLobby();
+            }
+            Changed?.Invoke();
+        }
+
         public void Host()
         {
             if (Busy) return;
+            SelectDirectTransport();
             ResetConnectionAttempt();
             // Telepathy binds on a background thread; check synchronously so a
             // denied/occupied port cannot produce a successful local-only host.
@@ -167,6 +228,7 @@ namespace TomorinTrial
                 return;
             }
             finally { listener?.Stop(); }
+            maxConnections = RoomCapacity;
             SetStatus("正在创建房间…");
             try { StartHost(); if (!transport.ServerActive()) { Leave(); SetStatus("创建失败：端口可能已被占用，请更换端口"); } }
             catch (Exception e) { Leave(); SetStatus("创建失败：" + e.Message); }
@@ -174,12 +236,14 @@ namespace TomorinTrial
         public void Join()
         {
             if (Busy) return;
+            SelectDirectTransport();
             ResetConnectionAttempt(); connectDeadline = Time.unscaledTime + 12;
             SetStatus("正在连接 " + networkAddress + ":" + GamePort + "…");
             try { StartClient(); } catch (Exception e) { Leave(); SetStatus("连接失败：" + e.Message); }
         }
         public void BeginTogether()
         {
+            if (!PublicRoomReady || (UsingRelay && string.IsNullOrEmpty(RelayRoomCode))) return;
             if(SelectedLevel==TrialLevel.Arena && names.Count<2){SetStatus("竞技场至少需要 2 名玩家，请等待对手加入");return;}
             if (NetworkServer.active && SceneManager.GetActiveScene().path == MenuScene) ServerChangeScene(TrialChampionCatalog.Scene(SelectedLevel));
         }
@@ -243,8 +307,13 @@ namespace TomorinTrial
                 if(pair.Value && pair.Value!=boundGame.Player){pair.Value.ResetSpellProgress();pair.Value.ResetRunBoon();pair.Value.ResetRoguelike();pair.Value.RollRunBoons();pair.Value.Restore(boundGame.CoopSpawn(pair.Key));}
             nextSend=0;
         }
-        public void Leave()
+        public void Leave() => Leave(reopenMenu: true);
+
+        internal void Leave(bool reopenMenu)
         {
+            reopenMultiplayerMenu = reopenMenu && SessionActive &&
+                (SceneManager.GetActiveScene().path != MenuScene || loadingSceneAsync != null);
+            CancelRelay();
             intentionalStop = true;
             connectDeadline = 0;
             if (NetworkServer.active && NetworkClient.active) StopHost();
@@ -253,6 +322,17 @@ namespace TomorinTrial
             Members = Array.Empty<string>(); LocalId = -1; hasSnapshot = false;
             SetStatus("已离开房间");
         }
+
+        public override void ServerChangeScene(string newSceneName)
+        {
+            // Mirror requests the offline scene on host shutdown even when it is already open.
+            if (!NetworkServer.active && newSceneName == offlineScene && loadingSceneAsync == null &&
+                SceneManager.GetActiveScene().path == newSceneName)
+                return;
+
+            base.ServerChangeScene(newSceneName);
+        }
+
         public void SetStatus(string message) { Status = message; Changed?.Invoke(); Debug.Log("[InkNet] " + message); }
         public override void OnStartServer()
         {
@@ -263,7 +343,7 @@ namespace TomorinTrial
             NetworkServer.RegisterHandler<TrialChooseBoon>((connection,message)=>{if(actors.TryGetValue(connection.connectionId,out var actor) && actor)actor.ChooseBoon(message.boon);});
             NetworkServer.RegisterHandler<TrialRetryChallenge>((connection,message)=>{if(connection is LocalConnectionToClient)RestartTogether();});
             NetworkServer.RegisterHandler<TrialReturnToRoom>((connection,message)=>{if(names.ContainsKey(connection.connectionId))ReturnTogether();});
-            SetStatus("房间已创建 · TCP " + GamePort);
+            SetStatus(HostStatus);
         }
         public override void OnStartClient()
         {
@@ -282,7 +362,8 @@ namespace TomorinTrial
         {
             base.OnClientConnect();
             NetworkClient.Send(new TrialHello { name = PlayerName, outfit = TrialAppearance.Saved });
-            SetStatus(NetworkServer.active ? "房间已创建 · TCP " + GamePort + " · 等待同伴" : "TCP 已连接 · 正在加入房间…");
+            SetStatus(NetworkServer.active ? (UsingRelay ? HostStatus : HostStatus + " · 等待同伴")
+                : (UsingRelay ? "Relay" : "TCP") + " 已连接 · 正在加入房间…");
         }
         void ReceiveHello(NetworkConnectionToClient connection, TrialHello message)
         {
@@ -298,7 +379,7 @@ namespace TomorinTrial
             foreach (var item in names) { ids[i] = item.Key; labels[i] = item.Value; looks[i++] = OutfitOf(item.Key); }
             foreach (var connection in NetworkServer.connections.Values)
             {
-                var state=new TrialLobby { self = connection.connectionId, ids = ids, names = labels, outfits = looks, level=SelectedLevel, difficulty=SelectedDifficulty };
+                var state=new TrialLobby { self = connection.connectionId, ids = ids, names = labels, outfits = looks, level=SelectedLevel, difficulty=SelectedDifficulty, capacity=RoomCapacity, roomName=RoomName };
                 if(ids.Length<=128)connection.Send(state);
                 else foreach(var part in TrialPayloadParts.Split(state,1,payloadSerial++))connection.Send(part);
             }
@@ -309,6 +390,8 @@ namespace TomorinTrial
             SelectedLevel=message.level;SelectedDifficulty=message.difficulty;
             if(!NetworkServer.active)
             {
+                remoteRoomCapacity = message.capacity;
+                remoteRoomName = string.IsNullOrWhiteSpace(message.roomName) ? "房间" : message.roomName;
                 names.Clear(); outfits.Clear();
                 for(int i=0;i<Math.Min(message.ids.Length,message.names.Length);i++)
                 {
@@ -317,7 +400,7 @@ namespace TomorinTrial
                     if(message.outfits!=null && i<message.outfits.Length)outfits[id]=TrialAppearance.Normalize(message.outfits[i]);
                 }
             }
-            SetStatus(NetworkServer.active ? "房间已创建 · TCP " + GamePort + " · 等待同伴" : "已加入房间 · 等待房主启程");
+            SetStatus(NetworkServer.active ? (UsingRelay ? HostStatus : HostStatus + " · 等待同伴") : "已加入房间 · 等待房主启程");
         }
         void ReceiveControls(NetworkConnectionToClient connection, TrialControls value)
         {
@@ -358,6 +441,7 @@ namespace TomorinTrial
             if (!string.IsNullOrEmpty(detail)) connectionFailure = $"连接失败：{networkAddress}:{GamePort} · {detail}";
             SetStatus(intentionalStop ? "已离开房间" : connectionFailure ?? (joinedServer
                 ? "连接已断开：房主或网络关闭了连接"
+                : UsingRelay ? "连接失败：未完成 Relay 房间握手，请检查房间码和游戏版本"
                 : $"连接失败：{networkAddress}:{GamePort} 未完成房间握手。房主请确认本地监听端口与穿透目标一致"));
         }
         public override void OnClientError(TransportError error, string reason)
@@ -366,16 +450,19 @@ namespace TomorinTrial
             SetStatus(connectionFailure);
         }
         public override void OnServerError(NetworkConnectionToClient connection, TransportError error, string reason) { SetStatus("网络错误：" + reason); }
-        public override void OnStopServer() { names.Clear(); outfits.Clear(); controls.Clear(); controlEdges.Clear(); lastInput.Clear(); actors.Clear(); inputs.Clear(); reviveAt.Clear(); boundGame = null; }
+        public override void OnStopServer() { CancelRelay(); names.Clear(); outfits.Clear(); controls.Clear(); controlEdges.Clear(); lastInput.Clear(); actors.Clear(); inputs.Clear(); reviveAt.Clear(); boundGame = null; }
         public override void OnStopClient() { actors.Clear(); inputs.Clear(); outfits.Clear(); boundGame = null; Members=Array.Empty<string>();Changed?.Invoke(); }
         public override void Update()
         {
             base.Update();
-            if (NetworkServer.active && !transport.ServerActive())
+            UpdateRelayHost();
+            UpdatePublicListing();
+            if (!UsingRelay && NetworkServer.active && !transport.ServerActive())
             { Leave(); SetStatus("创建失败：TCP 监听已停止，请检查本地端口是否被系统保留或占用，并同步修改穿透映射"); }
             if (connectDeadline > 0 && !joinedServer && Time.unscaledTime > connectDeadline)
             {
-                string failure = NetworkClient.isConnected ? "连接失败：房间握手超时，请确认穿透目标是游戏监听端口，且双方游戏版本一致"
+                string failure = UsingRelay ? "连接失败：Relay 连接超时，请确认房间仍在线且游戏版本一致"
+                    : NetworkClient.isConnected ? "连接失败：房间握手超时，请确认穿透目标是游戏监听端口，且双方游戏版本一致"
                     : "连接超时，请检查地址、TCP 端口、防火墙或穿透映射";
                 Leave(); SetStatus(failure);
             }
@@ -481,7 +568,8 @@ namespace TomorinTrial
             var runBosses=game.IsRunStage?new TrialBossState[enemies.Length]:Array.Empty<TrialBossState>();
             for(int i=0;i<runBosses.Length;i++)runBosses[i]=game.Enemies[i].Boss?game.Enemies[i].Boss.CaptureNetwork():default;
             var snapshot = new TrialWorldState { players = players, enemies = enemies, boss = fish?fish.CaptureNetwork():default, champions=champions, runBosses=runBosses,runWave=game.Run?.Wave??0,runKills=game.Run?.Kills??0,runBossesDefeated=game.Run?.BossesDefeated??0, gate = game.GateOpen, arena = game.World.ArenaEntrance.activeSelf, guards = game.DefeatedGuards, victory = game.Mode == TrialMode.Victory, defeat = game.Mode == TrialMode.Dead, seconds = game.PlaySeconds,level=game.Level,difficulty=game.Difficulty,partySize=game.PartySize,waitingForBoons=WaitingForBoons };
-            var fragments=players.Length>48 || game.IsRunStage?TrialPayloadParts.Split(snapshot,0,payloadSerial++):null;
+            snapshot.frostOrbs=game.Run?.FrostOrbs?.CaptureNetwork();
+            var fragments=UsingRelay || players.Length>48 || game.IsRunStage?TrialPayloadParts.Split(snapshot,0,payloadSerial++):null;
             foreach (var connection in NetworkServer.connections.Values)
                 if (connection.isReady && !(connection is LocalConnectionToClient))
                 {if(fragments==null)connection.Send(snapshot);else foreach(var part in fragments)connection.Send(part);}
@@ -531,9 +619,10 @@ namespace TomorinTrial
             return int.MinValue;
         }
         public void BroadcastSkillImpact(Vector3 point,Color tint)
+            =>BroadcastEnemyCombat(new TrialCombatEvent{player=-1,cue=TrialCombatCue.SkillImpact,position=point,forward=new Vector3(tint.r,tint.g,tint.b)});
+        internal void BroadcastEnemyCombat(TrialCombatEvent value)
         {
             if(!NetworkServer.active || !boundGame)return;
-            var value=new TrialCombatEvent{player=-1,cue=TrialCombatCue.SkillImpact,position=point,forward=new Vector3(tint.r,tint.g,tint.b)};
             boundGame.Effects.PlayCombat(value,false);
             foreach(var connection in NetworkServer.connections.Values)
                 if(connection.isReady && !(connection is LocalConnectionToClient))connection.Send(value);
@@ -582,6 +671,7 @@ namespace TomorinTrial
             foreach (var received in latest.players)
             {
                 var state = received; state.actionTime += snapshotAge;
+                state.runFrostRemaining=Mathf.Max(0,state.runFrostRemaining-snapshotAge);
                 liveActors.Add(state.id);
                 if (!actors.TryGetValue(state.id, out var actor) || !actor) { actor = state.id == LocalId ? game.Player : game.CreateCompanion(state.id,OutfitOf(state.id)); actors[state.id] = actor; }
                 actor.ApplyNetwork(state, Time.deltaTime);
@@ -596,6 +686,7 @@ namespace TomorinTrial
             var fish=!game.IsRunStage && game.Enemies.Count>0?game.Enemies[game.Enemies.Count-1].Boss:null;if(fish)fish.ApplyNetwork(boss);
             if(game.IsRunStage && latest.runBosses!=null)for(int i=0;i<Mathf.Min(latest.runBosses.Length,game.Enemies.Count);i++)if(game.Enemies[i].Boss)game.Enemies[i].Boss.ApplyNetwork(latest.runBosses[i]);
             if(game.Run!=null)game.Run.ApplyNetwork(latest.runWave,latest.runKills,latest.runBossesDefeated);
+            game.Run?.FrostOrbs?.ApplyNetwork(latest.frostOrbs,snapshotAge);
             if(latest.champions!=null)for(int i=0;i<Mathf.Min(latest.champions.Length,game.Enemies.Count);i++)if(game.Enemies[i].Champion)game.Enemies[i].Champion.ApplyNetwork(latest.champions[i],snapshotAge);
             game.ApplyNetworkWorld(latest);
             game.Player.UpdateLock(!blocked && game.Input.Lock);

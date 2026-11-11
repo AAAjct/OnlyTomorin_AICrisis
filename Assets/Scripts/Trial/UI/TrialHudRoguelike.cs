@@ -6,7 +6,7 @@ namespace TomorinTrial
     public sealed partial class TrialHud
     {
         GameObject runChoicePanel;
-        Text runHeading,runProgress,experienceLabel,upgradeAvailableLabel;
+        Text runHeading,runProgress,experienceLabel,upgradeAvailableLabel,runDebuffLabel;
         Image experienceBar;
         Button upgradeButton;
         readonly Button[] runButtons=new Button[3];
@@ -27,6 +27,7 @@ namespace TomorinTrial
                     experienceBar=Bar("Experience",vitals,new Vector2(96,-86),new Vector2(310,7),new Color(.25f,.75f,.85f));
                     hpText.rectTransform.anchoredPosition=new Vector2(96,-105);
                     experienceLabel=Label("Experience count",vitals,"",new Vector2(0,1),new Vector2(224,-105),new Vector2(182,19),12,new Color(.35f,.8f,.9f),TextAnchor.UpperRight);
+                    runDebuffLabel=Label("Run debuffs",vitals,"",new Vector2(0,1),new Vector2(96,-126),new Vector2(240,18),13,new Color(.55f,.89f,1));
                     upgradeAvailableLabel=Label("Upgrade available",vitals,"可升级",new Vector2(0,1),new Vector2(416,-105),new Vector2(64,19),12,gold);
                     upgradeButton=Button("Open upgrade",root,new Vector2(540,180),new Vector2(225,48),"",()=>game.Player.RequestRunUpgrade());
                     var rect=upgradeButton.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=Vector2.zero;
@@ -39,6 +40,11 @@ namespace TomorinTrial
             string caption=game.Run.Status;
             if(caption!=runProgressCache){runProgressCache=caption;runProgress.text=caption;}
             if(experienceBar)experienceBar.fillAmount=(float)game.Player.RunExperience/game.Player.ExperienceRequired;
+            if(runDebuffLabel)
+            {
+                bool frost=game.Player.RunFrostSlowed,stun=game.Player.RunSlamStunned;
+                runDebuffLabel.text=stun?(frost?"眩晕 · 冰霜减速":"眩晕"):frost?"冰霜减速":"";
+            }
             if(experienceLabel && (experienceShown!=game.Player.RunExperience || experienceLevelShown!=game.Player.RunLevel))
             {experienceShown=game.Player.RunExperience;experienceLevelShown=game.Player.RunLevel;experienceLabel.text=$"Lv.{game.Player.RunLevel} · {game.Player.RunExperience}/{game.Player.ExperienceRequired} EXP";}
             if(upgradeAvailableLabel)upgradeAvailableLabel.gameObject.SetActive(!touchRoot && game.Player.Alive && game.Player.PendingRunChoices>0 && game.Mode==TrialMode.Playing && !game.Player.ChoosingRunAffix);

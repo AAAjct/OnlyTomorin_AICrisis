@@ -4,6 +4,7 @@ namespace TomorinTrial
 {
     public sealed partial class TrialPlayer
     {
+        const float DodgeCooldown=.65f;
         const float DodgeFollowupGrace=.12f;
         const float DodgeCarryDuration=.075f;
         public const float DodgeLightLinkTime=.11f;
@@ -14,12 +15,15 @@ namespace TomorinTrial
         internal bool RollThrustEvading=>Action==FighterAction.Light && Combo==RollThrust && ActionTime<rollThrustEvasionTime;
         float DodgeCarryWindow=>Combo==SpiralSword?.18f:DodgeCarryDuration;
         float dodgeLinkRemaining,dodgeCarryRemaining;
+        float nextDodgeAt;
         Vector3 dodgeCarryVelocity;
         Vector3 bufferedDodgeDirection;
         bool bufferedDodgeTurns;
         bool dodgeGuardQueued;
         bool guardWasHeld,guardPressedThisTick;
-        Vector3 DodgeVelocity=>dodgeDirection*Mathf.Lerp(11.8f,3.2f,Progress)*(Combo==ParryDodge?2:1);
+        internal float DodgeSafeStart=>TerraceRules?.04f:.025f;
+        internal float DodgeSafeEnd=>TerraceRules && Combo!=ParryDodge?.23f:DodgeInvulnerabilityEnd;
+        Vector3 DodgeVelocity=>dodgeDirection*Mathf.Lerp(TerraceRules?8.4f:11.8f,3.2f,Progress)*(Combo==ParryDodge?2:1);
         float perfectDodgeActionTime,perfectGhostUntil;
         int perfectGhostCount;
         Vector3 perfectGhostPosition;

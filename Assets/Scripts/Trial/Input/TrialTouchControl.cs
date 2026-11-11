@@ -19,7 +19,7 @@ namespace TomorinTrial
         {
             if(pointer!=int.MinValue)return;pointer=e.pointerId;
             if(surface&&!Stick&&!Look)surface.color=new Color(.38f,.30f,.16f,.95f);
-            if(Guard)Input.TouchGuard=true;
+            if(Guard)Input.PressTouchGuard();
             else if(!Stick&&!Look){if(Action==2)Input.TouchHeavy=true;if(Action==1)Input.TouchLight=true;Input.PressTouch(Action);}
             if(Stick)
             {

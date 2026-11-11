@@ -67,6 +67,11 @@ namespace TomorinTrial.Editor
             {
                 SceneManager.LoadScene(TrialChampionCatalog.Scene(level));yield return .85f;
                 var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();Check(game && game.Ready,level+" initializes");
+                if(level==TrialLevel.Anon)
+                {
+                    Check(TrialTerraceValidation.Run().StartsWith("PASS"),"Crimson Sword Terrace passes its dedicated combat checks");
+                    continue;
+                }
                 game.StartTrial();game.Player.ChooseBoon(game.Player.OfferA);game.enabled=false;game.Input.enabled=false;
                 foreach(var boss in game.Enemies)
                 {

@@ -17,14 +17,15 @@ namespace TomorinTrial
     public struct TrialReturnToRoom : NetworkMessage { }
     public struct TrialRunUpgrade : NetworkMessage { public int slot; } // -2 closes the offers; -1 opens them; 0..2 selects one.
     public struct TrialChooseBoon : NetworkMessage { public TrialBoon boon; }
-    public struct TrialLobby : NetworkMessage { public int self; public int[] ids; public string[] names; public TrialOutfit[] outfits; public TrialLevel level; public TrialDifficulty difficulty; }
+    public struct TrialLobby : NetworkMessage { public int self; public int[] ids; public string[] names; public TrialOutfit[] outfits; public TrialLevel level; public TrialDifficulty difficulty; public int capacity; public string roomName; }
     public struct TrialControls : NetworkMessage
     {
+        public const byte GuardPress=1<<7;
         public Vector2 move;
         public float yaw;
         public byte held, pressed, spells;
     }
-    public enum TrialCombatCue : byte { Parry, Block, GuardBreak, Death, Hit, HeavyHit, Kill, PerfectDodge, BlinkSlash, Reversal, Hurt, SkillImpact, Dodge, Heal, ChargeReady, CutThrough, HeavyLand, FinisherHit, CrimsonBlade, MoonBlade, BlueSand, SakuraScatter, SandImpact, ThunderDragon, SpiralSword, ThrustTrace, RisingCut, CrescentCut, EmpoweredStep, SwordLeap, SwordTurn, SwordDescent, SwordLanding, RollFlash, WeaveSigil, MartialStroke, SwordRecall, SwordGuardReturn, SwordFlowHit, MirrorCast, MirrorBreak, ThunderChain, BlackCoffin, MirrorScreenBreak, MirrorPrismCut, PerfectBlock }
+    public enum TrialCombatCue : byte { Parry, Block, GuardBreak, Death, Hit, HeavyHit, Kill, PerfectDodge, BlinkSlash, Reversal, Hurt, SkillImpact, Dodge, Heal, ChargeReady, CutThrough, HeavyLand, FinisherHit, CrimsonBlade, MoonBlade, BlueSand, SakuraScatter, SandImpact, ThunderDragon, SpiralSword, ThrustTrace, RisingCut, CrescentCut, EmpoweredStep, SwordLeap, SwordTurn, SwordDescent, SwordLanding, RollFlash, WeaveSigil, MartialStroke, SwordRecall, SwordGuardReturn, SwordFlowHit, MirrorCast, MirrorBreak, ThunderChain, BlackCoffin, MirrorScreenBreak, MirrorPrismCut, PerfectBlock, TerraceParry, TerraceBlock, RunFrostOrbCast, RunFrostOrbImpact }
     // Transient feedback is separate from snapshots: several contacts may occur
     // between snapshots, and each belongs to the player who received the hit.
     public struct TrialCombatEvent : NetworkMessage
@@ -46,6 +47,8 @@ namespace TomorinTrial
         public byte enemyKind;
         public int runLevel,runExperience,pendingRunChoices;
         public bool runChoiceOpen;
+        public float runFrostRemaining;
+        public bool runSlamStunned;
         public TrialAffix[] runOffers;
         public int[] runAffixes;
         public Vector3 position;
@@ -69,6 +72,7 @@ namespace TomorinTrial
         public byte action, combo, flasks;
         public bool guard, awake,dragonLanded,headSevered,spellExecuted;
     }
+    public struct TrialFrostOrbState { public int id; public Vector3 position, direction; }
     public struct TrialHazardState { public Vector3 position; public float radius; public bool active, wave; }
     public struct TrialBossState
     {
@@ -87,6 +91,7 @@ namespace TomorinTrial
         public TrialActorState[] players, enemies;
         public TrialBossState boss;
         public TrialBossState[] runBosses;
+        public TrialFrostOrbState[] frostOrbs;
         public int runWave,runKills,runBossesDefeated;
         public TrialChampionState[] champions;
         public bool gate, victory, arena, defeat, waitingForBoons;

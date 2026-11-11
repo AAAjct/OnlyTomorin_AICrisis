@@ -8,6 +8,7 @@ namespace TomorinTrial
     public sealed class TrialEndlessRun
     {
         readonly TrialGame game;
+        internal TrialRunFrostOrbs FrostOrbs { get; }
         readonly List<TrialEnemy> guardPool=new List<TrialEnemy>();
         readonly Dictionary<TrialEnemy,float> corpses=new Dictionary<TrialEnemy,float>();
         readonly List<TrialEnemy> expired=new List<TrialEnemy>();
@@ -29,10 +30,12 @@ namespace TomorinTrial
                 return status;
             }
         }
-        public TrialEndlessRun(TrialGame owner){game=owner;intermission=1;}
+        public TrialEndlessRun(TrialGame owner)
+        {game=owner;intermission=1;if(owner.IsEndless)FrostOrbs=new TrialRunFrostOrbs(owner);}
         public void ApplyNetwork(int wave,int kills,int bosses){Wave=wave;Kills=kills;BossesDefeated=bosses;}
         public void Reset()
         {
+            FrostOrbs?.Clear();
             game.ClearRunEnemies();guardPool.Clear();corpses.Clear();expired.Clear();
             Wave=Kills=BossesDefeated=remaining=spawned=0;intermission=1;spawnClock=0;
         }
@@ -55,6 +58,8 @@ namespace TomorinTrial
         }
         public void Tick(float dt)
         {
+            FrostOrbs?.Tick(dt);
+            if(game.HasResult)return;
             expired.Clear();
             foreach(var pair in corpses){if(pair.Value-dt<=0)expired.Add(pair.Key);}
             // Avoid changing dictionary values during enumeration on older Mono runtimes.
@@ -88,11 +93,15 @@ namespace TomorinTrial
         int AliveCount(){int count=0;foreach(var e in game.Enemies)if(e && e.Alive)count++;return count;}
         void SpawnGuard()
         {
+            // One variant per three spawns, alternating roles and the starting role each wave.
+            var kind=spawned%3!=2?TrialRunGuardKind.NaiWa:
+                (spawned/3+Wave)%2==1?TrialRunGuardKind.DoroXueLian:TrialRunGuardKind.Takosaki;
             TrialEnemy enemy=null;
-            foreach(var candidate in guardPool)if(!candidate.gameObject.activeSelf){enemy=candidate;break;}
+            foreach(var candidate in guardPool)
+                if(candidate.RunGuardKind==kind && !candidate.gameObject.activeSelf){enemy=candidate;break;}
             float angle=spawned*2.399963f+Wave*.71f;
             var point=new Vector3(Mathf.Sin(angle)*17,0,25+Mathf.Cos(angle)*17);
-            if(!enemy){enemy=game.CreateRunGuard(point);guardPool.Add(enemy);}
+            if(!enemy){enemy=game.CreateRunGuard(point,kind);guardPool.Add(enemy);}
             else {enemy.gameObject.SetActive(true);enemy.ResetFighter();enemy.Teleport(point);game.AddRunEnemy(enemy);}
             enemy.ConfigureRunStrength(1+Wave*.085f,1+Mathf.Min(2,Wave*.045f));
             enemy.WakeForRun();
@@ -106,6 +115,7 @@ namespace TomorinTrial
         public bool IsRunStage=>IsEndless || IsBossRush;
         public TrialEndlessRun Run { get; private set; }
         readonly Dictionary<int,TrialEnemy> runReplicas=new Dictionary<int,TrialEnemy>();
+        GameObject doroGuardModel,takosakiGuardModel;
         public void SyncRunReplicas(TrialActorState[] states)
         {
             var stale=new List<int>();
@@ -117,8 +127,16 @@ namespace TomorinTrial
             {
                 if(!runReplicas.TryGetValue(state.id,out var enemy) || !enemy)
                 {
-                    if(state.enemyKind>=2)SpawnChampion((ChampionKind)(state.enemyKind-2),state.position);else Spawn(state.position,state.enemyKind==1);
-                    enemy=enemies[enemies.Count-1];enemies.RemoveAt(enemies.Count-1);runReplicas[state.id]=enemy;
+                    var kind=(TrialRunGuardKind)state.enemyKind;
+                    if(kind is TrialRunGuardKind.DoroXueLian or TrialRunGuardKind.Takosaki)
+                        enemy=CreateRunGuard(state.position,kind);
+                    else
+                    {
+                        if(state.enemyKind>=2)SpawnChampion((ChampionKind)(state.enemyKind-2),state.position);
+                        else Spawn(state.position,state.enemyKind==1);
+                        enemy=enemies[enemies.Count-1];
+                    }
+                    enemies.RemoveAt(enemies.Count-1);runReplicas[state.id]=enemy;
                 }
                 enemies.Add(enemy);
             }
@@ -128,7 +146,28 @@ namespace TomorinTrial
         public void RemoveRunEnemy(TrialEnemy enemy){enemies.Remove(enemy);}
         public void AddRunEnemy(TrialEnemy enemy){enemies.Add(enemy);}
         public TrialEnemy CreateRunGuard(Vector3 point)
-        {Spawn(point,false);return enemies[enemies.Count-1];}
+            =>CreateRunGuard(point,TrialRunGuardKind.NaiWa);
+        internal TrialEnemy CreateRunGuard(Vector3 point,TrialRunGuardKind kind)
+        {
+            if(kind==TrialRunGuardKind.NaiWa)
+            {Spawn(point,false);return enemies[enemies.Count-1];}
+            GameObject model;
+            if(kind==TrialRunGuardKind.DoroXueLian)
+            {
+                if(!doroGuardModel)doroGuardModel=Resources.Load<GameObject>("Trial/Models/DoroXueLian_Guard");
+                model=doroGuardModel;
+            }
+            else
+            {
+                if(!takosakiGuardModel)takosakiGuardModel=Resources.Load<GameObject>("Trial/Models/Takosaki_Guard");
+                model=takosakiGuardModel;
+            }
+            var enemy=new GameObject().AddComponent<TrialEnemy>();
+            enemy.transform.SetParent(transform,false);
+            enemy.InitializeRunVariant(this,point,kind,model);
+            enemies.Add(enemy);
+            return enemy;
+        }
         public void SpawnRunBoss(int index,float healthScale)
         {
             if(index==0)Spawn(new Vector3(0,0,30),true);

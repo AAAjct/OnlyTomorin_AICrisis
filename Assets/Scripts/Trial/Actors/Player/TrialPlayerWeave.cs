@@ -42,6 +42,16 @@ namespace TomorinTrial
         public int GuardFollowupMove=>GuardComboMove(weaveHeavy,weaveFrom,IsAerialMove(weaveFrom) && transform.position.y>launchFloor+.35f);
         void BeginWeaveGuard()
         {
+            if(TerraceIncomingBlade)
+            {
+                ClearDodgeLink();ClearAttackInputs(false);chainUntil=weaveUntil=0;weavePending=false;
+                attackGuardLatch=true;PlanarVelocity=Vector3.zero;
+                Begin(FighterAction.Free,0);Guarding=true;GuardAge=0;
+                terraceGuardQueued=false;
+                var boss=TerraceOpponent;
+                Turn(boss.transform.position-transform.position,360,1);
+                return;
+            }
             // Reuse the roll-slash source ID so the existing replicated weave
             // state and the client's guide describe dodge -> guard correctly.
             bool fromDodge=Action==FighterAction.Dodge || Action==FighterAction.Free && dodgeLinkRemaining>0;
@@ -72,7 +82,7 @@ namespace TomorinTrial
         {
             if(!weavePending)return false;
             // A real perfect guard always wins over the ordinary scheduled art.
-            if(ParryEmpowered || ParryDodgeFollowup || input.Heal)
+            if(ParryEmpowered || ParryDodgeFollowup || input.Heal || Guarding && TerraceIncomingBlade)
             {weavePending=false;weaveUntil=0;return false;}
             weaveAge+=dt;
             if(weaveAge<GuardComboWindup)return true;

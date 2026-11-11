@@ -12,7 +12,7 @@ namespace TomorinTrial
         public Transform Root { get; private set; }
         public GameObject Gate { get; private set; }
         public GameObject ArenaEntrance { get; private set; }
-        public Vector3 ShrinePosition => championArena?new Vector3(-19,0,5):new Vector3(-5.7f,0,-18);
+        public Vector3 ShrinePosition => swordTerrace?new Vector3(-3.2f,0,15.1f):championArena?new Vector3(-19,0,5):new Vector3(-5.7f,0,-18);
         bool championArena;
         readonly List<Object> owned=new List<Object>();
         readonly System.Random random=new System.Random(316);
@@ -279,7 +279,7 @@ namespace TomorinTrial
             foreach(var renderer in Root.GetComponentsInChildren<MeshRenderer>())
             {
                 if(renderer.transform.IsChildOf(Gate.transform) || renderer.transform.IsChildOf(ArenaEntrance.transform) || !renderer.enabled)continue;
-                var filter=renderer.GetComponent<MeshFilter>();if(!filter || !filter.sharedMesh)continue;
+                var filter=renderer.GetComponent<MeshFilter>();if(!filter || !filter.sharedMesh || filter.sharedMesh.subMeshCount!=1)continue;
                 var center=Root.InverseTransformPoint(renderer.bounds.center);
                 var cell=new Vector2Int(Mathf.FloorToInt(center.x/12),Mathf.FloorToInt(center.z/12));
                 // Ground slabs receive shadows but cannot cast a useful silhouette;

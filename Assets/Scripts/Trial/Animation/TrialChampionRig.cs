@@ -89,10 +89,15 @@ namespace TomorinTrial
                 whip.startColor=new Color(1,.75f,.4f);whip.endColor=new Color(.75f,.5f,1);whip.textureMode=LineTextureMode.Tile;
                 whip.useWorldSpace=true;whip.startWidth=.035f;whip.endWidth=.009f;whip.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;whip.receiveShadows=false;
             }
-            if(kind==ChampionKind.Anon)
+            if(kind==ChampionKind.Anon && !brain.TerraceDuel)
             {offhand=TrialWorld.Sword(transform,world.Steel,world.Crimson,world.Glow,true);offhand.name="爱音 · 左手绯刃";offhand.localScale*=.85f;}
             if(kind==ChampionKind.Anon){PolishSword(weapon,world);PolishSword(offhand,world);}
             if(weapon)trail=weapon.GetComponentInChildren<TrailRenderer>();
+            if(trail && brain.TerraceDuel)
+            {
+                trail.sharedMaterial=lashMaterial;trail.time=.13f;trail.startWidth=.26f;
+                trail.startColor=new Color(.88f,.97f,1,.82f);trail.endColor=new Color(.67f,.79f,.85f,0);
+            }
             if(remnantRig)remnantRig.SetWeapon(weapon);
         }
         static void PolishSword(Transform root,TrialWorld world)
@@ -118,16 +123,16 @@ namespace TomorinTrial
             gait+=distance*Mathf.PI*2/strideCycle;locomotion=Mathf.MoveTowards(locomotion,Mathf.Clamp01(distance/Mathf.Max(.001f,dt)/5),dt*12);
             Vector3 local=actor.InverseTransformDirection(displacement/Mathf.Max(.001f,dt));
             localMotion=Vector2.Lerp(localMotion,new Vector2(local.x,local.z).normalized,1-Mathf.Exp(-16*dt));
-            int move=!fighter.Alive?-7:fighter.Vulnerable || fighter.Flinching?-6:brain.Attacking?brain.MoveIndex:fighter.Guarding?-5:-1;
-            Pose(move,!fighter.Alive?fighter.Progress:brain.Attacking?brain.AnimationBeat:0,locomotion,fighter.Vulnerable || fighter.Flinching,clock);
-            if(trail)trail.emitting=brain.Attacking && !brain.WindingUp && !brain.Recovering;
+            int move=!fighter.Alive?-7:brain.TerraceChangingPhase?-9:fighter.Vulnerable || fighter.Flinching?-6:brain.Attacking?brain.MoveIndex:fighter.Guarding?-5:-1;
+            Pose(move,!fighter.Alive || move==-6?fighter.Progress:move==-9?brain.TerracePhaseProgress:brain.Attacking?brain.AnimationBeat:0,locomotion,fighter.Vulnerable || fighter.Flinching,clock);
+            if(trail)trail.emitting=brain.TerraceDuel?brain.TerraceActive:brain.Attacking && !brain.WindingUp && !brain.Recovering;
         }
         public void Pose(int move,float p,float movement,bool stagger,float time)
         {
             if(!model || joints==null)return;if(!actor)actor=transform;
             for(int i=0;i<joints.Length;i++)if(joints[i])joints[i].localRotation=bind[i];
             model.localPosition=modelOrigin;model.localRotation=modelRotation;
-            bool dead=move==-7;bool active=move>=0;var attack=TrialChampionCatalog.Move(kind,Mathf.Max(0,move));
+            bool dead=move==-7;bool active=move>=0;var attack=brain && brain.TerraceDuel?brain.Move:TrialChampionCatalog.Move(kind,Mathf.Max(0,move));
             float walkCycle=fighter?gait:time*(move==-1 && movement>.8f?14:8.6f);
             float stride=Mathf.Sin(walkCycle)*movement;
             float lean=movement*9,twist=Mathf.Sin(time*2.2f)*2,lift=0;
@@ -159,6 +164,8 @@ namespace TomorinTrial
                     if(kick){Rotate(13,actor.right,-hit*92*fade);Rotate(14,actor.right,hit*24);twist+=swing*45;}
                     if(kind==ChampionKind.NuoNuo){var exchange=right;right=left;left=new Vector3(-exchange.x,exchange.y,exchange.z);}
                 }
+                else if(brain && brain.TerraceDuel)
+                    PoseTerraceCut((TrialChampion.TerraceCut)move,p,wind,hit,fade,movement,walkCycle,ref right,ref left,ref angles,ref lean,ref twist);
                 else if(kind==ChampionKind.Anon)
                 {
                     bool thrust=attack.shape==ChampionShape.Thrust;
@@ -205,6 +212,37 @@ namespace TomorinTrial
             if(move==-3 || move==-4){lift=Mathf.Sin(p*Mathf.PI)*(move==-4?3.2f:1.8f);Rotate(11,actor.right,45);Rotate(14,actor.right,55);right.y=left.y=1.5f;}
             if(move==-5){right=new Vector3(.13f,1.4f,.5f);left=right+new Vector3(-.12f,-.08f,0);angles=new Vector3(15,0,45);}
             if(stagger || move==-6){lean=-28;right.y=.75f;left.y=.7f;twist=10;}
+            if(brain && brain.TerraceDuel && move==-6)
+            {
+                if(fighter.Vulnerable)
+                {
+                    float buckle=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.72f,1,p));
+                    lean=33*buckle;twist=-22*buckle;
+                    right=Vector3.Lerp(right,new Vector3(.44f,.40f,.40f),buckle);
+                    left=Vector3.Lerp(left,new Vector3(-.34f,.38f,.46f),buckle);
+                    angles=Vector3.Lerp(angles,new Vector3(168,0,8),buckle);
+                    Rotate(10,actor.right,-24*buckle);Rotate(13,actor.right,-32*buckle);
+                    Rotate(11,actor.right,42*buckle);Rotate(14,actor.right,54*buckle);
+                }
+                else
+                {
+                    float recoil=Mathf.Clamp01(fighter.FlinchRemaining/.16f);
+                    lean=-28*recoil;twist=-17*recoil;
+                    right=new Vector3(.38f,.94f,.30f-.29f*recoil);
+                    left=new Vector3(-.36f,1.03f,.18f+.24f*recoil);
+                    Rotate(13,actor.right,22*recoil);
+                    Rotate(14,actor.right,24*recoil);
+                }
+            }
+            if(move==-9)
+            {
+                float liftBlade=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.34f,1,p));
+                float tap=Mathf.Sin(Mathf.Clamp01(p/.46f)*Mathf.PI*4)*.10f;
+                right=Vector3.Lerp(new Vector3(.35f,.51f,.45f),new Vector3(.29f,1.40f,.50f),liftBlade)+Vector3.up*tap;
+                left=new Vector3(-.13f,1.12f,.34f);
+                angles=Vector3.Lerp(new Vector3(170,10,0),new Vector3(-20,0,15),liftBlade);
+                lean=18*(1-liftBlade);
+            }
             if(move==-8){right=new Vector3(.65f,1.65f,.1f);left=new Vector3(-.65f,1.65f,.1f);lift=Mathf.Sin(p*Mathf.PI)*.4f;}
             if(brain && brain.Mobility!=ChampionMobility.Grounded)
             {
@@ -213,7 +251,12 @@ namespace TomorinTrial
                 lean=brain.Mobility==ChampionMobility.BackLeap?-jump*24:jump*22;
                 Rotate(10,actor.right,-jump*48);Rotate(13,actor.right,jump*34);Rotate(11,actor.right,jump*72);Rotate(14,actor.right,jump*55);
             }
-            Rotate(1,actor.right,lean*.55f);Rotate(2,actor.right,lean*.45f);Rotate(2,Vector3.up,twist);Rotate(3,actor.right,-lean*.4f);
+            // Anon's waist seam bridges two lower-body bones in the source skin.
+            // Keep the bend above the waistband so it follows the pelvis during a lunge.
+            float waistBend=kind==ChampionKind.Anon?.08f:.55f;
+            Rotate(1,actor.right,lean*waistBend);
+            Rotate(2,actor.right,lean*(1-waistBend));
+            Rotate(2,Vector3.up,twist);Rotate(3,actor.right,-lean*.4f);
             if(fighter && fighter.Alive && fighter.Recoil.sqrMagnitude>.001f)
             {
                 var recoil=actor.InverseTransformDirection(fighter.Recoil);
@@ -221,12 +264,12 @@ namespace TomorinTrial
             }
             if(!dead)model.localPosition+=Vector3.up*(sole-SupportHeight()+lift);
             else{float fall=Mathf.SmoothStep(0,1,p);model.localRotation=Quaternion.AngleAxis(-83*fall,Vector3.right)*modelRotation;model.localPosition+=Vector3.down*.12f*fall;}
-            if(kind==ChampionKind.Anon && active)left=new Vector3(-right.x,right.y-.08f,.3f+(1-p)*.5f);
+            if(kind==ChampionKind.Anon && active && (!brain || !brain.TerraceDuel))left=new Vector3(-right.x,right.y-.08f,.3f+(1-p)*.5f);
             Vector3 center=actor.position;Quaternion basis=actor.rotation;
             right+=Vector3.up*lift;left+=Vector3.up*lift;
             TrialRig.SolveArm(J(7),J(8),J(9),center+basis*right,center+basis*new Vector3(.8f,1.0f,-.22f));
             TrialRig.SolveArm(J(4),J(5),J(6),center+basis*left,center+basis*new Vector3(-.8f,1.0f,-.22f));
-            if(skirt)skirt.Pose();
+            if(skirt)skirt.Pose(J(12),J(15));
             if(weapon)
             {
                 weapon.gameObject.SetActive(!brain || !brain.WeaponAway && !brain.Introducing);
@@ -252,6 +295,102 @@ namespace TomorinTrial
                 whip.SetPositions(whipPoints);
             }
         }
+        void PoseTerraceCut(TrialChampion.TerraceCut cut,float p,float wind,float hit,float fade,float movement,float cycle,
+            ref Vector3 right,ref Vector3 left,ref Vector3 angles,ref float lean,ref float twist)
+        {
+            Vector3 ready=new(.26f,1.03f,.36f);
+            Vector3 draw=new(.45f,1.23f,.03f), contact=new(-.47f,1.16f,.74f);
+            Vector3 bladeDraw=new(-20,72,-32), bladeContact=new(72,-84,30);
+            float bodyTurn=54, crouch=10;
+            left=new Vector3(-.35f,1.06f,.25f);
+
+            switch(cut)
+            {
+                case TrialChampion.TerraceCut.Dash:
+                    draw=new Vector3(.49f,.62f,-.13f);contact=new Vector3(-.27f,1.63f,.71f);
+                    bladeDraw=new Vector3(159,30,-18);bladeContact=new Vector3(-36,-62,18);
+                    crouch=24;
+                    StepLeg(10,11,12,leftFootRest,leftFootRotation,cycle,Vector3.forward,movement);
+                    StepLeg(13,14,15,rightFootRest,rightFootRotation,cycle+Mathf.PI,Vector3.forward,movement);
+                    break;
+                case TrialChampion.TerraceCut.Return:
+                    draw=new Vector3(-.15f,1.27f,.42f);contact=new Vector3(.56f,1.11f,.70f);
+                    bladeDraw=new Vector3(35,-82,38);bladeContact=new Vector3(85,78,-29);bodyTurn=-47;
+                    break;
+                case TrialChampion.TerraceCut.Delay:
+                    draw=new Vector3(.23f,1.72f,-.14f);contact=new Vector3(-.29f,.73f,.78f);
+                    bladeDraw=new Vector3(-70,35,-23);bladeContact=new Vector3(135,-18,25);crouch=19;
+                    break;
+                case TrialChampion.TerraceCut.Side:
+                    float side=brain.TerraceSideDirection;
+                    draw=new Vector3(side*.44f,.88f,.06f);contact=new Vector3(-side*.44f,1.05f,.72f);
+                    bladeDraw=new Vector3(72,side*84,0);bladeContact=new Vector3(84,-side*75,0);bodyTurn=side*59;
+                    StepLeg(10,11,12,leftFootRest,leftFootRotation,cycle,new Vector3(side,0,.15f),movement);
+                    StepLeg(13,14,15,rightFootRest,rightFootRotation,cycle+Mathf.PI,new Vector3(side,0,.15f),movement);
+                    break;
+                case TrialChampion.TerraceCut.Brace:
+                    wind=Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,.085f,p));
+                    draw=contact=new Vector3(.12f,1.34f,.47f);
+                    bladeDraw=bladeContact=new Vector3(15,0,68);bodyTurn=-8;crouch=2;
+                    break;
+                case TrialChampion.TerraceCut.Chase:
+                case TrialChampion.TerraceCut.FinalThrust:
+                    hit=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.31f,.415f,p));
+                    draw=new Vector3(.34f,.94f,-.16f);contact=new Vector3(.09f,1.06f,.95f);
+                    bladeDraw=new Vector3(103,10,-10);bladeContact=new Vector3(90,0,0);
+                    left=Vector3.Lerp(new Vector3(-.20f,1.20f,.42f),new Vector3(-.30f,.95f,-.18f),hit);
+                    bodyTurn=35;crouch=28+13*hit;
+                    float run=movement*(1-hit);
+                    StepLeg(10,11,12,leftFootRest,leftFootRotation,cycle,Vector3.forward,run);
+                    StepLeg(13,14,15,rightFootRest,rightFootRotation,cycle+Mathf.PI,Vector3.forward,run);
+                    Rotate(10,actor.right,-28*hit*fade);Rotate(11,actor.right,47*hit*fade);
+                    Rotate(13,actor.right,24*hit*fade);Rotate(14,actor.right,17*hit*fade);
+                    break;
+                case TrialChampion.TerraceCut.Wheel:
+                    float turnSide=brain.TerraceSideDirection;
+                    draw=new Vector3(turnSide*.44f,.72f,-.26f);contact=new Vector3(-turnSide*.52f,.83f,.62f);
+                    bladeDraw=new Vector3(83,turnSide*126,-18);
+                    bladeContact=new Vector3(90,-turnSide*119,16);
+                    left=new Vector3(-turnSide*.39f,.78f,-.08f);
+                    bodyTurn=turnSide*96;crouch=42;
+                    Vector3 crossing=new Vector3(turnSide,0,.65f).normalized;
+                    StepLeg(10,11,12,leftFootRest,leftFootRotation,cycle,crossing,movement);
+                    StepLeg(13,14,15,rightFootRest,rightFootRotation,cycle+Mathf.PI,crossing,movement);
+                    Rotate(11,actor.right,25*wind*fade);Rotate(14,actor.right,32*wind*fade);
+                    break;
+                case TrialChampion.TerraceCut.Sweep:
+                    draw=new Vector3(.45f,.40f,.04f);contact=new Vector3(-.45f,.41f,.70f);
+                    bladeDraw=new Vector3(92,83,24);bladeContact=new Vector3(83,-100,18);crouch=44;
+                    Rotate(10,actor.right,-22*wind*fade);Rotate(11,actor.right,46*wind*fade);
+                    Rotate(13,actor.right,-30*wind*fade);Rotate(14,actor.right,52*wind*fade);
+                    break;
+                case TrialChampion.TerraceCut.Charge:
+                    draw=new Vector3(.31f,1.42f,.20f);contact=new Vector3(-.48f,.90f,.77f);
+                    bladeDraw=new Vector3(-35,48,-32);bladeContact=new Vector3(102,-80,26);
+                    left=Vector3.Lerp(left,new Vector3(.20f,1.52f,.26f),wind*(1-hit)*fade);crouch=29;
+                    break;
+                case TrialChampion.TerraceCut.Downbeat:
+                    draw=new Vector3(.12f,1.79f,.28f);contact=new Vector3(.08f,.75f,.82f);
+                    bladeDraw=new Vector3(-14,0,0);bladeContact=new Vector3(145,0,0);bodyTurn=8;crouch=18;
+                    Rotate(13,actor.right,-17*Mathf.Sin(Mathf.Clamp01(p/.32f)*2*Mathf.PI)*fade);
+                    break;
+            }
+
+            if(cut is TrialChampion.TerraceCut.Pair or TrialChampion.TerraceCut.Return or
+                TrialChampion.TerraceCut.Brace or TrialChampion.TerraceCut.Riposte)
+            {
+                Vector3 stepDirection=new Vector3(localMotion.x,0,localMotion.y);
+                StepLeg(10,11,12,leftFootRest,leftFootRotation,cycle,stepDirection,movement);
+                StepLeg(13,14,15,rightFootRest,rightFootRotation,cycle+Mathf.PI,stepDirection,movement);
+            }
+            right=Vector3.Lerp(ready,Vector3.Lerp(draw,contact,hit),wind*fade);
+            if(cut==TrialChampion.TerraceCut.Wheel || cut==TrialChampion.TerraceCut.Sweep)
+                right.z+=.38f*Mathf.Sin(hit*Mathf.PI)*fade;
+            angles=Vector3.Lerp(new Vector3(24,0,17),Vector3.Lerp(bladeDraw,bladeContact,hit),wind*fade);
+            lean=crouch*wind*fade;twist=bodyTurn*(-wind+2*hit)*fade;
+        }
+
+
         Transform J(int i)=>joints[i];
         void StepLeg(int thigh,int knee,int foot,Vector3 rest,Quaternion rotation,float phase,Vector3 direction,float movement)
         {

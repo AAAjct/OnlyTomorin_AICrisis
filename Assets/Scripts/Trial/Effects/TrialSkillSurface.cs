@@ -9,6 +9,7 @@ namespace TomorinTrial
         LineRenderer boundary;
         TrialBoss fish;
         TrialChampion champion;
+        TrialEnemy guard;
         Mesh mesh;
         MeshRenderer surface;
         readonly Vector3[] points=new Vector3[65];
@@ -19,6 +20,7 @@ namespace TomorinTrial
         public void Initialize(LineRenderer line)
         {
             boundary=line;fish=GetComponentInParent<TrialBoss>();champion=GetComponentInParent<TrialChampion>();
+            if(!fish && !champion)guard=GetComponentInParent<TrialEnemy>();
             var obj=new GameObject("Layered skill sigil");obj.transform.SetParent(transform,false);
             mesh=new Mesh{name="Authoritative warning footprint"};mesh.MarkDynamic();
             obj.AddComponent<MeshFilter>().sharedMesh=mesh;
@@ -57,7 +59,7 @@ namespace TomorinTrial
                 mesh.SetTriangles(triangles,0,(count-2)*3,0);previousCount=count;
             }
             mesh.RecalculateBounds();
-            float progress=fish?fish.WarningProgress:champion?champion.WarningProgress:0;
+            float progress=fish?fish.WarningProgress:champion?champion.WarningProgress:guard?guard.RunWarningProgress:0;
             properties.SetColor("_Tint",boundary.startColor);
             properties.SetFloat("_Charge",progress);
             properties.SetVector("_Center",center);

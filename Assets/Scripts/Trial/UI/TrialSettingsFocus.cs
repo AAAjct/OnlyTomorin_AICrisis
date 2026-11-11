@@ -14,6 +14,7 @@ namespace TomorinTrial
         Outline outline;
         Color idle;
         bool hover;
+        internal bool CoolFocus { get; set; }
 
         void Awake()
         {
@@ -28,7 +29,9 @@ namespace TomorinTrial
             bool usable=control.IsInteractable();
             bool selected=EventSystem.current && EventSystem.current.currentSelectedGameObject==gameObject;
             bool focused=usable && (panel && panel.PointerFocus?hover:selected);
-            background.color=!usable?new Color(.15f,.14f,.12f,.035f):focused?new Color(.94f,.78f,.48f,1):idle;
+            background.color=!usable?new Color(.15f,.14f,.12f,.035f):focused?
+                (CoolFocus?new Color(.77f,.88f,.96f):new Color(.94f,.78f,.48f,1)):idle;
+            outline.effectColor=CoolFocus?new Color(.08f,.36f,.68f):new Color(.61f,.18f,.13f);
             outline.enabled=focused;
         }
         void OnDisable(){hover=false;if(background)background.color=idle;if(outline)outline.enabled=false;}

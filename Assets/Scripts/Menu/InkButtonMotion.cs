@@ -15,6 +15,9 @@ namespace TomorinTrial
         bool pointerOver, selected, pressed;
         float amount;
         public bool PreserveLayout {get;set;}
+        internal bool Emphasized { get; set; }
+        internal bool FlatBackground { get; set; }
+        internal UnityEngine.UI.Image[] BorderGraphics { get; set; }
         public void Configure(RectTransform text, RectTransform line, UnityEngine.UI.Image background)
         { caption=text;rule=line;wash=background;Restyle(null); }
 
@@ -57,8 +60,41 @@ namespace TomorinTrial
         void Apply()
         {
             bool enabled=!selectable||selectable.IsInteractable();
-            if(brush)brush.color=new Color(hoverTint.r,hoverTint.g,hoverTint.b,amount*(pressed?.85f:1));
-            if(captionText)captionText.color=enabled?Color.Lerp(baseTint,new Color(.98f,.965f,.925f),amount):new Color(.35f,.36f,.34f,.45f);
+            var paper=new Color(.98f,.965f,.925f);
+            if(FlatBackground)
+            {
+                bool focused=enabled && selected && InkMainMenu.NavigationActive;
+                bool hover=enabled && pointerOver && !InkMainMenu.NavigationActive;
+                Color fill=!enabled?new Color(.15f,.14f,.12f,.035f):Emphasized?hoverTint:
+                    focused?new Color(.77f,.88f,.96f):hover?new Color(.88f,.87f,.82f):Color.clear;
+                if(pressed && enabled)fill=Color.Lerp(fill,new Color(.15f,.22f,.29f),.14f);
+                if(brush)brush.enabled=false;
+                if(wash)wash.color=fill;
+                if(captionText)captionText.color=!enabled?new Color(.35f,.36f,.34f,.45f):Emphasized?paper:baseTint;
+                var edge=focused?(Emphasized?new Color(.25f,.85f,1f):new Color(.04f,.38f,.8f)):
+                    !enabled?new Color(.14f,.16f,.15f,.2f):new Color(.14f,.16f,.15f,hover?.85f:.55f);
+                if(BorderGraphics!=null)foreach(var graphic in BorderGraphics)if(graphic)
+                {
+                    graphic.color=edge;
+                    // Keep the focus stroke inside the button so nearby controls cannot clip it.
+                    var rect=graphic.rectTransform;
+                    float thickness=focused?5f:2f;
+                    if(rect.anchorMin.y==rect.anchorMax.y)
+                        rect.SetInsetAndSizeFromParentEdge(rect.anchorMin.y>.5f?RectTransform.Edge.Top:RectTransform.Edge.Bottom,0,thickness);
+                    else if(rect.anchorMin.x==rect.anchorMax.x)
+                        rect.SetInsetAndSizeFromParentEdge(rect.anchorMin.x>.5f?RectTransform.Edge.Right:RectTransform.Edge.Left,0,thickness);
+                }
+                return;
+            }
+            if(brush)
+            {
+                Color fill=Emphasized?Color.Lerp(hoverTint,new Color(.44f,.12f,.09f),amount):hoverTint;
+                fill.a=(Emphasized?(enabled?.94f:.14f):amount)*(pressed?.85f:1);
+                brush.enabled=!FlatBackground;
+                brush.color=fill;
+                if(FlatBackground && wash)wash.color=fill;
+            }
+            if(captionText)captionText.color=enabled?Color.Lerp(baseTint,paper,Emphasized?1:amount):new Color(.35f,.36f,.34f,.45f);
             if(prefix)prefix.color=Color.Lerp(new Color(.36f,.38f,.35f,.75f),new Color(.98f,.965f,.925f,.7f),amount);
         }
         public void OnPointerEnter(PointerEventData e){pointerOver=true;}

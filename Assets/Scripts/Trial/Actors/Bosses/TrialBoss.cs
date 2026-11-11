@@ -31,12 +31,30 @@ namespace TomorinTrial
         public bool WindingUp => Skill!=DeepFishSkill.None && (Skill==DeepFishSkill.RiptideRush?(SkillProgress<.20f || SkillProgress>=.46f && SkillProgress<.67f):Skill==DeepFishSkill.ReverseTail?(SkillProgress<.30f || SkillProgress>=.43f && SkillProgress<.66f):Skill==DeepFishSkill.AbyssRain?(SkillProgress<.40f || SkillProgress>=.5f && SkillProgress<.82f):SkillProgress<ImpactPoint);
         public bool Unblockable => Skill==DeepFishSkill.TidalCharge || Skill==DeepFishSkill.BellySlam || Skill==DeepFishSkill.Maelstrom || Skill==DeepFishSkill.Enrage || Skill==DeepFishSkill.RiptideRush || Skill==DeepFishSkill.DelayedSlam || Skill==DeepFishSkill.AbyssRain;
         public bool CanBeDeflected=>Skill==DeepFishSkill.TailSweep || Skill==DeepFishSkill.ReverseTail || Skill==DeepFishSkill.TidalCharge || Skill==DeepFishSkill.RiptideRush;
+        public bool Recovering=>Skill!=DeepFishSkill.None && SkillProgress>=(Skill switch
+        {
+            DeepFishSkill.TailSweep=>.64f, DeepFishSkill.ReverseTail=>.80f,
+            DeepFishSkill.TidalCharge=>.69f, DeepFishSkill.RiptideRush=>.89f,
+            DeepFishSkill.BubbleBarrage=>Frenzied?.72f:.58f,
+            DeepFishSkill.Maelstrom=>Frenzied?.81f:.68f,
+            DeepFishSkill.AbyssRain=>game.PartySize<2?.82f:.40f,
+            _=>ImpactPoint
+        });
         public Transform Visual { get; private set; }
         public string SkillName => NameOf(Skill);
         public int AttacksStarted { get; private set; }
         public int ActiveHazards { get {int n=0;foreach(var h in hazards)if(h.active)n++;return n;} }
         float ImpactPoint => Skill==DeepFishSkill.DelayedSlam?.72f:Skill==DeepFishSkill.BellySlam?.54f:Skill==DeepFishSkill.Maelstrom?.42f:Skill==DeepFishSkill.BubbleBarrage?.30f:Skill==DeepFishSkill.Enrage?.55f:.36f;
         readonly TrialDuelRead duel=new TrialDuelRead();
+        bool duelDeflected;
+        internal bool BracesAgainst(TrialFighter attacker)=>Skill!=DeepFishSkill.None && !Recovering && duel.BracesAgainst(attacker);
+        internal void ObserveParry(TrialPlayer defender)=>duel.ObserveParry(defender);
+        internal bool RetainNextBeat()
+        {
+            duelDeflected=true;
+            return Skill==DeepFishSkill.ReverseTail && SkillProgress<.43f ||
+                Skill==DeepFishSkill.RiptideRush && SkillProgress<.46f;
+        }
         TrialEnemy fighter;
         TrialGame game;
         float age,duration,cooldown=1.2f;
@@ -201,9 +219,11 @@ namespace TomorinTrial
                 DeepFishSkill choice;
                 if(reactiveCooldown<=0 && distance<5.5f && Vector3.Angle(transform.forward,delta)>100)
                 {choice=DeepFishSkill.ReverseTail;reactiveCooldown=5;}
-                else if(reactiveCooldown<=0 && duel.Healing)
-                {choice=DeepFishSkill.AbyssRain;reactiveCooldown=5;}
-                else choice=ChooseAttack(distance);
+                else
+                {
+                    choice=ChooseDuelResponse(distance);
+                    if(choice==DeepFishSkill.None)choice=ChooseAttack(distance);
+                }
                 comboDepth=0;
                 StartSkill(choice);return;
             }
@@ -214,6 +234,21 @@ namespace TomorinTrial
                     direction=Vector3.ProjectOnPlane(direction,hit.normal).normalized;
                 fighter.BossMove(direction*(Enraged?4.2f:3.5f),dt);
             }
+        }
+
+        DeepFishSkill ChooseDuelResponse(float distance)
+        {
+            if(duel.Healing)
+                return distance>=4.3f && distance<10?DeepFishSkill.TidalCharge:DeepFishSkill.AbyssRain;
+            if(duel.RepeatingParry || duel.HoldingGuard)
+                return Enraged && distance<10 && previousChoice!=DeepFishSkill.Maelstrom
+                    ?DeepFishSkill.Maelstrom:DeepFishSkill.AbyssRain;
+            if(duel.RepeatingLight && distance<4.3f && previousChoice!=DeepFishSkill.ReverseTail)
+                return DeepFishSkill.ReverseTail;
+            if(duel.Charging && distance>=4.3f)return DeepFishSkill.TidalCharge;
+            if(duel.EarlyDodge)
+                return distance<4.3f?DeepFishSkill.ReverseTail:DeepFishSkill.AbyssRain;
+            return DeepFishSkill.None;
         }
 
         DeepFishSkill ChooseAttack(float distance)
@@ -235,9 +270,6 @@ namespace TomorinTrial
                 if(skill==previousChoice)weight*=.15f;
                 if(game.CombatTarget.transform.position.y>transform.position.y+1.2f)
                     weight*=skill==DeepFishSkill.BubbleBarrage?6:skill==DeepFishSkill.AbyssRain?2:.3f;
-                if(duel.EarlyDodge)
-                    weight*=skill==DeepFishSkill.ReverseTail || skill==DeepFishSkill.RiptideRush?2:1;
-                if(duel.HoldingGuard && (skill==DeepFishSkill.AbyssRain || skill==DeepFishSkill.Maelstrom))weight*=1.8f;
                 attackWeights[i]=weight;total+=weight;
             }
             float roll=Random.value*total;
@@ -251,7 +283,7 @@ namespace TomorinTrial
             // Retain the enum ID for serialized/network data, but retire the tracking feint slam.
             if(next==DeepFishSkill.DelayedSlam)return;
             if(next==DeepFishSkill.BellySlam)next=DeepFishSkill.TailSweep;
-            HideWarnings();Skill=next;previousChoice=next;regroupTime=0;age=0;waves=0;markCount=0;variant=AttacksStarted%2;landed=false;contacted.Clear();AttacksStarted++;
+            HideWarnings();Skill=next;previousChoice=next;regroupTime=0;age=0;waves=0;markCount=0;variant=AttacksStarted%2;landed=duelDeflected=false;contacted.Clear();AttacksStarted++;
             origin=transform.position;aim=ClampArena(game.CombatTarget.transform.position);
             // The ordinary leap lands in place; its telegraph, damage and wave share this point.
             if(next==DeepFishSkill.BellySlam)aim=new Vector3(origin.x,0,origin.z);
@@ -329,14 +361,10 @@ namespace TomorinTrial
             if(Skill!=DeepFishSkill.None && age>=duration)
             {
                 var previous=Skill;Skill=DeepFishSkill.None;fighter.BossBegin(FighterAction.Free,0);HideWarnings();
-                if(Enraged && comboDepth<(Frenzied?2:1) && previous!=DeepFishSkill.Enrage && previous!=DeepFishSkill.AbyssRain && ActiveHazards<12)
+                if(Enraged && !duelDeflected && comboDepth<(Frenzied?2:1) && previous!=DeepFishSkill.Enrage && previous!=DeepFishSkill.AbyssRain && ActiveHazards<12)
                 {
                     float distance=Vector3.ProjectOnPlane(game.CombatTarget.transform.position-transform.position,Vector3.up).magnitude;
-                    DeepFishSkill follow=DeepFishSkill.None;
-                    if(duel.Healing && distance>5)follow=DeepFishSkill.AbyssRain;
-                    else if(duel.HoldingGuard && distance<9)follow=DeepFishSkill.Maelstrom;
-                    else if(duel.EarlyDodge && distance<5.3f)follow=DeepFishSkill.ReverseTail;
-                    else if(duel.Charging && distance>5)follow=DeepFishSkill.TidalCharge;
+                    var follow=distance<19?ChooseDuelResponse(distance):DeepFishSkill.None;
                     if(follow!=DeepFishSkill.None && follow!=previous){comboDepth++;StartSkill(follow);return;}
                 }
                 comboDepth=0;regroupTime=Frenzied?.65f:Enraged?.8f:1.05f;cooldown=regroupTime;pursuitTime=0;orbitSide=-orbitSide;
@@ -465,7 +493,7 @@ namespace TomorinTrial
                         if(!target||!target.Alive||h.hitPlayers.Contains(target)||!target.OverlapsAttackHeight(h.position.y-.1f,h.position.y+.3f))continue;
                         float distance=Vector3.ProjectOnPlane(target.transform.position-h.position,Vector3.up).magnitude;
                         if(distance>=previous-.26f&&distance<=h.radius+.26f&&!Blocked(h.position,target.transform.position))
-                        {h.hitPlayers.Add(target);target.ReceiveHit(fighter,Enraged?22:20,20,true);}
+                        {h.hitPlayers.Add(target);target.ReceiveHazardHit(fighter,Enraged?22:20,20,true,h.position-target.transform.position);}
                     }
                     if(h.radius>15)Release(h);
                 }
@@ -479,7 +507,7 @@ namespace TomorinTrial
                         if(!target||!target.Alive)continue;
                         var to=target.transform.position+Vector3.up*.85f-h.position;
                         float fraction=step.sqrMagnitude>.00001f?Mathf.Clamp01(Vector3.Dot(to,step)/step.sqrMagnitude):0;
-                        if((to-step*fraction).sqrMagnitude<.45f*.45f){target.ReceiveHit(fighter,16,12);touched=true;break;}
+                        if((to-step*fraction).sqrMagnitude<.45f*.45f){target.ReceiveHazardHit(fighter,16,12,false,-h.velocity);touched=true;break;}
                     }
                     if(touched){game.Effects.Burst(h.position,new Color(.15f,.8f,1),12);game.Effects.Sound("bubblePop",h.position);Release(h);continue;}
                     h.position+=step;h.visual.position=h.position;

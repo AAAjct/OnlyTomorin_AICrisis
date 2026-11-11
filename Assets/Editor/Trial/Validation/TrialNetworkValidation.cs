@@ -23,6 +23,7 @@ namespace TomorinTrial.Editor
         static IEnumerator routine;
         static double resumeAt, deadline, heartbeat;
         static int remoteId, serverPeer;
+        static int receivedCapacity;
         static TrialControls held;
         static TrialWorldState world;
         static bool lobby, sceneReceived, peerReady;
@@ -39,6 +40,16 @@ namespace TomorinTrial.Editor
             runtimeErrors = 0; Application.logMessageReceived += CaptureError;
             routine = Checks(); resumeAt = heartbeat = 0;
             EditorApplication.update += Step;
+        }
+
+        [MenuItem("Tools/Tomorin/Verify room capacity (Play Mode)")]
+        public static void RunRoomCapacity()
+        {
+            if(!EditorApplication.isPlaying || routine!=null || !TrialNetworkManager.Current || TrialNetworkManager.SessionActive)
+                throw new InvalidOperationException("Start InkStart in Play Mode, outside a network session.");
+            results.Clear();events.Clear();Status="Running room capacity checks";reportName="RoomCapacityValidation.txt";
+            runtimeErrors=0;Application.logMessageReceived+=CaptureError;
+            routine=RoomCapacityChecks();resumeAt=heartbeat=0;EditorApplication.update+=Step;
         }
 
         static void Check(bool value, string label)
@@ -78,13 +89,13 @@ namespace TomorinTrial.Editor
                 using (var reader = NetworkReaderPool.Get(segment))
                 {
                     if (!NetworkMessages.UnpackId(reader, out var id)) throw new Exception("Missing message ID");
-                    if (id == NetworkMessageId<TrialLobby>.Id) { var value = reader.Read<TrialLobby>(); remoteId = value.self; receivedLevel=value.level;lobby = true; }
+                    if (id == NetworkMessageId<TrialLobby>.Id) { var value = reader.Read<TrialLobby>(); remoteId = value.self; receivedLevel=value.level;receivedCapacity=value.capacity;lobby = true; }
                     else if (id == NetworkMessageId<TrialCombatEvent>.Id) events.Add(reader.Read<TrialCombatEvent>());
                     else if (id == NetworkMessageId<TrialWorldState>.Id) world = reader.Read<TrialWorldState>();
                     else if (id == NetworkMessageId<SceneMessage>.Id) { reader.Read<SceneMessage>(); sceneReceived = true; }
                     else if (server != null && id == NetworkMessageId<TrialHello>.Id)
                     {
-                        reader.Read<TrialHello>(); Send(new TrialLobby { self = 1, ids = new[] { 0, 1 }, names = new[] { "Authority", "Peer" } });
+                        reader.Read<TrialHello>(); Send(new TrialLobby { self = 1, ids = new[] { 0, 1 }, names = new[] { "Authority", "Peer" }, capacity = 8 });
                         Send(new SceneMessage { sceneName = TrialNetworkManager.GameScene });
                     }
                     else if (server != null && id == NetworkMessageId<ReadyMessage>.Id) peerReady = true;
@@ -107,6 +118,80 @@ namespace TomorinTrial.Editor
                 resumeAt = EditorApplication.timeSinceStartup + (routine.Current is float seconds ? seconds : 0);
             }
             catch (Exception error) { Finish(error); }
+        }
+
+        static IEnumerator RoomCapacityChecks()
+        {
+            var network=TrialNetworkManager.Current;
+            var transport=(TelepathyTransport)network.transport;
+            ushort originalPort=transport.port;
+            int originalCapacity=network.RoomCapacity;
+            var originalLevel=network.SelectedLevel;
+            string originalAddress=network.networkAddress;
+            try
+            {
+                if(!TrialNetworkManager.TryFindFreeTcpPort(out var port))throw new InvalidOperationException("No validation TCP port available");
+                transport.port=(ushort)port;network.SelectLevel(TrialLevel.BigFish);network.Host();ConnectEncounterPeer(network);
+                Until();while(Waiting(lobby && network.Members.Length==2))yield return .02f;
+                Check(receivedCapacity==originalCapacity,"The initial host cap reaches the independent TCP peer");
+                network.AdjustRoomCapacity(int.MinValue);
+                Until();while(Waiting(receivedCapacity==2))yield return .02f;
+                Check(network.RoomCapacity==2 && NetworkServer.maxConnections==2 && network.Members.Length==2,
+                    "Host can lower the live room cap to its current occupants and broadcast it");
+                var menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();
+                var minus=(UnityEngine.UI.Button)typeof(InkMainMenu).GetField("decreaseCapacity",Private).GetValue(menu);
+                var plus=(UnityEngine.UI.Button)typeof(InkMainMenu).GetField("increaseCapacity",Private).GetValue(menu);
+                Check(!minus.interactable && plus.interactable,"Host lobby enables capacity editing and disables lowering below occupancy");
+                network.AdjustRoomCapacity(1);
+                Until();while(Waiting(receivedCapacity==3))yield return .02f;
+                ConnectExtraPeer(network,0);
+                Until();while(Waiting(network.Members.Length==3))yield return .02f;
+                Check(NetworkServer.maxConnections==3,"Raising the live cap admits another independent TCP player");
+                network.AdjustRoomCapacity(-1);
+                Check(network.RoomCapacity==3 && network.Members.Length==3,"Lowering capacity preserves all connected players");
+                foreach(var extra in encounterPeers)extra.Disconnect();encounterPeers.Clear();
+                Until();while(Waiting(network.Members.Length==2))yield return .02f;
+                network.AdjustRoomCapacity(int.MaxValue);
+                Until();while(Waiting(receivedCapacity==TrialNetworkManager.MaxRoomCapacity))yield return .02f;
+                Check(NetworkServer.maxConnections==TrialNetworkManager.MaxRoomCapacity,"Live capacity clamps to the supported maximum");
+                network.AdjustRoomCapacity(originalCapacity-network.RoomCapacity);
+                network.BeginTogether();
+                network.AdjustRoomCapacity(1);
+                Check(network.RoomCapacity==originalCapacity,"Capacity changes are blocked once the host starts loading the match");
+                Until();while(Waiting(sceneReceived && UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready==true))yield return .02f;
+                network.AdjustRoomCapacity(1);
+                Check(network.RoomCapacity==originalCapacity,"Capacity changes are restricted to the room lobby");
+                network.ServerChangeScene(TrialNetworkManager.MenuScene);
+                Until();while(Waiting(UnityEngine.Object.FindFirstObjectByType<InkMainMenu>()!=null && network.CanAdjustRoomCapacity))yield return .02f;
+                yield return .1f;
+                menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();
+                plus=(UnityEngine.UI.Button)typeof(InkMainMenu).GetField("increaseCapacity",Private).GetValue(menu);
+                Check(plus.interactable==(originalCapacity<TrialNetworkManager.MaxRoomCapacity),"Capacity controls refresh when the host returns to the lobby");
+
+                client.Disconnect();client=null;network.Leave();
+                incoming=new Unbatcher();server=new Telepathy.Server(16384){NoDelay=true};
+                server.OnConnected=(id,address)=>serverPeer=id;
+                server.OnData=(id,data)=>Receive(data);
+                if(!TrialNetworkManager.TryFindFreeTcpPort(out var peerPort) || !server.Start(peerPort))
+                    throw new InvalidOperationException("Could not start the validation authority");
+                transport.port=(ushort)peerPort;network.networkAddress="127.0.0.1";network.Join();
+                Until();while(Waiting(network.LocalId==1 && network.ActiveRoomCapacity==8))yield return .02f;
+                network.AdjustRoomCapacity(1);
+                Check(!network.CanAdjustRoomCapacity && network.RoomCapacity==originalCapacity && network.ActiveRoomCapacity==8,
+                    "The real client displays the authority's cap and cannot change it or overwrite its own hosting preference");
+                Send(new TrialLobby{self=1,ids=new[]{0,1},names=new[]{"Authority","Peer"},capacity=11});
+                Until();while(Waiting(network.ActiveRoomCapacity==11))yield return .02f;
+                Check(runtimeErrors==0,"The real client receives live capacity changes without runtime errors");
+            }
+            finally
+            {
+                foreach(var extra in encounterPeers)extra.Disconnect();encounterPeers.Clear();
+                if(TrialNetworkManager.SessionActive)network.Leave();
+                transport.port=originalPort;
+                network.networkAddress=originalAddress;
+                network.AdjustRoomCapacity(originalCapacity-network.RoomCapacity);
+                network.SelectLevel(originalLevel);
+            }
         }
 
         static IEnumerator Checks()

@@ -14,6 +14,43 @@ namespace TomorinTrial
         float leechAt,vacuumAt,waveAt,lightningAt,thornsAt,dodgeNovaAt,momentumUntil;
         int momentum;
         bool affixDamage,runChoiceOpen,hasRunOffers;
+        const float FrostSpeedMultiplier=.65f;
+        float runFrostRemaining;
+        bool runSlamStunned;
+        internal bool RunFrostSlowed=>Alive && runFrostRemaining>0;
+        internal bool RunSlamStunned=>Alive && runSlamStunned && Action==FighterAction.Stagger;
+        float RunMovementScale=>RunFrostSlowed?FrostSpeedMultiplier:1;
+
+        internal void ApplyRunFrostSlow()
+        {
+            if(!Alive)return;
+            if(!RunFrostSlowed)PlanarVelocity*=FrostSpeedMultiplier;
+            runFrostRemaining=2.5f;
+        }
+
+        internal void ApplyRunSlamStun(float duration)
+        {
+            if(!Alive)return;
+            InterruptForSpell();
+            runSlamStunned=true;
+            Begin(FighterAction.Stagger,Mathf.Max(duration,ActionDuration-ActionTime));
+        }
+
+        bool TickRunSlamStun(float dt)
+        {
+            if(!RunSlamStunned)return false;
+            TickSwordProjectiles(dt);TickParryFlights(dt);
+            if(Alive && !game.HasResult && !CombatFrozen)
+            {
+                TickBase(dt);
+                if(Alive && ActionTime>=ActionDuration)
+                {
+                    runSlamStunned=false;
+                    Begin(FighterAction.Free,0);
+                }
+            }
+            return true;
+        }
         public int AffixStacks(TrialAffix affix)=>game.IsEndless?affixes[(int)affix]:0;
         public void RestoreForBossRound(Vector3 respawnPoint)
         {
@@ -39,10 +76,11 @@ namespace TomorinTrial
         public void RequestRunAffix(int slot)
         {if(TrialNetworkManager.SessionActive)TrialNetworkManager.Current.RunUpgrade(slot);else ChooseRunAffix(slot);}
         void CaptureRoguelike(ref TrialActorState state)
-        {if(!game.IsEndless)return;state.runLevel=RunLevel;state.runExperience=RunExperience;state.pendingRunChoices=PendingRunChoices;state.runChoiceOpen=runChoiceOpen;state.runOffers=(TrialAffix[])RunOffers.Clone();state.runAffixes=(int[])affixes.Clone();}
+        {if(!game.IsEndless)return;state.runLevel=RunLevel;state.runExperience=RunExperience;state.pendingRunChoices=PendingRunChoices;state.runChoiceOpen=runChoiceOpen;state.runFrostRemaining=Alive?runFrostRemaining:0;state.runSlamStunned=RunSlamStunned;state.runOffers=(TrialAffix[])RunOffers.Clone();state.runAffixes=(int[])affixes.Clone();}
         void ApplyRoguelike(TrialActorState state)
         {
             if(!game.IsEndless)return;
+            runFrostRemaining=state.runFrostRemaining;runSlamStunned=state.runSlamStunned;
             bool wasOpen=ChoosingRunAffix;RunLevel=Mathf.Max(1,state.runLevel);RunExperience=state.runExperience;PendingRunChoices=state.pendingRunChoices;runChoiceOpen=state.runChoiceOpen;
             if(state.runOffers!=null)System.Array.Copy(state.runOffers,RunOffers,Mathf.Min(3,state.runOffers.Length));
             if(state.runAffixes!=null)System.Array.Copy(state.runAffixes,affixes,Mathf.Min(affixes.Length,state.runAffixes.Length));
@@ -152,7 +190,12 @@ namespace TomorinTrial
             game.Effects.Burst(point+Vector3.up,new Color(.45f,.8f,1),20);
         }
         void HealRun(float amount){if(Alive && amount>0)Health=Mathf.Min(MaxHealth,Health+amount);}
-        void TickRoguelike(float dt){if(game.IsEndless)HealRun(.6f*AffixStacks(TrialAffix.Regeneration)*dt);}
+        void TickRoguelike(float dt)
+        {
+            if(!game.IsEndless)return;
+            runFrostRemaining=Mathf.Max(0,runFrostRemaining-dt);
+            HealRun(.6f*AffixStacks(TrialAffix.Regeneration)*dt);
+        }
         float RunDefense(float damage)=>damage*(1-Mathf.Min(.48f,.06f*AffixStacks(TrialAffix.Armor)))*(Health<MaxHealth*.3f?1-Mathf.Min(.6f,.12f*AffixStacks(TrialAffix.LastBastion)):1);
         void RunParry(){HealRun(8*AffixStacks(TrialAffix.ParryHeal));}
         void RunDodge(){int stacks=AffixStacks(TrialAffix.DodgeNova);if(stacks>0 && Time.time>=dodgeNovaAt){dodgeNovaAt=Time.time+2;RunAreaDamage(transform.position,4,16*stacks);}}

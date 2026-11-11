@@ -11,7 +11,7 @@ namespace TomorinTrial
         TrialFighter trackedLock;
         Vector3 lockOffset,lockVelocity;
         float yawVelocity;
-        bool closeLock;
+        bool closeLock, closeCombatFrame;
         Camera view;
         float currentDistance=4.6f, collisionDistance=4.6f;
         float pulse;
@@ -20,8 +20,8 @@ namespace TomorinTrial
         Renderer[] localRenderers;
         TrialFighter framedOpponent;
         float frameUntil,frameStrength;
-        public void CombatFrame(TrialFighter opponent,float seconds,float strength)
-        {if(InkMainMenu.ReducedMotion || !opponent)return;framedOpponent=opponent;frameUntil=Time.unscaledTime+Mathf.Min(seconds,.9f);frameStrength=Mathf.Clamp01(strength);}
+        public void CombatFrame(TrialFighter opponent,float seconds,float strength,bool close=false)
+        {if(InkMainMenu.ReducedMotion || !opponent)return;framedOpponent=opponent;frameUntil=Time.unscaledTime+Mathf.Min(seconds,.9f);frameStrength=Mathf.Clamp01(strength);closeCombatFrame=close;}
         public void Pulse(float amount){if(InkMainMenu.ReducedMotion)return;pulse=Mathf.Max(pulse,amount);}
         public bool Frozen { get; set; }
         public void Initialize(TrialPlayer target)
@@ -40,8 +40,13 @@ namespace TomorinTrial
         {
             if(!Frozen && !player.Locked){yaw+=input.x;pitch=Mathf.Clamp(pitch-input.y,-12,60);}
         }
-        public void Snap()
-        {if(!player)return;trackedLock=null;lockVelocity=Vector3.zero;yawVelocity=0;closeLock=false;yaw=player.transform.eulerAngles.y;focus=player.transform.position+Vector3.up;Place(1);}
+        public void Snap(bool resetPitch=false)
+        {
+            if(!player)return;
+            if(resetPitch)pitch=15;
+            trackedLock=null;framedOpponent=null;frameUntil=0;lockVelocity=Vector3.zero;yawVelocity=0;closeLock=false;
+            yaw=player.transform.eulerAngles.y;focus=player.transform.position+Vector3.up;Place(1);
+        }
         public void Kick(float strength){if(InkMainMenu.ReducedMotion)return;shake=Mathf.Max(shake,strength);}
         void LateUpdate()
         {
@@ -55,8 +60,9 @@ namespace TomorinTrial
                 float cue=Mathf.Sin(Mathf.Clamp01((frameUntil-Time.unscaledTime)/.9f)*Mathf.PI)*frameStrength;
                 Vector3 framedOffset=framedOpponent.transform.position-player.transform.position;
                 framedOffset.y=Mathf.Clamp(framedOffset.y,-.4f,.6f);
-                desiredFocus=Vector3.Lerp(desiredFocus,player.transform.position+framedOffset*.5f+Vector3.up*1.2f,.3f*cue);
-                pulse=Mathf.Max(pulse,cue*4);
+                desiredFocus=Vector3.Lerp(desiredFocus,player.transform.position+framedOffset*.5f+Vector3.up*1.2f,
+                    (closeCombatFrame?.60f:.30f)*cue);
+                if(!closeCombatFrame)pulse=Mathf.Max(pulse,cue*4);
             }
             if(player.Locked)
             {
@@ -81,7 +87,9 @@ namespace TomorinTrial
                     else yawVelocity=0;
                 }
                 else yawVelocity=0;
-                pitch=Mathf.Lerp(pitch,17,1-Mathf.Exp(-3*dt));
+                float wall=player.LockTarget is TrialEnemy target && target.Champion && target.Champion.TerraceDuel
+                    ?Mathf.Clamp01((3-target.Champion.DuelWallDistance(player.transform.position))/3):0;
+                pitch=Mathf.Lerp(pitch,Mathf.Lerp(17,32,wall),1-Mathf.Exp(-6*dt));
                 desiredFocus+=lockOffset*.11f*Mathf.Clamp01(1-delta.magnitude/15);
             }
             else {trackedLock=null;lockVelocity=Vector3.zero;yawVelocity=0;closeLock=false;}
@@ -94,6 +102,10 @@ namespace TomorinTrial
             Vector3 boom=rotation*Vector3.back;
             bool bossLocked=player.LockTarget is TrialEnemy enemy && enemy.IsBoss;
             float targetDistance=player.Locked?(bossLocked?7.4f:5.2f):player.Sprinting?5.25f:distance;
+            if(bossLocked && player.LockTarget is TrialEnemy terrace && terrace.Champion && terrace.Champion.TerraceDuel)
+                targetDistance=Mathf.Lerp(4.5f,6.8f,Mathf.Clamp01(terrace.Champion.DuelWallDistance(player.transform.position)/3));
+            if(closeCombatFrame && framedOpponent && !InkMainMenu.ReducedMotion && Time.unscaledTime<frameUntil)
+                targetDistance-=1.35f*frameStrength*Mathf.Sin(Mathf.Clamp01((frameUntil-Time.unscaledTime)/.9f)*Mathf.PI);
             currentDistance=Mathf.Lerp(currentDistance,targetDistance,1-Mathf.Exp(-5*dt));
             pulse=Mathf.MoveTowards(pulse,0,Time.unscaledDeltaTime*24);
             view.fieldOfView=Mathf.Lerp(view.fieldOfView,(player.Sprinting?66:player.Locked && bossLocked?64:60)+pulse,1-Mathf.Exp(-12*Time.unscaledDeltaTime));

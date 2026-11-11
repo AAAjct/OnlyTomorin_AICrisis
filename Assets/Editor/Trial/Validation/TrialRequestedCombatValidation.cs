@@ -67,7 +67,7 @@ namespace TomorinTrial.Editor
                 int frame=Time.frameCount;yield return .12f;Check(Time.frameCount>frame,"Play Mode player loop advances");
                 var p=game.Player;var boss=game.Enemies[0];var input=game.gameObject.AddComponent<TrialInput>();
                 Action<TrialControls,float> tick=(c,dt)=>{input.ApplyNetwork(c);p.Tick(dt,input);};
-                Action reset=()=>{p.ResetRunBoon();p.Restore(new Vector3(0,0,20));boss.ResetFighter();typeof(TrialChampion).GetField("introPlayed",Private).SetValue(boss.Champion,true);boss.Teleport(new Vector3(12,0,36));Time.timeScale=1;};
+                Action reset=()=>{p.ResetRunBoon();p.Restore(new Vector3(0,0,20));boss.ResetFighter();typeof(TrialEnemy).GetProperty("Awakened").SetValue(boss,true);boss.Teleport(new Vector3(9,0,30));Time.timeScale=1;};
                 reset();tick(new TrialControls{pressed=1},.01f);
                 for(int i=0;i<4;i++)
                 {
@@ -118,7 +118,7 @@ namespace TomorinTrial.Editor
                 rig.Pose(-1,0,1,false,0);var baseline=panels.Select(t=>t.rotation).ToArray();
                 typeof(TrialChampionRig).GetField("gait",Private).SetValue(rig,Mathf.PI*.5f);
                 rig.Pose(-1,0,1,false,.11f);Check(panels.Where((t,i)=>Quaternion.Angle(t.rotation,baseline[i])>1).Any(),"Skirt follows the actual animated thigh excursion");
-                for(int i=0;i<TrialChampionCatalog.SkillCount;i++)
+                for(int i=0;i<12;i++)
                 {boss.Champion.BeginMove(i);for(int j=0;j<12;j++)boss.Champion.Tick(.08f);Check(Mathf.Abs(boss.transform.position.y)<.5f,"Anon move "+i+" remains grounded");boss.Champion.CancelAttack(true);}
                 reset();boss.Teleport(new Vector3(0,0,22));boss.Champion.BeginMove(1);tick(new TrialControls{pressed=1},.01f);tick(default,.12f);
                 Check(p.CombatFrozen && boss.CombatFrozen && boss.Recoil.sqrMagnitude>.1f,"Blade contact holds both poses and produces boss body recoil");

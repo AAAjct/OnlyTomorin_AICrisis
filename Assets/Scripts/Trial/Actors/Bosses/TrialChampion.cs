@@ -7,7 +7,7 @@ namespace TomorinTrial
     public struct TrialChampionHazard
     {public Vector3 position,velocity,endpoint;public float age,radius,limit,lifetime,aux;public byte kind;public bool ring,active,unblockable;}
     public struct TrialChampionState
-    {public int move,beat,phase,kills;public byte mobility;public float age,cooldown,mobilityAge,mobilityDuration,respite,guardTime,introAge;public bool introPlayed;public Vector3 aim,heading,origin,mobilityDirection;public TrialChampionHazard[] hazards;}
+    {public int move,beat,phase,kills;public byte mobility;public float age,cooldown,mobilityAge,mobilityDuration,respite,guardTime,introAge;public bool introPlayed;public float terraceWindup,terraceRecovery,terracePhase;public bool terraceSide;public Vector3 aim,heading,origin,mobilityDirection;public TrialChampionHazard[] hazards;}
     public enum ChampionMobility : byte { Grounded, BurstStep, SideSlip, BackLeap, Vault }
 
     // Host-owned attack clocks; telegraphs and contacts use the very same geometry.
@@ -16,16 +16,16 @@ namespace TomorinTrial
         public ChampionKind Kind {get;private set;}
         public int MoveIndex {get;private set;}=-1;
         public int Phase {get;private set;}=1;
-        public ChampionMove Move=>TrialChampionCatalog.Move(Kind,MoveIndex);
+        public ChampionMove Move=>TerraceDuel?TerraceMove.Move:TrialChampionCatalog.Move(Kind,MoveIndex);
         public float Age {get;private set;}
-        public float WarningProgress=>Attacking?Mathf.Clamp01(1-(NextImpact-Age)/Mathf.Max(.01f,Mathf.Min(Move.windup,beat==0?Move.windup:Move.interval))):0;
+        public float WarningProgress=>TerraceDuel?(WindingUp?Mathf.Clamp01(Age/terraceWindup):0):Attacking?Mathf.Clamp01(1-(NextImpact-Age)/Mathf.Max(.01f,Mathf.Min(Move.windup,beat==0?Move.windup:Move.interval))):0;
         public float BeatAge=>Age-(beat==0?0:Move.windup+(beat-1)*Move.interval);
         public bool Attacking=>MoveIndex>=0;
-        public bool WindingUp=>Attacking && beat<Move.beats && Age<NextImpact;
+        public bool WindingUp=>Attacking && (TerraceDuel?Age<terraceWindup:beat<Move.beats && Age<NextImpact);
         public bool Unblockable=>Attacking && Move.Unblockable;
         public bool CanDeflect=>Attacking && !Move.Unblockable;
-        public bool Recovering=>Attacking && beat>=Move.beats;
-        public string SkillName=>Attacking?Move.name:fighter.Guarding?"架剑 · 识破轻击":Regrouping?"迂回 · 重新观察":cooldown>1 && Kind==ChampionKind.Taffy?"换弹 · 贴身压制":"";
+        public bool Recovering=>Attacking && (TerraceDuel?Age>=TerraceEnd:beat>=Move.beats);
+        public string SkillName=>TerraceChangingPhase?"双落点 · 敲刃换拍":TerraceDuel && fighter.Vulnerable?"脱拍失衡 · 可反击":Attacking?Move.name:fighter.Guarding?"架剑 · 识破轻击":Regrouping?"迂回 · 重新观察":cooldown>1 && Kind==ChampionKind.Taffy?"换弹 · 贴身压制":"";
         public string Counter=>Attacking?Move.counter:"";
         public int AttacksStarted {get;private set;}
         public int ActiveHazards {get {int count=0;foreach(var h in hazards)if(h.active)count++;return count;}}
@@ -39,7 +39,7 @@ namespace TomorinTrial
         public Vector3 MobilityDirection=>mobilityDirection;
         public float MobilityProgress=>mobilityDuration>0?Mathf.Clamp01(mobilityAge/mobilityDuration):0;
         public float AimCommitTime=>Move.Unblockable?Mathf.Min(.28f,Move.windup*.42f):Mathf.Min(.16f,Move.interval*.45f);
-        public float AnimationBeat=>beat>0 && Age-(Move.windup+(beat-1)*Move.interval)<.105f?.38f+Mathf.Clamp01((Age-(Move.windup+(beat-1)*Move.interval))/.105f)*.24f:WindingUp?Mathf.Clamp01(1-(NextImpact-Age)/Mathf.Min(Move.windup,beat==0?Move.windup:Move.interval))*.38f:Recovering?.65f+Mathf.Clamp01((Age-(Move.windup+Move.interval*(Move.beats-1)))/(Move.recovery+.2f))*.35f:.5f;
+        public float AnimationBeat=>TerraceDuel?TerracePose:beat>0 && Age-(Move.windup+(beat-1)*Move.interval)<.105f?.38f+Mathf.Clamp01((Age-(Move.windup+(beat-1)*Move.interval))/.105f)*.24f:WindingUp?Mathf.Clamp01(1-(NextImpact-Age)/Mathf.Min(Move.windup,beat==0?Move.windup:Move.interval))*.38f:Recovering?.65f+Mathf.Clamp01((Age-(Move.windup+Move.interval*(Move.beats-1)))/(Move.recovery+.2f))*.35f:.5f;
         float NextImpact=>Move.windup+beat*Move.interval;
         TrialEnemy fighter;
         TrialGame game;
@@ -93,7 +93,7 @@ namespace TomorinTrial
             TrialFighter.DisableShadows(Visual);
             InitializeSignature();
             if(Kind==ChampionKind.Anon || Kind==ChampionKind.Penguin || IsRemnant)for(int i=0;i<2;i++)hazards[i].prop=Rig.CloneProjectileWeapon(transform);
-            warning.gameObject.AddComponent<TrialSkillSurface>().Initialize(warning);
+            if(!TerraceDuel)warning.gameObject.AddComponent<TrialSkillSurface>().Initialize(warning);
             ResetEncounter();
         }
         LineRenderer Line(string label,float width,int count)
@@ -103,10 +103,11 @@ namespace TomorinTrial
             line.shadowCastingMode=ShadowCastingMode.Off;line.receiveShadows=false;line.enabled=false;line.numCornerVertices=0;line.numCapVertices=0;return line;
         }
         public void ResetEncounter()
-        {CancelAttack(true);ResetTactics();ResetSignature();Phase=phaseAnnounced=1;sequence=0;previous=-1;usedMoves=0;phaseAge=0;cooldown=Kind==ChampionKind.NuoNuo?1.1f:.65f;mobilityCooldown=.2f;evasionCooldown=1;pressureAge=decisionClock=0;Mobility=ChampionMobility.Grounded;mobilityAge=mobilityDuration=0;queuedMove=-1;orbitSide=Kind==ChampionKind.NuoNuo?-1:1;AttacksStarted=0;Rig.ResetPose();}
+        {CancelAttack(true);ResetTactics();ResetSignature();Phase=phaseAnnounced=1;sequence=0;previous=-1;usedMoves=0;phaseAge=0;cooldown=Kind==ChampionKind.NuoNuo?1.1f:.65f;mobilityCooldown=.2f;evasionCooldown=1;pressureAge=decisionClock=0;Mobility=ChampionMobility.Grounded;mobilityAge=mobilityDuration=0;queuedMove=-1;orbitSide=Kind==ChampionKind.NuoNuo?-1:1;AttacksStarted=0;if(TerraceDuel)ResetTerrace();Rig.ResetPose();}
         public void CancelAttack(bool clearHazards=false)
         {
             chainDepth=0;
+            terraceDriveTarget=null;
             guardTime=0;guardCounter=false;fighter.BossGuard(false);
             MoveIndex=-1;Age=0;beat=0;cooldown=Mathf.Max(cooldown,.75f);HideWarnings();
             if(clearHazards){Mobility=ChampionMobility.Grounded;queuedMove=-1;foreach(var h in hazards){h.active=false;h.hit.Clear();h.line.enabled=false;if(h.art)h.art.Hide();if(h.prop)h.prop.gameObject.SetActive(false);}}
@@ -130,6 +131,7 @@ namespace TomorinTrial
             if(!fighter.Alive){CancelAttack(true);return;}
             if(!game.CombatTarget || !game.CombatTarget.Alive){CancelAttack(true);fighter.StopLocomotion();return;}
             if(!fighter.Awakened){HideWarnings();return;}
+            if(TerraceDuel){TickTerrace(dt);return;}
             if(TickSignatureIntro(dt))return;
             TickHazards(dt);
             duel.Tick(game.CombatTarget,dt);
@@ -161,7 +163,11 @@ namespace TomorinTrial
             if(mobilityCooldown<=0 && decisionClock<=0)
             {
                 if(duel.Healing && distance>4 && distance<17 && !partnerActive)
-                {if(gun){BeginMove(1);return;}StartMobility(ChampionMobility.BurstStep,delta.normalized,.26f,Kind==ChampionKind.Penguin?11:17,1);return;}
+                {
+                    int punish=ChooseDuelResponse(distance,false);
+                    if(punish>=0){BeginMove(punish);return;}
+                    StartMobility(ChampionMobility.BurstStep,delta.normalized,.26f,Kind==ChampionKind.Penguin?11:17,-1);return;
+                }
                 if(distance<5.3f && duel.Charging && evasionCooldown<=0 && pressureAge>.35f && Kind!=ChampionKind.Penguin)
                 {orbitSide=-orbitSide;evasionCooldown=IsRemnant?1.65f:3.5f;StartMobility(gun||Kind==ChampionKind.NuoNuo?ChampionMobility.BackLeap:Kind==ChampionKind.YaYa?ChampionMobility.Vault:ChampionMobility.SideSlip,gun?-delta.normalized:Vector3.Cross(Vector3.up,delta).normalized*orbitSide,.28f,12,-1);return;}
                 if((distance>desired+4 || gun && distance<5.5f) && !partnerActive)
@@ -190,6 +196,8 @@ namespace TomorinTrial
         }
         int ChooseMove(float distance)
         {
+            int response=ChooseDuelResponse(distance,false);
+            if(response>=0)return response;
             int max=TrialChampionCatalog.SkillCount;
             uint all=(1u<<max)-1;if((usedMoves&all)==all)usedMoves=previous>=0?1u<<previous:0;
             var player=game.CombatTarget;float total=0;
@@ -198,9 +206,7 @@ namespace TomorinTrial
                 var m=TrialChampionCatalog.Move(Kind,i);float score=(usedMoves&(1u<<i))!=0?0:1;
                 score*=MoveSuitability(m,distance);
                 if(distance>6 && (m.shape==ChampionShape.Thrust || m.shape==ChampionShape.Leap || m.shape==ChampionShape.Lash))score*=3;
-                score*=duel.Weight(m);
-                if(duel.Healing && (m.shape==ChampionShape.Thrust || m.shape==ChampionShape.Snipe || m.shape==ChampionShape.Mark))score*=3;
-                score*=CommitmentWeight(m,player);
+                score*=HeightWeight(m,player);
                 if(Kind==ChampionKind.Taffy && distance<4.5f)score*=i==3?8:.2f;
                 if(Kind==ChampionKind.YaYa && distance<3.5f)score*=i==2?4:i==1?.2f:1;
                 if(i>=8)score*=1.4f;
@@ -219,11 +225,8 @@ namespace TomorinTrial
                 int best=0;float highest=-1;
                 for(int i=0;i<max;i++)
                 {
-                    var m=TrialChampionCatalog.Move(Kind,i);float score=moveWeights[i]*Random.Range(.85f,1.15f);
-                    if(Kind==ChampionKind.Anon){if(distance>5 && i==4)score*=5;if(duel.Charging && i==10)score*=4;if(ActiveHazards>4 && i==4)score=0;}
-                    if(duel.EarlyDodge)score*=m.windup>.65f?3.5f:.3f;
-                    if(duel.Charging)score*=m.shape==ChampionShape.Thrust || m.shape==ChampionShape.BladeWave?3:1;
-                    if(duel.LightPressure)score*=m.shape==ChampionShape.Counter?4:1;
+                    float score=moveWeights[i]*Random.Range(.85f,1.15f);
+                    if(Kind==ChampionKind.Anon && i==4)score*=ActiveHazards>4?0:distance>5?5:1;
                     if(score>highest){highest=score;best=i;}
                 }
                 return best;
@@ -238,7 +241,10 @@ namespace TomorinTrial
                 case ChampionShape.Grab:case ChampionShape.Stomp:case ChampionShape.Vacuum:
                 case ChampionShape.Spiral:case ChampionShape.CrossLine:
                 case ChampionShape.Thrust:case ChampionShape.Lash:case ChampionShape.Tether:
+                case ChampionShape.Fissure:case ChampionShape.SweepRay:case ChampionShape.OrbitWhip:
                     return distance<=move.range+.6f?1:0;
+                case ChampionShape.Mark when move.defense==ChampionDefense.Retreat:
+                    return distance<move.range?1:0;
                 case ChampionShape.Annulus:
                     return distance>=move.inner && distance<=move.range+.4f?1:0;
                 default:return 1;
@@ -274,6 +280,11 @@ namespace TomorinTrial
         public void BeginMove(int index)
         {
             if(!fighter.Alive)return;
+            if(TerraceDuel)
+            {
+                if(index>=0 && index<terraceAttacks.Length && game.CombatTarget)BeginTerraceRound((TerraceCut)index,game.CombatTarget);
+                return;
+            }
             respite=0;guardTime=0;duelDeflected=false;fighter.BossGuard(false);
             MoveIndex=Mathf.Clamp(index,0,TrialChampionCatalog.SkillCount-1);previous=MoveIndex;usedMoves|=1u<<MoveIndex;sequence++;beat=0;Age=0;AttacksStarted++;contacted.Clear();counterTriggered=false;
             Mobility=ChampionMobility.Grounded;pressureAge=0;steering=Vector3.zero;
@@ -377,6 +388,7 @@ namespace TomorinTrial
         static bool IsGroundShape(ChampionShape shape)=>IsAerialStrike(shape) || shape==ChampionShape.Mark || shape==ChampionShape.Annulus || shape==ChampionShape.Stomp || shape==ChampionShape.Vacuum || shape==ChampionShape.CrossLine;
         public bool Contains(Vector3 point)
         {
+            if(TerraceDuel)return Attacking && TerraceContains(point);
             Vector3 delta=Planar(point-transform.position);float distance=delta.magnitude;float range=Mathf.Max(.2f,Move.range-.18f);
             switch(Move.shape)
             {
@@ -470,13 +482,11 @@ namespace TomorinTrial
         {
             duelDeflected=true;
             fighter.AddChampionPosture(Kind==ChampionKind.Anon?44:62);
-            if(fighter.Vulnerable){CancelAttack();return;}
-            if(Kind!=ChampionKind.Anon){CancelAttack();fighter.BossBegin(FighterAction.Stagger,.65f);}
-            // The sword saint retains her remaining beats: each successful deflect invites the next.
+            // A deflect stops extensions. A posture break stops the committed string.
         }
         public TrialChampionState CaptureNetwork()
         {
-            int count=ActiveHazards;var snapshot=new TrialChampionState{move=MoveIndex,phase=Phase,beat=beat,kills=KillStacks,introAge=introAge,introPlayed=introPlayed,respite=respite,guardTime=guardTime,age=Age,cooldown=cooldown,aim=aim,heading=heading,origin=origin,mobility=(byte)Mobility,mobilityAge=mobilityAge,mobilityDuration=mobilityDuration,mobilityDirection=mobilityDirection,hazards=count==0?System.Array.Empty<TrialChampionHazard>():new TrialChampionHazard[count]};int i=0;
+            int count=ActiveHazards;var snapshot=new TrialChampionState{move=MoveIndex,phase=Phase,beat=beat,kills=KillStacks,introAge=introAge,introPlayed=introPlayed,terraceWindup=terraceWindup,terraceRecovery=terraceRecovery,terracePhase=phaseAge,terraceSide=terraceSideSign,respite=respite,guardTime=guardTime,age=Age,cooldown=cooldown,aim=aim,heading=heading,origin=origin,mobility=(byte)Mobility,mobilityAge=mobilityAge,mobilityDuration=mobilityDuration,mobilityDirection=mobilityDirection,hazards=count==0?System.Array.Empty<TrialChampionHazard>():new TrialChampionHazard[count]};int i=0;
             foreach(var h in hazards)if(h.active)snapshot.hazards[i++]=new TrialChampionHazard{position=h.position,velocity=h.velocity,endpoint=h.endpoint,age=h.age,radius=h.radius,limit=h.limit,lifetime=h.lifetime,aux=h.aux,kind=(byte)h.kind,ring=h.ring,unblockable=h.unblockable,active=true};return snapshot;
         }
         public void ApplyNetwork(TrialChampionState state,float advance)
@@ -485,6 +495,14 @@ namespace TomorinTrial
             bool newEvade=state.mobility!=0 && ((byte)Mobility!=state.mobility || state.mobilityAge+.05f<mobilityAge);
             bool newMove=state.move>=0 && (state.move!=MoveIndex || state.age+.1f<Age || state.beat!=beat);
             MoveIndex=state.move;Phase=state.phase;beat=state.beat;Age=state.age+advance;cooldown=state.cooldown;aim=state.aim;heading=state.heading;origin=state.origin;
+            if(TerraceDuel)
+            {
+                terraceWindup=state.terraceWindup;terraceRecovery=state.terraceRecovery;phaseAge=state.terracePhase;terraceSideSign=state.terraceSide;
+                if(newMove && Attacking)PlayTerraceTell();
+                if(contactBeat && Attacking)game.Effects.Sound("swing",transform.position,1.1f);
+                DrawTerraceCut();
+                return;
+            }
             introAge=state.introAge;introPlayed=state.introPlayed;DrawSignatureIntro();
             KillStacks=state.kills;respite=state.respite;guardTime=state.guardTime;
             if(contactBeat && Attacking)SignatureContactArt();
@@ -495,6 +513,7 @@ namespace TomorinTrial
             {var h=hazards[i];bool active=state.hazards!=null && i<state.hazards.Length;h.active=active;h.line.enabled=active;if(!active){if(h.art)h.art.Hide();if(h.prop)h.prop.gameObject.SetActive(false);continue;}var r=state.hazards[i];h.position=r.position;h.velocity=r.velocity;h.endpoint=r.endpoint;h.age=r.age;h.radius=r.radius;h.ring=r.ring;h.limit=r.limit;h.lifetime=r.lifetime;h.aux=r.aux;h.kind=(ChampionHazardKind)r.kind;h.line.positionCount=h.ring?65:2;DrawHazard(h);}
             DrawWarnings();
         }
+        void LateUpdate(){if(TerraceDuel)game.World.SetTerracePhase(Phase,TerracePhaseProgress);}
         public static Vector3 Planar(Vector3 value){value.y=0;return value;}
         static Vector3 ClampArena(Vector3 value,float inset){value.x=Mathf.Clamp(value.x,-23+inset,23-inset);value.z=Mathf.Clamp(value.z,2+inset,48-inset);return value;}
         void OnDestroy(){if(signatureCore)Destroy(signatureCore);if(lineMaterial)Destroy(lineMaterial);if(projectileMaterial)Destroy(projectileMaterial);if(projectileTexture)Destroy(projectileTexture);}

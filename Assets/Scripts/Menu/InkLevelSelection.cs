@@ -14,6 +14,9 @@ namespace TomorinTrial
         TrialLevel soloLevel;
         Button[] soloDifficulty, networkDifficulty;
         Text soloDifficultyHint, networkDifficultyHint;
+        RectTransform networkLevels;
+        Button closeNetworkLevels;
+        bool NetworkLevelsOpen => networkLevels && networkLevels.gameObject.activeSelf;
         List<(TrialLevel level, Button button, Text caption)> networkLevelRows;
         static readonly TrialDifficulty[] Difficulties = {TrialDifficulty.Easy, TrialDifficulty.Normal, TrialDifficulty.Hard};
 
@@ -60,22 +63,60 @@ namespace TomorinTrial
 
         void BuildNetworkLevels()
         {
-            networkLevels = Panel("Network levels", root, 0, 0, 670, 770, Paper);
-            networkLevels.GetComponent<Image>().raycastTarget = true;
-            Line(networkLevels, 0, 0, 1, 770, new Color(.13f,.14f,.13f,.18f));
-            Label(networkLevels, "联机关卡", 38, 24, 590, 64, 34, Ink);
-            networkDifficulty = BuildDifficultyButtons(networkLevels, 38, 96, 148, manager.SelectDifficulty);
-            networkDifficultyHint = Label(networkLevels, "", 38, 146, 590, 31, 16, Grey);
-            var scroll = BuildLevelScroll(networkLevels, 38, 187, 590, 550);
-            networkLevelRows = BuildLevelRows(scroll, 566, true, manager.SelectLevel);
+            networkLevels = Panel("Network levels", root, 0, 0, 1600, 900, new Color(.03f,.04f,.04f,.7f));
+            Stretch(networkLevels);
+            var card = Panel("Room level selection", networkLevels, 0, 0, 900, 830, Paper);
+            card.anchorMin = card.anchorMax = card.pivot = new Vector2(.5f,.5f);
+            card.anchoredPosition = Vector2.zero;
+            TrialModalBackdrop.Bind(networkLevels, card, CloseNetworkLevels);
+            Line(card, 0, 0, 3, 830, Red);
+            Label(card, "联机关卡", 32, 20, 820, 58, 32, Ink);
+            networkDifficulty = BuildDifficultyButtons(card, 24, 82, 155, difficulty =>
+            {
+                manager.SelectDifficulty(difficulty);
+                RefreshNetworkLevels();
+            });
+            networkDifficultyHint = Label(card, "", 550, 82, 320, 48, 15, Grey);
+            var scroll = BuildLevelScroll(card, 24, 150, 852, 586);
+            networkLevelRows = BuildLevelRows(scroll, 828, true, level =>
+            {
+                manager.SelectLevel(level);
+                RefreshNetwork();
+                CloseNetworkLevels();
+            });
+            closeNetworkLevels = Button(card, "返回", 24, 766, 220, 48, "←");
+            closeNetworkLevels.onClick.AddListener(CloseNetworkLevels);
+            WireDifficultyNavigation(networkDifficulty, closeNetworkLevels, networkLevelRows[0].button);
+            for (int i = 0; i < networkLevelRows.Count; i++)
+                SetDirectionalNavigation(networkLevelRows[i].button,
+                    up:i>0?networkLevelRows[i-1].button:networkDifficulty[0],
+                    down:i+1<networkLevelRows.Count?networkLevelRows[i+1].button:closeNetworkLevels);
+            SetDirectionalNavigation(closeNetworkLevels, up:networkLevelRows[networkLevelRows.Count-1].button, down:networkDifficulty[0]);
+            networkLevels.gameObject.SetActive(false);
         }
 
-        void RefreshNetworkLevels(bool editable)
+        void OpenNetworkLevels()
         {
-            RefreshDifficultyButtons(networkDifficulty, networkDifficultyHint, manager.SelectedDifficulty, editable);
+            if (!networkLevels) BuildNetworkLevels();
+            RefreshNetworkLevels();
+            networkLevels.gameObject.SetActive(true);
+            networkLevels.SetAsLastSibling();
+            networkLevelRows[0].button.Select();
+        }
+
+        void CloseNetworkLevels()
+        {
+            if (!NetworkLevelsOpen) return;
+            networkLevels.gameObject.SetActive(false);
+            if (CanNavigate(changeLevel)) changeLevel.Select();
+        }
+
+        void RefreshNetworkLevels()
+        {
+            if (!networkLevels) return;
+            RefreshDifficultyButtons(networkDifficulty, networkDifficultyHint, manager.SelectedDifficulty, true);
             foreach (var row in networkLevelRows)
             {
-                row.button.interactable = editable;
                 row.caption.text = (row.level == manager.SelectedLevel ? "●  " : "") + TrialChampionCatalog.LevelName(row.level);
             }
         }

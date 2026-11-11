@@ -74,10 +74,20 @@ namespace TomorinTrial
         }
         public void SetWeapon(Transform sword) {weapon=sword;}
         public void SetFlask(Transform value){flask=value;}
+        Vector3 lastTerracePosePosition;
+        float terraceSlide;
         void LateUpdate()
         {
             if(fighter==null || fighter.CombatFrozen) return;
             if(Time.deltaTime<=0)return;
+            if(player && player.TerraceRules)
+            {
+                Vector3 displacement=TrialChampion.Planar(transform.position-lastTerracePosePosition);
+                lastTerracePosePosition=transform.position;
+                float slide=fighter.Action==FighterAction.Stagger && displacement.sqrMagnitude<1
+                    ?Mathf.Clamp01(displacement.magnitude/(Time.deltaTime*4.2f)):0;
+                terraceSlide=Mathf.MoveTowards(terraceSlide,slide,Time.deltaTime*18);
+            }
             float gaitSpeed=scabbard?Mathf.Lerp(6.8f,13.3f,Mathf.InverseLerp(.55f,1.6f,fighter.MoveBlend))
                 :Mathf.Lerp(8.8f,12.8f,Mathf.InverseLerp(.5f,1.6f,fighter.MoveBlend));
             phase=Mathf.Repeat(phase+Time.deltaTime*gaitSpeed*Mathf.Clamp01(fighter.MoveBlend*2),2*Mathf.PI);
@@ -555,7 +565,14 @@ namespace TomorinTrial
                 offhand=new Vector3(-.28f,.65f,.12f);
                 hand=new Vector3(.32f,.67f,.14f);swordAngles=new Vector3(15,15,-55);lean=-6*FlaskLift(p);
             }
-            if(action==FighterAction.Stagger) {lean=-24*Mathf.Sin(p*Mathf.PI);twist=12;hand.z=.13f;}
+            if(action==FighterAction.Stagger)
+            {
+                lean=-24*Mathf.Sin(p*Mathf.PI)-16*terraceSlide;
+                twist=12;hand.z=.13f;
+                offhand.z+=.22f*terraceSlide;
+                Leg(leftLeg,leftFoot,-19*terraceSlide);
+                Leg(rightLeg,rightFoot,24*terraceSlide);
+            }
             if(action==FighterAction.Dodge)
             {
                 var rollAxis=player && player.DodgeDirection.sqrMagnitude>.01f?transform.InverseTransformDirection(Vector3.Cross(Vector3.up,player.DodgeDirection)).normalized:Vector3.right;

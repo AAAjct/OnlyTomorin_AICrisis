@@ -14,6 +14,44 @@ namespace TomorinTrial.Editor
         static void ChooseAll(TrialPlayer player){player.OpenRunUpgrade();int count=0;while(player.ChoosingRunAffix && count++<100)player.ChooseRunAffix(0);}
         static void DefeatBoss(TrialGame game,TrialEnemy enemy)
         {if(enemy.Champion)enemy.Champion.CancelAttack(true);if(enemy.Boss)enemy.Boss.CancelAttack();Set(enemy,typeof(TrialFighter),"Health",0f);game.OnEnemyDied(enemy);}
+        static void CheckRunAnon(TrialGame game)
+        {
+            game.RestartTrial();
+            var player=game.Player;
+            if(player.ChoosingBoon)player.ChooseBoon(player.OfferA);
+            // A preceding guard catches assumptions that the boss is always enemy zero.
+            game.CreateRunGuard(new Vector3(-16,0,42));
+            game.SpawnRunBoss(3,1);
+            var boss=game.Enemies[game.Enemies.Count-1];
+            var brain=boss.Champion;
+            Check(brain.Kind==ChampionKind.Anon && brain.TerraceDuel,"Run Anon uses the standalone sword-duel brain");
+            Check(Mathf.Approximately(boss.MaxHealth,1800*TrialDifficultySettings.HealthScale(game.Difficulty)) && boss.PostureLimit==100,
+                "Run Anon shares standalone base health and posture");
+            var opponent=typeof(TrialPlayer).GetProperty("TerraceOpponent",BindingFlags.Instance|BindingFlags.NonPublic);
+            var rules=typeof(TrialPlayer).GetProperty("TerraceRules",BindingFlags.Instance|BindingFlags.NonPublic);
+            Check(opponent.GetValue(player)==boss && (bool)rules.GetValue(player),"Player finds run Anon after guards and enables sword-duel defenses");
+            boss.Teleport(new Vector3(18,0,42));player.Restore(new Vector3(18,0,37));Physics.SyncTransforms();
+            brain.BeginMove(0);
+            Check(brain.Move.name=="踏线挑斩" && Mathf.Approximately(brain.Move.windup,.68f),"Run Anon opens with the authored terrace slash and timing");
+            for(int move=0;move<13;move++)
+            {
+                brain.BeginMove(move);
+                var state=brain.CaptureNetwork();
+                Check(state.move==move && state.terraceWindup>0 && brain.Move.beats==1,"Run sword cut replicates terrace timing for move "+move);
+            }
+            brain.CancelAttack(true);
+            Vector3 before=boss.transform.position;
+            for(int step=0;step<30;step++)boss.Tick(.01f);
+            Check(Vector3.ProjectOnPlane(boss.transform.position-before,Vector3.up).sqrMagnitude>.01f,
+                "Run Anon moves freely beyond the standalone circular arena");
+            brain.CancelAttack(true);
+            Set(boss,typeof(TrialFighter),"Health",boss.MaxHealth*.45f);
+            for(int step=0;step<400 && brain.Phase==1;step++)boss.Tick(.01f);
+            Check(brain.Phase==2,"Run Anon enters the same second sword phase at half health");
+            DefeatBoss(game,boss);
+            Check(opponent.GetValue(player)==null && !(bool)rules.GetValue(player),"Run sword-duel rules end when Anon is defeated");
+            game.RestartTrial();
+        }
         [MenuItem("Tools/Tomorin/Verify endless run (Play Mode)")]
         public static void VerifyEndless(){Debug.Log(Endless());}
         public static string Endless()
@@ -76,7 +114,7 @@ namespace TomorinTrial.Editor
             for(int step=0;step<120;step++)game.Run.Tick(.7f);
             int live=0;foreach(var e in game.Enemies)if(e.Alive)live++;
             Check(live<=12,"Surviving enemies stop further spawns at the active cap");
-            game.RestartTrial();game.Pause();return Finish("endless");
+            CheckRunAnon(game);game.Pause();return Finish("endless");
         }
         [MenuItem("Tools/Tomorin/Verify Boss rush (Play Mode)")]
         public static void VerifyBossRush(){Debug.Log(BossRush());}
@@ -125,7 +163,7 @@ namespace TomorinTrial.Editor
             }
             game.Run.Tick(.1f);Check(game.Mode==TrialMode.Victory && seen.Count==8,"All eight distinct bosses complete the run");
             game.RestartTrial();Check(player.Flasks==3 && game.Run.BossesDefeated==0,"Restart resets full run and restores initial three flasks");
-            game.Pause();return Finish("boss-rush");
+            CheckRunAnon(game);game.Pause();return Finish("boss-rush");
         }
         static string Finish(string name)
         {string text=string.Join("\n",passed);System.IO.Directory.CreateDirectory("output");System.IO.File.WriteAllText("output/"+name+"-validation.txt",text);Debug.Log(name+" validation: "+passed.Count+" checks passed");return text;}

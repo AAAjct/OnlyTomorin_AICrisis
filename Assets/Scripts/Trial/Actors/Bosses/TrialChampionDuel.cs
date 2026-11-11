@@ -7,22 +7,27 @@ namespace TomorinTrial
         readonly TrialDuelRead duel=new TrialDuelRead();
         bool duelDeflected;
 
-        int ChooseDuelFollowup(float distance)
+        int ChooseDuelFollowup(float distance)=>ChooseDuelResponse(distance,true);
+
+        int ChooseDuelResponse(float distance,bool followup)
         {
-            // A quiet opponent earns the end of the string. No automatic random extension.
-            if(!duel.HoldingGuard && !duel.EarlyDodge && !duel.Healing && !duel.Charging && !duel.LightPressure)return -1;
-            int best=-1;float highest=1.01f;
+            int best=-1;float highest=0;
+            var target=game.CombatTarget;
             for(int i=0;i<TrialChampionCatalog.SkillCount;i++)
             {
-                if(i==previous)continue;
+                if(followup && i==previous)continue;
                 var move=TrialChampionCatalog.Move(Kind,i);
-                if(move.beats>4 || move.windup<.45f || MoveSuitability(move,distance)<=0)continue;
-                float score=duel.Weight(move);
-                if((usedMoves&(1u<<i))!=0)score*=.7f;
+                if((followup && (move.beats>4 || move.windup<.45f)) || MoveSuitability(move,distance)<=0)continue;
+                float score=duel.ResponseScore(move,distance)*HeightWeight(move,target);
+                if(i==previous)score*=.82f;
+                else if((usedMoves&(1u<<i))!=0)score*=.94f;
                 if(score>highest){highest=score;best=i;}
             }
             return best;
         }
+
+        internal bool BracesAgainst(TrialFighter attacker)=>Attacking && !Recovering && duel.BracesAgainst(attacker);
+        internal void ObserveParry(TrialPlayer defender)=>duel.ObserveParry(defender);
 
         bool TryDuelBranch()
         {

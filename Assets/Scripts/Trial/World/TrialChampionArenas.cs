@@ -4,11 +4,20 @@ namespace TomorinTrial
 {
     public sealed partial class TrialWorld
     {
+        const float ChampionArenaHalfExtent=24;
+        const float ChampionArenaWallThickness=.5f;
+
         void BuildChampionArena(TrialLevel level)
         {
             Root.name=TrialChampionCatalog.LevelName(level);
+            if(level==TrialLevel.Anon)
+            {
+                BuildSwordTerrace();
+                BatchStaticGeometry();
+                return;
+            }
             RenderSettings.fogDensity=.008f;
-            var accent=level==TrialLevel.Twins?Gold:level==TrialLevel.Anon?Crimson:level==TrialLevel.Taffy?Steel:level==TrialLevel.Penguin?Steel:Water;
+            var accent=level==TrialLevel.Twins?Gold:level==TrialLevel.Taffy?Steel:level==TrialLevel.Penguin?Steel:Water;
             Box("48m arena foundation",new Vector3(0,-.65f,25),new Vector3(50,1.2f,50),DarkStone);
             Box("Continuous walkable arena",new Vector3(0,-.16f,25),new Vector3(48,.28f,48),Stone);
             for(int x=-11;x<=11;x++)for(int z=1;z<=24;z++)
@@ -18,23 +27,22 @@ namespace TomorinTrial
             }
             for(int side=-1;side<=1;side+=2)
             {
-                PerimeterWall("Arena edge rail",new Vector3(side*24,1,25),new Vector3(.5f,2,49));
+                PerimeterWall("Arena edge rail",TerraceCenter+new Vector3(side*ChampionArenaHalfExtent,1,0),new Vector3(ChampionArenaWallThickness,2,49));
                 Box("Rail inlay",new Vector3(side*24,2.04f,25),new Vector3(.6f,.08f,49),accent,false);
                 for(int z=3;z<=47;z+=4)Box("Boundary post",new Vector3(side*24,1.35f,z),new Vector3(.85f,2.7f,.85f),accent,false);
             }
-            PerimeterWall("North boundary",new Vector3(0,1,49),new Vector3(48,2,.5f));
-            PerimeterWall("South boundary",new Vector3(0,1,1),new Vector3(48,2,.5f));
+            PerimeterWall("North boundary",TerraceCenter+new Vector3(0,1,ChampionArenaHalfExtent),new Vector3(48,2,ChampionArenaWallThickness));
+            PerimeterWall("South boundary",TerraceCenter+new Vector3(0,1,-ChampionArenaHalfExtent),new Vector3(48,2,ChampionArenaWallThickness));
             Gate=new GameObject("Boss challenge unlocked");Gate.transform.SetParent(Root,false);Gate.SetActive(false);
             ArenaEntrance=new GameObject("Challenge active");ArenaEntrance.transform.SetParent(Root,false);ArenaEntrance.SetActive(false);
             Ring(new Vector3(0,.035f,25),16,.055f,accent);Ring(new Vector3(0,.04f,25),15.7f,.025f,Gold);
             if(level==TrialLevel.Twins || level==TrialLevel.Endless || level==TrialLevel.BossRush)LotusCourt();
-            else if(level==TrialLevel.Anon)SwordTerrace();
             else if(level==TrialLevel.Taffy)BallisticsHarbor();
             else if(level==TrialLevel.Penguin)GlacialForge();
             else if(level==TrialLevel.Remnant)RemnantSanctum();
             else MoonObservatory();
             RenderSettings.skybox.SetColor("_HorizonColor",RenderSettings.fogColor*1.6f);
-            RenderSettings.skybox.SetColor("_ZenithColor",level==TrialLevel.Twins?new Color(.18f,.28f,.36f):level==TrialLevel.Anon?new Color(.28f,.12f,.19f):level==TrialLevel.Penguin?new Color(.19f,.35f,.47f):level==TrialLevel.YaYa?new Color(.055f,.035f,.13f):new Color(.02f,.08f,.12f));
+            RenderSettings.skybox.SetColor("_ZenithColor",level==TrialLevel.Twins?new Color(.18f,.28f,.36f):level==TrialLevel.Penguin?new Color(.19f,.35f,.47f):level==TrialLevel.YaYa?new Color(.055f,.035f,.13f):new Color(.02f,.08f,.12f));
             RenderSettings.ambientEquatorColor=RenderSettings.ambientSkyColor*.68f;RenderSettings.ambientGroundColor=RenderSettings.ambientSkyColor*.35f;
             Shrine();
             BatchStaticGeometry();
@@ -69,26 +77,6 @@ namespace TomorinTrial
             Temple(new Vector3(0,0,55),17,9);Torii(new Vector3(0,0,44),10);
             Ring(new Vector3(-7,.05f,25),5,.065f,Gold);Ring(new Vector3(7,.05f,25),5,.065f,Steel);
             for(int i=0;i<8;i++){float a=i*Mathf.PI/4;Box("Twin lotus inlay",new Vector3(Mathf.Sin(a)*12,.05f,25+Mathf.Cos(a)*12),new Vector3(.18f,.05f,2),Gold,false).localEulerAngles=new Vector3(0,i*45,0);}
-        }
-        void SwordTerrace()
-        {
-            Stone.SetColor("_BaseColor",new Color(.25f,.17f,.23f));
-            RenderSettings.fogColor=new Color(.26f,.13f,.16f);RenderSettings.ambientSkyColor=new Color(.48f,.34f,.36f);
-            for(int side=-1;side<=1;side+=2)
-            {
-                for(int z=8;z<=44;z+=9)
-                {
-                    Box("Sky colonnade",new Vector3(side*27,6,z),new Vector3(1.5f,12,1.5f),DarkStone,false);
-                    Box("Vermilion standard",new Vector3(side*26,7,z),new Vector3(.08f,5.8f,3.5f),Crimson,false);
-                    Box("High brass crossbar",new Vector3(side*27,12,z),new Vector3(4,.4f,2),Gold,false);
-                    Lantern(new Vector3(side*22,0,z),true);
-                }
-            }
-            Temple(new Vector3(0,0,56),18,11);
-            for(int i=0;i<18;i++)
-            {float a=i*Mathf.PI/9;var blade=Box("Memorial sword monolith",new Vector3(Mathf.Sin(a)*31,4,25+Mathf.Cos(a)*31),new Vector3(.45f,8,.16f),Steel,false);blade.localEulerAngles=new Vector3(0,i*20,-8);}
-            for(int z=5;z<=45;z+=4)Box("Sword path inlay",new Vector3(0,.05f,z),new Vector3(.08f,.04f,2.5f),Crimson,false);
-            Part("Distant red sun",PrimitiveType.Sphere,Root,new Vector3(0,35,110),Vector3.one*19,RedGlow);
         }
         void BallisticsHarbor()
         {

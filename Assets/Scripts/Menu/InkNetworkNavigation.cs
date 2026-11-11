@@ -10,6 +10,10 @@ namespace TomorinTrial
     {
         readonly List<Selectable> networkOrder=new List<Selectable>(24);
         int networkEditEndedFrame=-1;
+        EventSystem manualNavigationEvents;
+        bool originalNavigationEvents;
+        Vector2 navigationDirection;
+        float nextNavigationMove;
         void SelectNetworkEntry()
         {
             SelectNetworkDefault();
@@ -18,7 +22,7 @@ namespace TomorinTrial
 
         void SelectNetworkDefault()
         {
-            Selectable entry=manager.Busy ? (manager.IsHost ? begin : leave) : host;
+            Selectable entry=manager.Busy ? (manager.IsHost ? begin : leave) : roomFormOpen ? (creatingRoom ? host : join) : browseRooms;
             if(CanNavigate(entry))entry.Select();
             else if(CanNavigate(leave))leave.Select();
             else if(CanNavigate(back))back.Select();
@@ -40,11 +44,24 @@ namespace TomorinTrial
         {
             networkOrder.Clear();
             int previousRow=-1;
+            AddRow(browseRooms);
+            AddRow(createRoomTab);
+            AddRow(joinRoomTab);
             AddRow(nickname);
-            AddRow(address,port,configureTunnel);
+            AddRow(searchRooms);
+            foreach(var row in roomRows) AddRow(row);
+            AddRow(moreRooms);
+            AddRow(address);
+            AddRow(roomName);
+            AddRow(changeLevel);
+            AddRow(decreaseCapacity,increaseCapacity);
+            AddRow(relayHostMode,directHostMode);
+            AddRow(roomVisibility,configureTunnel,port);
+            AddRow(publicEndpoint);
             AddRow(host,join);
+            AddRow(previousRosterPage,nextRosterPage);
             AddRow(begin,leave);
-            AddRow(back);
+            AddRow(back,copyRoomCode);
             if(previousRow>=0)
             {
                 for(int i=0;i<networkOrder.Count && !networkOrder[i].navigation.selectOnUp;i++)
@@ -60,29 +77,27 @@ namespace TomorinTrial
                     networkOrder[i].navigation=nav;
                 }
             }
-            if(networkOrder.Count>0 && CanNavigate(networkDifficulty[0]))
+            if(!manager.Busy)
             {
-                int leftCount=networkOrder.Count;
-                var leftEntry=networkOrder[0];
-                var firstLevel=networkLevelRows[0].button;
-                var lastLevel=networkLevelRows[networkLevelRows.Count-1].button;
-                WireDifficultyNavigation(networkDifficulty,lastLevel,firstLevel,leftEntry);
-                networkOrder.AddRange(networkDifficulty);
-                for(int i=0;i<networkLevelRows.Count;i++)
+                Selectable first=RoomBrowserOpen
+                    ? (roomRows.Count>0 && CanNavigate(roomRows[0])?roomRows[0]:searchRooms)
+                    : creatingRoom?roomName:address;
+                var sidebar=new[]{browseRooms,createRoomTab,joinRoomTab,back};
+                for(int i=0;i<sidebar.Length;i++)
                 {
-                    var row=networkLevelRows[i];
-                    SetDirectionalNavigation(row.button,
-                        up:i>0?networkLevelRows[i-1].button:networkDifficulty[0],
-                        down:i+1<networkLevelRows.Count?networkLevelRows[i+1].button:networkDifficulty[0],
-                        left:leftEntry);
-                    networkOrder.Add(row.button);
+                    var nav=sidebar[i].navigation;
+                    nav.selectOnUp=sidebar[(i+sidebar.Length-1)%sidebar.Length];
+                    nav.selectOnDown=sidebar[(i+1)%sidebar.Length];
+                    nav.selectOnRight=CanNavigate(first)?first:nickname;
+                    sidebar[i].navigation=nav;
                 }
-                for(int i=0;i<leftCount;i++)
+                Selectable activeTab=roomFormOpen?(creatingRoom?createRoomTab:joinRoomTab):browseRooms;
+                foreach(var control in networkOrder)
                 {
-                    var nav=networkOrder[i].navigation;
-                    if(networkOrder.IndexOf(nav.selectOnRight)>i)continue;
-                    nav.selectOnRight=networkDifficulty[0];
-                    networkOrder[i].navigation=nav;
+                    if(System.Array.IndexOf(sidebar,control)>=0)continue;
+                    var nav=control.navigation;
+                    if(nav.selectOnLeft==control || nav.selectOnLeft==null)nav.selectOnLeft=activeTab;
+                    control.navigation=nav;
                 }
             }
             RestoreNetworkFocus();
@@ -112,31 +127,114 @@ namespace TomorinTrial
 
         void RestoreNetworkFocus()
         {
-            if(!EventSystem.current || !network.gameObject.activeSelf || quitPanel.activeSelf || levelList && levelList.activeSelf)return;
+            if(!EventSystem.current || !network.gameObject.activeSelf || quitPanel.activeSelf ||
+                settings.gameObject.activeInHierarchy || TrialSettingsPanel.InputBlocked || NetworkLevelsOpen || levelList && levelList.activeSelf)return;
             var current=EventSystem.current.currentSelectedGameObject;
             var selected=current?current.GetComponent<Selectable>():null;
             if(!networkOrder.Contains(selected) && networkOrder.Count>0)
                 SelectNetworkDefault();
         }
 
-        void UpdateNetworkNavigation(InputField field,Gamepad pad,Keyboard keys)
+        void SetManualNetworkNavigation(bool active)
         {
-            if(!network.gameObject.activeSelf || quitPanel.activeSelf)return;
-            if(NavigationActive)RestoreNetworkFocus();
-            if(field && field.isFocused && pad!=null && pad.buttonEast.wasPressedThisFrame)
+            var events=EventSystem.current;
+            if(active && events)
             {
-                field.DeactivateInputField();
-                return;
+                if(manualNavigationEvents!=events)
+                {
+                    SetManualNetworkNavigation(false);
+                    manualNavigationEvents=events;
+                    originalNavigationEvents=events.sendNavigationEvents;
+                }
+                // Keep pointer and text input in the UI module. Dispatch navigation once here.
+                events.sendNavigationEvents=false;
             }
-            if(EventSystem.current && keys!=null && keys.tabKey.wasPressedThisFrame)
+            else
+            {
+                if(manualNavigationEvents)manualNavigationEvents.sendNavigationEvents=originalNavigationEvents;
+                manualNavigationEvents=null;
+                navigationDirection=Vector2.zero;
+            }
+        }
+
+        bool UpdateNetworkNavigation(InputField field,Gamepad pad,Keyboard keys)
+        {
+            bool active=network.gameObject.activeInHierarchy && !quitPanel.activeSelf && !settings.gameObject.activeInHierarchy;
+            SetManualNetworkNavigation(active);
+            if(!active)return false;
+            if(!EventSystem.current || TrialSettingsPanel.InputBlocked)return true;
+            if(NetworkLevelsOpen)
+            {
+                var selected=EventSystem.current.currentSelectedGameObject;
+                if(!selected || !selected.transform.IsChildOf(networkLevels))networkDifficulty[0].Select();
+            }
+            else RestoreNetworkFocus();
+
+            bool cancel=keys?.escapeKey.wasPressedThisFrame==true || pad?.buttonEast.wasPressedThisFrame==true;
+            bool submit=keys?.enterKey.wasPressedThisFrame==true || keys?.spaceKey.wasPressedThisFrame==true || pad?.buttonSouth.wasPressedThisFrame==true;
+            if(keys?.tabKey.wasPressedThisFrame==true)
             {
                 if(field)field.DeactivateInputField();
-                var current=EventSystem.current.currentSelectedGameObject;
-                int index=networkOrder.FindIndex(s=>s.gameObject==current);
-                if(networkOrder.Count>0)networkOrder[(index+(keys.shiftKey.isPressed?-1:1)+networkOrder.Count)%networkOrder.Count].Select();
+                var order=networkOrder;
+                if(NetworkLevelsOpen)
+                {
+                    order=new List<Selectable>(networkDifficulty);
+                    foreach(var row in networkLevelRows)order.Add(row.button);
+                    order.Add(closeNetworkLevels);
+                }
+                int index=order.FindIndex(s=>s.gameObject==EventSystem.current.currentSelectedGameObject);
+                if(order.Count>0)order[(index+(keys.shiftKey.isPressed?-1:1)+order.Count)%order.Count].Select();
+                NavigationActive=true;
+                return true;
             }
-            if(pad!=null && pad.buttonEast.wasPressedThisFrame && networkEditEndedFrame!=Time.frameCount)
-            {if(manager.Busy)manager.Leave();else Show(home);}
+            if(field && field.isFocused)
+            {
+                if(cancel || (pad?.buttonSouth.wasPressedThisFrame==true))field.DeactivateInputField();
+                navigationDirection=Vector2.zero;
+                return true;
+            }
+            if(networkEditEndedFrame==Time.frameCount)return true;
+            if(cancel)
+            {
+                if(NetworkLevelsOpen)CloseNetworkLevels();
+                else if(manager.Busy)LeaveNetworkRoom();
+                else if(roomFormOpen)OpenRoomBrowser();
+                else Show(home);
+                return true;
+            }
+
+            Vector2 move=Vector2.zero;
+            if(keys!=null)
+            {
+                move.x=(keys.dKey.isPressed || keys.rightArrowKey.isPressed?1:0)-(keys.aKey.isPressed || keys.leftArrowKey.isPressed?1:0);
+                move.y=(keys.wKey.isPressed || keys.upArrowKey.isPressed?1:0)-(keys.sKey.isPressed || keys.downArrowKey.isPressed?1:0);
+            }
+            if(move==Vector2.zero && pad!=null)
+                move=pad.dpad.ReadValue().sqrMagnitude>.25f?pad.dpad.ReadValue():pad.leftStick.ReadValue();
+            if(move.sqrMagnitude<.3f)move=Vector2.zero;
+            else move=Mathf.Abs(move.x)>Mathf.Abs(move.y)?new Vector2(Mathf.Sign(move.x),0):new Vector2(0,Mathf.Sign(move.y));
+
+            if(move!=Vector2.zero && (move!=navigationDirection || Time.unscaledTime>=nextNavigationMove))
+            {
+                nextNavigationMove=Time.unscaledTime+(move!=navigationDirection?.35f:.11f);
+                NavigationActive=true;
+                var axis=new AxisEventData(EventSystem.current)
+                {
+                    moveVector=move,
+                    moveDir=move.x>0?MoveDirection.Right:move.x<0?MoveDirection.Left:move.y>0?MoveDirection.Up:MoveDirection.Down
+                };
+                ExecuteEvents.Execute(EventSystem.current.currentSelectedGameObject,axis,ExecuteEvents.moveHandler);
+            }
+            navigationDirection=move;
+            if(submit)
+            {
+                NavigationActive=true;
+                var selected=EventSystem.current.currentSelectedGameObject;
+                var input=selected?selected.GetComponent<InputField>():null;
+                if(input)input.ActivateInputField();
+                else ExecuteEvents.Execute(selected,new BaseEventData(EventSystem.current),ExecuteEvents.submitHandler);
+            }
+            return true;
         }
     }
 }

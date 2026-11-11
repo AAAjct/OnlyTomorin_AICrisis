@@ -15,6 +15,7 @@ namespace TomorinTrial
         public bool Dodge { get; private set; }
         public bool Jump { get; private set; }
         public bool Guard { get; private set; }
+        public bool GuardPressed { get; private set; }
         public bool Sprint { get; private set; }
         public bool Heal { get; private set; }
         public bool Interact { get; private set; }
@@ -26,19 +27,21 @@ namespace TomorinTrial
         public bool UsingGamepad=>ActiveGamepad!=null;
         internal Gamepad ActiveGamepad {get;private set;}
         int suppressUntilFrame=-1;
-        public void SuppressCombat(){suppressUntilFrame=Time.frameCount+2;Upgrade=Attack=AttackHeld=Heavy=HeavyHeld=Dodge=Jump=Guard=Heal=Interact=Lock=false;Spells=touchSpells=0;}
+        public void SuppressCombat(){suppressUntilFrame=Time.frameCount+2;Upgrade=Attack=AttackHeld=Heavy=HeavyHeld=Dodge=Jump=Guard=GuardPressed=Heal=Interact=Lock=false;touchGuardPressed=false;Spells=touchSpells=0;}
         bool sprintToggled;
         bool toggleSprint;
         int bindingVersion=-1;
         public Vector2 TouchMove, TouchLook;
         public bool TouchGuard,TouchSprint,TouchHeavy,TouchLight;
+        bool touchGuardPressed;
         byte touchPressed;
         byte touchSpells;
         public byte Spells { get; private set; }
         readonly InputAction[] spellActions=new InputAction[TrialPlayer.SpellCount];
         public void PressTouch(byte action){touchPressed|=action;}
+        internal void PressTouchGuard(){TouchGuard=true;touchGuardPressed=true;}
         public void PressSpell(int slot){if(slot>=0 && slot<spellActions.Length)touchSpells|=(byte)(1<<slot);}
-        public void ClearTouch(){TouchMove=TouchLook=Vector2.zero;TouchGuard=TouchSprint=TouchHeavy=TouchLight=false;touchPressed=touchSpells=0;}
+        public void ClearTouch(){TouchMove=TouchLook=Vector2.zero;TouchGuard=TouchSprint=TouchHeavy=TouchLight=touchGuardPressed=false;touchPressed=touchSpells=0;}
         public void ResetSprint(){sprintToggled=false;Sprint=false;ClearTouch();}
         void OnApplicationFocus(bool focused){if(!focused)ResetSprint();}
         InputAction move,look,attack,interact,sprint,heavy,dodge,jump,guard,heal,target,pause,confirm,upgrade;
@@ -51,7 +54,7 @@ namespace TomorinTrial
         {
             move=Move, yaw=yaw, spells=Spells,
             held=(byte)((Guard?1:0)|(Sprint?2:0)|(HeavyHeld?4:0)|(AttackHeld?8:0)),
-            pressed=(byte)((Attack?1:0)|(Heavy?2:0)|(Dodge?4:0)|(Heal?8:0)|(Lock?16:0)|(Interact?32:0)|(Jump?64:0))
+            pressed=(byte)((Attack?1:0)|(Heavy?2:0)|(Dodge?4:0)|(Heal?8:0)|(Lock?16:0)|(Interact?32:0)|(Jump?64:0)|(GuardPressed?TrialControls.GuardPress:0))
         };
         public void ApplyNetwork(TrialControls value)
         {
@@ -59,6 +62,7 @@ namespace TomorinTrial
             AttackHeld=(value.held&8)!=0;HeavyHeld=(value.held&4)!=0;Guard=(value.held&1)!=0;Sprint=(value.held&2)!=0;
             Attack=(value.pressed&1)!=0;Heavy=(value.pressed&2)!=0;Dodge=(value.pressed&4)!=0;
             Jump=(value.pressed&64)!=0;
+            GuardPressed=(value.pressed&TrialControls.GuardPress)!=0;
             Heal=(value.pressed&8)!=0;Lock=(value.pressed&16)!=0;Interact=(value.pressed&32)!=0;
         }
 
@@ -106,7 +110,7 @@ namespace TomorinTrial
             if(bindingVersion!=TrialBindings.Version)RefreshBindings();
             if(TrialSettingsPanel.InputBlocked || Time.frameCount<=suppressUntilFrame)
             {
-                Move=Look=Vector2.zero;Upgrade=Attack=AttackHeld=Heavy=HeavyHeld=Dodge=Jump=Guard=Heal=Interact=Lock=Pause=Confirm=Restart=false;ResetSprint();return;
+                Move=Look=Vector2.zero;Upgrade=Attack=AttackHeld=Heavy=HeavyHeld=Dodge=Jump=Guard=GuardPressed=Heal=Interact=Lock=Pause=Confirm=Restart=false;ResetSprint();return;
             }
             Move=Vector2.ClampMagnitude(move.ReadValue<Vector2>()+TouchMove,1);
             Look=look.ReadValue<Vector2>()*(look.activeControl?.device is Gamepad?125*Time.unscaledDeltaTime:.105f);
@@ -115,6 +119,8 @@ namespace TomorinTrial
             if(look.activeControl?.device is Touchscreen || Application.isMobilePlatform && look.activeControl?.device is Mouse)Look=Vector2.zero;
             AttackHeld=attack.IsPressed() || TouchLight;Attack=attack.WasPressedThisFrame();HeavyHeld=heavy.IsPressed() || TouchHeavy;Heavy=heavy.WasPressedThisFrame();Dodge=dodge.WasPressedThisFrame();Guard=guard.IsPressed();
             Jump=jump.WasPressedThisFrame();Upgrade=upgrade.WasPressedThisFrame();
+            GuardPressed=guard.WasPressedThisFrame() || touchGuardPressed;
+            touchGuardPressed=false;
             // Mobile taps belong to UI controls, including taps reported as mouse clicks.
             // Apply the dedicated light-attack button below after filtering raw pointer input.
             if(attack.activeControl?.device is Touchscreen || Application.isMobilePlatform && attack.activeControl?.device is Mouse){Attack=false;AttackHeld=TouchLight;}

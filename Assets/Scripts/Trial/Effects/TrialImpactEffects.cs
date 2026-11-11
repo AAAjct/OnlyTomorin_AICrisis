@@ -67,6 +67,21 @@ namespace TomorinTrial
             arc.line.SetPositions(slashPoints);arc.line.widthMultiplier=width>0?width:ring?.045f:.13f;arc.tint=tint;arc.lifetime=duration>0?duration:ring?.32f:.19f;arc.until=Time.unscaledTime+arc.lifetime;arc.line.enabled=true;
             arc.line.startColor=arc.line.endColor=tint;
         }
+        void TerraceClashSparks(Vector3 point,Vector3 forward,bool broken,bool parry)
+        {
+            Vector3 side=Vector3.Cross(Vector3.up,forward).normalized;
+            int count=TrialGraphicsBudget.Performance || Application.isMobilePlatform?4:broken?12:parry?8:5;
+            for(int i=0;i<count;i++)
+            {
+                float angle=i*2.39996f;
+                float spread=.50f+(i*7%11)*.085f;
+                Vector3 step=(side*Mathf.Cos(angle)+Vector3.up*Mathf.Sin(angle)+forward*.22f)*spread*(broken?1.35f:1);
+                var spark=Ribbon(new Color(1.5f,.69f,.19f),broken?.044f:.032f,.09f+i%3*.024f,3);
+                RibbonPoint(spark,0,point+step*.14f);
+                RibbonPoint(spark,1,point+step*.64f);
+                RibbonPoint(spark,2,point+step-Vector3.up*.12f);
+            }
+        }
         float nextGhostBake;
         public void Afterimage(TrialPlayer player,bool perfect=true)
         {
@@ -164,6 +179,13 @@ namespace TomorinTrial
             {SlashEffect(value.position,value.forward,new Color(1,.85f,.45f),2.2f);Burst(value.position,new Color(1,.86f,.5f),60);Sound("counter",value.position);if(local){HitStop(.09f);Rumble(.6f,.85f,.15f);game.CameraRig.Pulse(6);game.Hud.Flash(new Color(1,.84f,.4f,.12f));}return true;}
             if(cue==TrialCombatCue.SkillImpact)
             {ShowSkillImpact(value.position,new Color(value.forward.x,value.forward.y,value.forward.z));return true;}
+            if(cue is TrialCombatCue.RunFrostOrbCast or TrialCombatCue.RunFrostOrbImpact)
+            {
+                bool impact=cue==TrialCombatCue.RunFrostOrbImpact;
+                Burst(value.position,new Color(.54f,.89f,1),impact?20:8);
+                Sound(impact?"bubblePop":"bubbleCast",value.position,impact?1.16f:1.24f);
+                return true;
+            }
             if(cue==TrialCombatCue.Hurt)
             {
                 Sound("hurt",value.position,Random.Range(.94f,1.04f));

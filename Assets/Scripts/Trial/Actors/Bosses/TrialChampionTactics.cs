@@ -34,20 +34,12 @@ namespace TomorinTrial
         void ResetTactics()
         {duel.Reset();duelDeflected=false;respite=pursuitAge=guardTime=guardCooldown=0;chainDepth=0;guardCounter=false;KillStacks=0;fighter.BossGuard(false);}
 
-        float CommitmentWeight(ChampionMove move,TrialPlayer target)
+        float HeightWeight(ChampionMove move,TrialPlayer target)
         {
-            float weight=1;
-            if(duel.EarlyDodge)
-                weight*=move.windup>=.95f?2.4f:.65f;
-            if(duel.Charging)
-                weight*=move.shape==ChampionShape.Thrust || move.shape==ChampionShape.DashCut || move.shape==ChampionShape.Snipe?2:1;
-            if(target.transform.position.y>transform.position.y+1.2f)
-            {
-                bool projectile=move.shape==ChampionShape.Bullets || move.shape==ChampionShape.Snipe || move.shape==ChampionShape.Flight;
-                bool landing=move.shape==ChampionShape.Leap || move.shape==ChampionShape.Dive || move.shape==ChampionShape.Mark;
-                weight*=projectile?4:landing?2:.35f;
-            }
-            return weight;
+            if(target.transform.position.y<=transform.position.y+1.2f)return 1;
+            bool projectile=move.shape==ChampionShape.Bullets || move.shape==ChampionShape.Snipe || move.shape==ChampionShape.Flight;
+            bool landing=move.shape==ChampionShape.Leap || move.shape==ChampionShape.Dive || move.shape==ChampionShape.Mark;
+            return projectile?4:landing?2:.35f;
         }
 
         bool TryChainPressure(ChampionMove completed,int depth)
@@ -112,7 +104,7 @@ namespace TomorinTrial
             }
             if(Kind!=ChampionKind.Anon && !IsRemnant)return false;
             if(guardCooldown>0 || distance>5.2f || target.Invulnerable)return false;
-            bool light=duel.LightPressure;
+            bool light=duel.LightPressure || duel.RepeatingLight && TrialDuelRead.IsBasicLight(target);
             if(!light || target.Action==FighterAction.Heavy || target.Action==FighterAction.Charge)return false;
             if(Vector3.Angle(transform.forward,target.transform.position-transform.position)>80)return false;
             guardTime=IsRemnant?.38f:.55f;guardCooldown=IsRemnant?1.1f:1.85f;guardCounter=false;
@@ -122,7 +114,7 @@ namespace TomorinTrial
         public bool TryGuardHit(TrialFighter attacker,bool unblockable)
         {
             if(!fighter.Guarding || guardTime<=0 || unblockable || !attacker || fighter.Vulnerable)return false;
-            if(attacker.Action==FighterAction.Heavy || Vector3.Angle(transform.forward,attacker.transform.position-transform.position)>85)
+            if(!TrialDuelRead.IsBasicLight(attacker) || Vector3.Angle(transform.forward,attacker.transform.position-transform.position)>85)
             {guardTime=0;fighter.BossGuard(false);return false;}
             guardCounter=true;
             if(Kind==ChampionKind.Anon && attacker is TrialPlayer player)

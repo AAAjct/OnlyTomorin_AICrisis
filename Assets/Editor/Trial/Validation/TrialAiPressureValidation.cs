@@ -61,6 +61,11 @@ namespace TomorinTrial.Editor
                     var load=SceneManager.LoadSceneAsync(TrialChampionCatalog.Scene(level));while(!load.isDone)yield return null;
                     var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
                     while(!game || !game.Ready){yield return null;game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();}
+                    if(level==TrialLevel.Anon)
+                    {
+                        Check(TrialTerraceValidation.Run().StartsWith("PASS"),"Crimson Sword Terrace passes its dedicated combat checks");
+                        continue;
+                    }
                     if(level==TrialLevel.Twins)ValidateDisplaySettings(game.GetComponentsInChildren<TrialSettingsPanel>(true)[0]);
                     game.StartTrial();if(level==TrialLevel.BigFish)game.StartBossChallenge();
                     if(game.Player.ChoosingBoon)game.Player.ChooseBoon(game.Player.OfferA);
