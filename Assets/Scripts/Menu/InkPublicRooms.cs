@@ -139,7 +139,8 @@ namespace TomorinTrial
             button.gameObject.AddComponent<InkLevelRowFocus>().Scroll = roomResults;
             button.onClick.AddListener(() =>
             {
-                CloseRoomBrowser();
+                joinConnectionFeedback = true;
+                SelectRoomTab(false);
                 manager.JoinPublicRoom(room.Id, nickname.text);
             });
             roomRows.Add(button);

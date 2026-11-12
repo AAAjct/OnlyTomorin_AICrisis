@@ -14,12 +14,12 @@ namespace TomorinTrial
         Button joinRoomTab, createRoomTab, configureTunnel, changeLevel, copyRoomCode;
         Button decreaseCapacity, increaseCapacity, previousRosterPage, nextRosterPage;
         Button relayHostMode, directHostMode;
-        Text networkTitle, roomType, pendingStatus, levelCaption, capacityValue;
+        Text networkTitle, roomType, pendingStatus, joinStatus, levelCaption, capacityValue;
         Text addressLabel, portLabel, inviteCodeValue, rosterPageLabel, leaveLabel;
         Text nicknameLabel;
         InputField roomName, publicEndpoint;
         Text roomNameLabel, publicEndpointLabel;
-        bool relayMode, creatingRoom, roomFormOpen;
+        bool relayMode, creatingRoom, roomFormOpen, joinConnectionFeedback;
         bool hostUsesRelay = true;
         int rosterPage;
         float rosterNameWidth;
@@ -68,10 +68,15 @@ namespace TomorinTrial
 
             host.onClick.AddListener(() =>
             {
+                joinConnectionFeedback = false;
                 if (relayMode) manager.HostRelay(nickname.text, createPublicRoom, roomName.text);
                 else manager.HostDirect(port.text, nickname.text, createPublicRoom, publicEndpoint.text, roomName.text);
             });
-            join.onClick.AddListener(() => manager.JoinRoom(address.text, nickname.text));
+            join.onClick.AddListener(() =>
+            {
+                joinConnectionFeedback = true;
+                manager.JoinRoom(address.text, nickname.text);
+            });
             begin.onClick.AddListener(manager.BeginTogether);
             leave.onClick.AddListener(LeaveNetworkRoom);
             back.onClick.AddListener(() => { if (roomFormOpen) OpenRoomBrowser(); else Show(home); });
@@ -91,6 +96,8 @@ namespace TomorinTrial
             configureTunnel = LobbyButton(lobbyForm, "随机端口", 0, 80, 480, 48);
             configureTunnel.onClick.AddListener(ConfigureHostTunnel);
             StyleLobbyButton(join, lobbyForm, "加入", 0, 178, 700, 54, primary: true);
+            joinStatus = Label(lobbyForm, "", 0, 248, 700, 92, 17, Red);
+            joinStatus.verticalOverflow = VerticalWrapMode.Truncate;
         }
 
         void BuildRoomSettings()
@@ -265,7 +272,10 @@ namespace TomorinTrial
             status.color = problem ? Red : Grey;
             status.text = connecting || message == "尚未连接" || message == "已离开房间" || (inRoom && manager.IsHost && !problem)
                 ? (inRoom && manager.IsHost && !begin.interactable ? "竞技场至少需要 2 名玩家" : "") : message;
-            status.gameObject.SetActive(true);
+            joinStatus.text = joinConnectionFeedback ? status.text : "";
+            joinStatus.color = status.color;
+            joinStatus.gameObject.SetActive(joinRoom && joinConnectionFeedback);
+            status.gameObject.SetActive(!joinRoom && (!joinConnectionFeedback || inRoom));
             RefreshNetworkNavigation();
         }
 
