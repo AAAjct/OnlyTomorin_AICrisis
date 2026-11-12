@@ -45,7 +45,7 @@ namespace TomorinTrial.Editor
 
         public static void Capture(string path,int width=1600,int height=900)
         {
-            var camera=Camera.main;var canvas=Object.FindFirstObjectByType<InkMainMenu>().GetComponentInChildren<Canvas>();
+            var camera=Camera.main;var canvas=Object.FindAnyObjectByType<InkMainMenu>().GetComponentInChildren<Canvas>();
             var mode=canvas.renderMode;var view=canvas.worldCamera;float plane=canvas.planeDistance;
             var target=camera.targetTexture;var active=RenderTexture.active;
             var rt=new RenderTexture(width,height,24);var texture=new Texture2D(width,height,TextureFormat.RGB24,false);

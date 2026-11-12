@@ -24,7 +24,7 @@ namespace TomorinTrial.Editor
         static IEnumerator PresentationChecks()
         {
             double deadline;
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();Check(game && game.Ready,"Combat bootstrap is ready");
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();Check(game && game.Ready,"Combat bootstrap is ready");
             game.Input.SetDeviceFilter(new InputDevice[]{keyboard});game.RestartTrial();Keys();yield return .25f;
             var enemy=game.Enemies[0];var left=Bone(enemy,"hand.L");var right=Bone(enemy,"hand.R");
             Vector3 lp=enemy.transform.InverseTransformPoint(left.position),rp=enemy.transform.InverseTransformPoint(right.position);

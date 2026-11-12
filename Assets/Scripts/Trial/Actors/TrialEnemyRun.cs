@@ -4,6 +4,7 @@ namespace TomorinTrial
 {
     public sealed partial class TrialEnemy
     {
+        internal int RunNetworkId { get; set; }
         float runHealthScale=1;
         public float RunDamageScale {get;private set;}=1;
         float runSlow,runSlowUntil,burnUntil,burnClock,burnDamage;

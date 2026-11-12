@@ -29,8 +29,8 @@ namespace TomorinTrial.Editor
                 client.OnData=Receive;client.Connect("127.0.0.1",transport.port);
                 Until();while(Waiting(lobby && network.Members.Length==2))yield return .02f;
                 Check(receivedLevel==TrialLevel.Anon,"TCP lobby selects the sword saint encounter");network.BeginTogether();
-                Until();while(Waiting(sceneReceived && UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready==true))yield return .02f;
-                Send(new ReadyMessage());var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+                Until();while(Waiting(sceneReceived && UnityEngine.Object.FindAnyObjectByType<TrialGame>()?.Ready==true))yield return .02f;
+                Send(new ReadyMessage());var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
                 Until();while(Waiting(network.Players.Count==2 && world.champions!=null && world.champions.Length==1))yield return .02f;
                 game.Player.ChooseBoon(game.Player.OfferA);var remote=network.Players.First(p=>p!=game.Player);Send(new TrialChooseBoon{boon=remote.OfferA});
                 Until();while(Waiting(!remote.ChoosingBoon))yield return .02f;

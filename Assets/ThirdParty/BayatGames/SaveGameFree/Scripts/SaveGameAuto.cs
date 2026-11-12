@@ -95,6 +95,7 @@ namespace BayatGames.SaveGameFree
 		/// <summary>
 		/// The encoding.
 		/// </summary>
+		[System.NonSerialized]
 		public Encoding encoding;
 
 		[Tooltip ( "Where to save? (PersistentDataPath highly recommended)." )]

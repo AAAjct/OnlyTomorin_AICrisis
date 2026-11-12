@@ -52,6 +52,7 @@ namespace TomorinTrial
             SetDirectionalNavigation(cancelQuit, left: confirmQuit, right: confirmQuit);
             NavigationActive = false; RefreshButtonStyles();
             FitLobbyCard(network, new Vector2(.035f, .04f), new Vector2(.965f, .96f));
+            network.gameObject.AddComponent<TrialMobileKeyboardAvoidance>().Configure(network);
             liveMaterial = new Material(inkMaterial); backdrop.material = liveMaterial;
             ReducedMotion = PlayerPrefs.GetInt("Ink.ReducedMotion", 0) == 1;
             AudioListener.volume = PlayerPrefs.GetFloat("Ink.Volume", .7f);
@@ -201,7 +202,7 @@ namespace TomorinTrial
             confirmQuit = Button(popup, "离开游戏", 38, 173, 280, 57, "→"); cancelQuit = Button(popup, "再留片刻", 344, 173, 290, 57, "←"); quitPanel.SetActive(false);
             network.gameObject.SetActive(false);
             InstallTitleArtwork();
-            if (!FindFirstObjectByType<EventSystem>()) new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+            if (!FindAnyObjectByType<EventSystem>()) new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
         }
         RectTransform Rect(string name, Transform parent, Vector2 point, Vector2 size)
         {

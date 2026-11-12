@@ -12,7 +12,7 @@ namespace TomorinTrial.Editor
         [MenuItem("Tools/Tomorin/Verify combat upgrade over TCP")]
         public static void RunCombatUpgradeNetwork()
         {
-            if(!EditorApplication.isPlaying || routine!=null || !UnityEngine.Object.FindFirstObjectByType<InkMainMenu>() || TrialNetworkManager.SessionActive)
+            if(!EditorApplication.isPlaying || routine!=null || !UnityEngine.Object.FindAnyObjectByType<InkMainMenu>() || TrialNetworkManager.SessionActive)
                 throw new InvalidOperationException("Start InkStart in Play Mode outside a network session.");
             results.Clear();events.Clear();runtimeErrors=0;reportName="CombatUpgradeNetworkValidation.txt";Status="Running combat upgrade TCP";
             Application.logMessageReceived+=CaptureError;routine=CombatUpgradeNetworkChecks();resumeAt=heartbeat=0;EditorApplication.update+=Step;
@@ -29,9 +29,9 @@ namespace TomorinTrial.Editor
                 client.OnConnected=()=>{Send(new ReadyMessage());Send(new TrialHello{name="UpgradePeer"});};
                 client.OnData=Receive;client.Connect("127.0.0.1",transport.port);
                 Until();while(Waiting(lobby && network.Members.Length==2))yield return .02f;
-                network.BeginTogether();Until();while(Waiting(sceneReceived && UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready==true))yield return .02f;
+                network.BeginTogether();Until();while(Waiting(sceneReceived && UnityEngine.Object.FindAnyObjectByType<TrialGame>()?.Ready==true))yield return .02f;
                 Send(new ReadyMessage());Until();while(Waiting(network.Players.Count()==2 && world.players!=null))yield return .02f;
-                var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();var remote=network.Players.First(p=>p!=game.Player);
+                var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();var remote=network.Players.First(p=>p!=game.Player);
                 game.Player.ChooseBoon(game.Player.OfferA);
                 float seconds=game.PlaySeconds;var position=remote.transform.position;
                 var enemy=game.Enemies[0];enemy.Teleport(game.Player.transform.position+Vector3.forward*2);
@@ -60,14 +60,14 @@ namespace TomorinTrial.Editor
                 foreach(var guard in game.Enemies)if(!guard.IsBoss)guard.ReceiveHit(game.Player,99999,100,true);
                 boss.ReceiveHit(game.Player,99999,100,true);yield return .15f;
                 sceneReceived=false;Send(new TrialReturnToRoom());
-                Until();while(Waiting(sceneReceived && UnityEngine.Object.FindFirstObjectByType<InkMainMenu>()!=null))yield return .02f;
+                Until();while(Waiting(sceneReceived && UnityEngine.Object.FindAnyObjectByType<InkMainMenu>()!=null))yield return .02f;
                 Send(new ReadyMessage());yield return .2f;
                 Check(client.Connected && NetworkClient.isConnected && network.Members.Length==2,"Victory return loads the existing room without disconnecting either member");
-                var menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();
+                var menu=UnityEngine.Object.FindAnyObjectByType<InkMainMenu>();
                 var panel=(RectTransform)typeof(InkMainMenu).GetField("network",Private).GetValue(menu);
                 Check(panel.gameObject.activeInHierarchy,"Returning title scene opens the existing room directly");
                 sceneReceived=false;network.BeginTogether();
-                Until();while(Waiting(sceneReceived && UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready==true))yield return .02f;
+                Until();while(Waiting(sceneReceived && UnityEngine.Object.FindAnyObjectByType<TrialGame>()?.Ready==true))yield return .02f;
                 Send(new ReadyMessage());Until();while(Waiting(network.Players.Count()==2))yield return .02f;
                 Check(client.Connected && network.WaitingForBoons,"The same peer enters another challenge without rejoining");
                 Check(runtimeErrors==0,"Shared barrier, permissions and repeated room transitions produce no runtime errors");

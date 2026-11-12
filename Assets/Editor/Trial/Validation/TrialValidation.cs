@@ -49,7 +49,7 @@ namespace TomorinTrial.Editor
         static void Keys(params Key[] keys){InputSystem.QueueStateEvent(keyboard,new KeyboardState(keys));}
         static IEnumerator Checks(bool returnToMenu=true)
         {
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
             Check(game!=null && game.Ready,"Scene bootstrap, Tomorin reference and four enemies");
             Check(game.Enemies.Count==4,"Three guards and one boss instantiated");
             game.Input.SetDeviceFilter(new InputDevice[]{keyboard});game.RestartTrial();game.Player.ChooseBoon(game.Player.OfferA);
@@ -105,7 +105,7 @@ namespace TomorinTrial.Editor
         {
             EditorApplication.update-=Step;routine=null;
             if(keyboard!=null){InputSystem.RemoveDevice(keyboard);keyboard=null;}
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();if(game && game.Ready)game.Input.SetDeviceFilter(null);
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();if(game && game.Ready)game.Input.SetDeviceFilter(null);
             InputSystem.settings.backgroundBehavior=previousBackgroundBehavior;InputSystem.settings.editorInputBehaviorInPlayMode=previousEditorBehavior;
             Status=error==null?"Passed "+passed.Count+" checks":"FAILED after "+passed.Count+": "+error.Message;
             Directory.CreateDirectory("Logs/Trial");
@@ -117,7 +117,7 @@ namespace TomorinTrial.Editor
         // camera for this render and restore it immediately, preserving the actual game UI mode.
         public static void Capture(string path)
         {
-            var camera=Camera.main;var hud=UnityEngine.Object.FindFirstObjectByType<TrialHud>();var canvas=hud.GetComponentInChildren<Canvas>();
+            var camera=Camera.main;var hud=UnityEngine.Object.FindAnyObjectByType<TrialHud>();var canvas=hud.GetComponentInChildren<Canvas>();
             var previousMode=canvas.renderMode;var previousCamera=canvas.worldCamera;float previousPlane=canvas.planeDistance;
             var rt=new RenderTexture(1600,900,24);var previousTarget=camera.targetTexture;var previousActive=RenderTexture.active;
             var texture=new Texture2D(1600,900,TextureFormat.RGB24,false);

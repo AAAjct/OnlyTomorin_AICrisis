@@ -24,7 +24,7 @@ namespace TomorinTrial.Editor
         }
         static IEnumerator DeathMenuChecks()
         {
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();Check(game && game.Ready,"Trial is ready");
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();Check(game && game.Ready,"Trial is ready");
             var pad=InputSystem.AddDevice<Gamepad>("Death menu gamepad");
             try
             {
@@ -59,18 +59,18 @@ namespace TomorinTrial.Editor
                 Keys(Key.DownArrow);yield return .12f;Keys();yield return .12f;
                 Check(EventSystem.current.currentSelectedGameObject==exit.gameObject,"Keyboard selects exit after death delay");
                 Keys(Key.Enter);yield return .15f;Keys();yield return .4f;
-                Check(UnityEngine.Object.FindFirstObjectByType<InkMainMenu>() && !UnityEngine.Object.FindFirstObjectByType<TrialGame>(),"Confirming exit returns to main menu without respawning");
-                var menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();
+                Check(UnityEngine.Object.FindAnyObjectByType<InkMainMenu>() && !UnityEngine.Object.FindAnyObjectByType<TrialGame>(),"Confirming exit returns to main menu without respawning");
+                var menu=UnityEngine.Object.FindAnyObjectByType<InkMainMenu>();
                 menu.GetComponentsInChildren<Button>().First(b=>b.name=="独行入庭").onClick.Invoke();
                 menu.GetComponentsInChildren<Button>().First(b=>b.name==TrialChampionCatalog.LevelName(TrialLevel.BigFish)).onClick.Invoke();
                 double deadline=EditorApplication.timeSinceStartup+15;
-                do{yield return .15f;game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();}while((!game || !game.Ready) && EditorApplication.timeSinceStartup<deadline);
+                do{yield return .15f;game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();}while((!game || !game.Ready) && EditorApplication.timeSinceStartup<deadline);
                 Check(game && game.Ready,"Main menu can start a fresh trial after death exit");
                 if(game.Player.ChoosingBoon)game.SelectRunBoon(game.Player.OfferA);
                 game.Player.ReceiveHit(null,99999,100,true);yield return 3.2f;
                 exit=game.Hud.GetComponentsInChildren<Button>().First(b=>b.name=="Boss challenge or title");
                 ExecuteEvents.Execute(exit.gameObject,new PointerEventData(EventSystem.current){button=PointerEventData.InputButton.Left},ExecuteEvents.pointerClickHandler);yield return .4f;
-                Check(UnityEngine.Object.FindFirstObjectByType<InkMainMenu>() && !UnityEngine.Object.FindFirstObjectByType<TrialGame>(),"Mouse click on death exit returns to main menu");
+                Check(UnityEngine.Object.FindAnyObjectByType<InkMainMenu>() && !UnityEngine.Object.FindAnyObjectByType<TrialGame>(),"Mouse click on death exit returns to main menu");
             }
             finally{InputSystem.RemoveDevice(pad);}
         }

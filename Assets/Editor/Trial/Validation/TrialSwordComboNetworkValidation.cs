@@ -12,7 +12,7 @@ namespace TomorinTrial.Editor
         [MenuItem("Tools/Tomorin/Verify ordered sword combo over TCP")]
         public static void RunSwordComboNetwork()
         {
-            if(!EditorApplication.isPlaying || routine!=null || !UnityEngine.Object.FindFirstObjectByType<InkMainMenu>() || TrialNetworkManager.SessionActive)
+            if(!EditorApplication.isPlaying || routine!=null || !UnityEngine.Object.FindAnyObjectByType<InkMainMenu>() || TrialNetworkManager.SessionActive)
                 throw new InvalidOperationException("Start InkStart in Play Mode outside a network session.");
             results.Clear();events.Clear();runtimeErrors=0;reportName="SwordComboNetworkValidation.txt";Status="Running sword combo TCP";
             Application.logMessageReceived+=CaptureError;routine=SwordComboNetworkChecks();resumeAt=heartbeat=0;EditorApplication.update+=Step;
@@ -29,9 +29,9 @@ namespace TomorinTrial.Editor
                 client.OnConnected=()=>{Send(new ReadyMessage());Send(new TrialHello{name="SwordPeer"});};
                 client.OnData=Receive;client.Connect("127.0.0.1",transport.port);
                 Until();while(Waiting(lobby && network.Members.Length==2))yield return .02f;
-                network.BeginTogether();Until();while(Waiting(sceneReceived && UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready==true))yield return .02f;
+                network.BeginTogether();Until();while(Waiting(sceneReceived && UnityEngine.Object.FindAnyObjectByType<TrialGame>()?.Ready==true))yield return .02f;
                 Send(new ReadyMessage());Until();while(Waiting(network.Players.Count()==2 && world.players!=null))yield return .02f;
-                var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();var remote=network.Players.First(p=>p!=game.Player);
+                var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();var remote=network.Players.First(p=>p!=game.Player);
                 game.Player.ChooseBoon(game.Player.OfferA);Send(new TrialChooseBoon{boon=remote.OfferA});
                 Until();while(Waiting(!network.WaitingForBoons))yield return .02f;
                 foreach(var enemy in game.Enemies)enemy.Teleport(new Vector3(12,0,36));

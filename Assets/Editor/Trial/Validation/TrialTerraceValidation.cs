@@ -16,7 +16,7 @@ namespace TomorinTrial.Editor
         [MenuItem("Tools/Tomorin/Validate Crimson Sword Terrace (Play Mode)")]
         public static string Run()
         {
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
             if(!EditorApplication.isPlaying || !game || !game.Ready || game.Level!=TrialLevel.Anon || TrialNetworkManager.SessionActive)
                 throw new InvalidOperationException("Run CrimsonSwordTerrace in standalone Play Mode.");
             var results=new List<string>();

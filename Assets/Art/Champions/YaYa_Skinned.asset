@@ -2336,7 +2336,7 @@ Mesh:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: YaYa_yaya.002_Weighted
+  m_Name: YaYa_Skinned
   serializedVersion: 12
   m_SubMeshes:
   - serializedVersion: 2

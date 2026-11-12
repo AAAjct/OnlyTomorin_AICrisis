@@ -33,7 +33,7 @@ namespace TomorinTrial
         public static void Cycle()
         {
             cachedPreset=((int)Preset+1)%3;PlayerPrefs.SetInt("Ink.GraphicsPreset",cachedPreset);PlayerPrefs.Save();
-            var budget=FindFirstObjectByType<TrialGraphicsBudget>();if(budget)budget.Apply();
+            var budget=FindAnyObjectByType<TrialGraphicsBudget>();if(budget)budget.Apply();
         }
         void Apply()
         {
@@ -50,7 +50,7 @@ namespace TomorinTrial
         void ApplySceneEffects()
         {
             foreach(var camera in Camera.allCameras)ApplyCamera(camera);
-            foreach(var volume in FindObjectsByType<Volume>(FindObjectsSortMode.None))
+            foreach(var volume in FindObjectsByType<Volume>())
                 if(volume.sharedProfile && volume.name=="Night atmosphere" && volume.sharedProfile.TryGet<Bloom>(out var bloom))bloom.active=!Application.isMobilePlatform && !Performance;
         }
         public static void ApplyCamera(Camera camera)

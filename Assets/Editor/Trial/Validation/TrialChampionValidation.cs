@@ -85,7 +85,7 @@ namespace TomorinTrial.Editor
             {
                 TrialLevel level=(TrialLevel)((int)TrialLevel.Twins+stage);Status="Testing "+level;
                 var load=SceneManager.LoadSceneAsync(TrialChampionCatalog.Scene(level));while(!load.isDone)yield return null;
-                var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();while(!game || !game.Ready){yield return null;game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();}
+                var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();while(!game || !game.Ready){yield return null;game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();}
                 Check(game.Level==level && game.IsChampionStage && game.GateOpen,level+" initializes intended open boss stage");
                 Check(game.Enemies.Count==(level==TrialLevel.Twins?2:1),level+" correct boss population");
                 game.StartTrial();if(game.Player.ChoosingBoon)game.Player.ChooseBoon(game.Player.OfferA);
@@ -177,7 +177,7 @@ namespace TomorinTrial.Editor
                     // Measure the actual rendered scene after warm-up, not the import/generation spike.
                     int frames=0;double total=0;float until=Time.realtimeSinceStartup+1;
                     while(Time.realtimeSinceStartup<until){total+=Time.unscaledDeltaTime;frames++;yield return null;}
-                    results.Add("MEASURE "+level+" rendered average="+(1000*total/Math.Max(1,frames)).ToString("F2")+"ms; active renderers="+UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None).Count(r=>r.enabled&&r.gameObject.activeInHierarchy)+"; hazards="+game.Enemies.Sum(e=>e.Champion.ActiveHazards));
+                    results.Add("MEASURE "+level+" rendered average="+(1000*total/Math.Max(1,frames)).ToString("F2")+"ms; active renderers="+UnityEngine.Object.FindObjectsByType<Renderer>().Count(r=>r.enabled&&r.gameObject.activeInHierarchy)+"; hazards="+game.Enemies.Sum(e=>e.Champion.ActiveHazards));
                     if(level==TrialLevel.Taffy)
                     {
                         game.enabled=false;var gunner=game.Enemies[0];Prepare(game,gunner);gunner.Champion.BeginMove(7);game.Player.Teleport(new Vector3(0,0,7));

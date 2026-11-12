@@ -23,7 +23,7 @@ namespace TomorinTrial.Editor
             var old=root.GetComponent<TrialSkirtRig>();if(old)Object.DestroyImmediate(old);
             foreach(var t in root.GetComponentsInChildren<Transform>().Where(t=>t.name.StartsWith("Skirt panel ")).ToArray())Object.DestroyImmediate(t.gameObject);
             var source=AssetDatabase.LoadAllAssetsAtPath("Assets/Art/Models/Anon/Anon.fbx").OfType<Mesh>().First(m=>m.vertexCount==skin.sharedMesh.vertexCount);
-            var mesh=Object.Instantiate(source);mesh.name="Anon skirt with leg clearance";
+            var mesh=Object.Instantiate(source);mesh.name=System.IO.Path.GetFileNameWithoutExtension(MeshPath);
             // This procedural boss never animates facial blend shapes (all source
             // weights are zero). Keep them in the imported FBX, not the generated copy.
             mesh.ClearBlendShapes();

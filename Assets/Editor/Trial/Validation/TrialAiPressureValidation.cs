@@ -59,8 +59,8 @@ namespace TomorinTrial.Editor
                 {
                     Status="Testing "+level;
                     var load=SceneManager.LoadSceneAsync(TrialChampionCatalog.Scene(level));while(!load.isDone)yield return null;
-                    var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
-                    while(!game || !game.Ready){yield return null;game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();}
+                    var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
+                    while(!game || !game.Ready){yield return null;game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();}
                     if(level==TrialLevel.Anon)
                     {
                         Check(TrialTerraceValidation.Run().StartsWith("PASS"),"Crimson Sword Terrace passes its dedicated combat checks");
@@ -141,7 +141,7 @@ namespace TomorinTrial.Editor
                 }
                 var menu=SceneManager.LoadSceneAsync("Assets/Scenes/InkStart.unity");while(!menu.isDone)yield return null;
                 yield return null;
-                ValidateDisplaySettings(UnityEngine.Object.FindFirstObjectByType<TrialSettingsPanel>(FindObjectsInactive.Include));
+                ValidateDisplaySettings(UnityEngine.Object.FindAnyObjectByType<TrialSettingsPanel>(FindObjectsInactive.Include));
             }
             finally{UnityEngine.Random.state=randomState;}
         }

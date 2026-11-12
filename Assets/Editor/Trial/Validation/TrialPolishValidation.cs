@@ -24,7 +24,7 @@ namespace TomorinTrial.Editor
         static IEnumerator PolishChecks()
         {
             var regression=Checks(false);while(regression.MoveNext())yield return regression.Current;
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();var player=game.Player;
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();var player=game.Player;
             game.RestartTrial();Keys();yield return .15f;
             Check(game.Enemies[0].Visual.name.Contains("NaiWa") && game.Enemies[0].Weapon==null,"Guards use NaiWa and bare hands");
             Check(InkMainMenu.TrySplitEndpoint("frp-six.com:24456",out var address,out var port) && address=="frp-six.com" && port=="24456","Pasted hostname and TCP port split correctly");

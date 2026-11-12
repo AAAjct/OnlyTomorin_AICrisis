@@ -13,14 +13,14 @@ namespace TomorinTrial.Editor
         [MenuItem("Tools/Tomorin/Verify courtyard selection and combat feel (Play Mode)")]
         public static void RunCombatFeel()
         {
-            if(!EditorApplication.isPlaying || routine!=null || !UnityEngine.Object.FindFirstObjectByType<InkMainMenu>() || TrialNetworkManager.SessionActive)
+            if(!EditorApplication.isPlaying || routine!=null || !UnityEngine.Object.FindAnyObjectByType<InkMainMenu>() || TrialNetworkManager.SessionActive)
                 throw new InvalidOperationException("Start InkStart in Play Mode outside a network session.");
             results.Clear();events.Clear();runtimeErrors=0;reportName="CombatFeelValidation.txt";Status="Running combat feel";
             Application.logMessageReceived+=CaptureError;routine=CombatFeelChecks();resumeAt=heartbeat=0;EditorApplication.update+=Step;
         }
         static void ClickMenu(string field)
         {
-            var menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();
+            var menu=UnityEngine.Object.FindAnyObjectByType<InkMainMenu>();
             ((UnityEngine.UI.Button)typeof(InkMainMenu).GetField(field,Private).GetValue(menu)).onClick.Invoke();
         }
         static IEnumerator CombatFeelChecks()
@@ -29,7 +29,7 @@ namespace TomorinTrial.Editor
             var oldBackground=InputSystem.settings.backgroundBehavior;var oldEditor=InputSystem.settings.editorInputBehaviorInPlayMode;
             try
             {
-                var menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();
+                var menu=UnityEngine.Object.FindAnyObjectByType<InkMainMenu>();
                 Check(menu.GetComponentsInChildren<UnityEngine.UI.Text>(true).Any(t=>t.text=="单人游玩"),"Main menu labels solo play correctly");
                 ClickMenu("solo");yield return .05f;
                 var courtyard=(UnityEngine.UI.Button)typeof(InkMainMenu).GetField("courtyardRow",Private).GetValue(menu);
@@ -42,8 +42,8 @@ namespace TomorinTrial.Editor
                     "The network page embeds a scrollable list with Arena first and Courtyard second");
                 ClickMenu("back");
                 ClickMenu("solo");courtyard.onClick.Invoke();
-                deadline=EditorApplication.timeSinceStartup+40;while(Waiting(UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready==true))yield return .03f;
-                var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();var player=game.Player;
+                deadline=EditorApplication.timeSinceStartup+40;while(Waiting(UnityEngine.Object.FindAnyObjectByType<TrialGame>()?.Ready==true))yield return .03f;
+                var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();var player=game.Player;
                 Check(player.MaxStamina==TrialPlayer.BaseStamina && player.Stamina==TrialPlayer.BaseStamina,"Initial stamina uses the increased 420-point base");
                 Check(player.ChoosingBoon && !game.GateOpen && game.DefeatedGuards==0 && game.Enemies.All(e=>e.Alive),"Solo Courtyard starts with guards, a sealed boss gate, and a three-choice boon prompt");
                 yield return .06f;
@@ -128,7 +128,7 @@ namespace TomorinTrial.Editor
                 if(cameraWall)UnityEngine.Object.DestroyImmediate(cameraWall);
                 if(pad!=null)InputSystem.RemoveDevice(pad);if(keys!=null)InputSystem.RemoveDevice(keys);
                 InputSystem.settings.backgroundBehavior=oldBackground;InputSystem.settings.editorInputBehaviorInPlayMode=oldEditor;
-                var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();if(game)game.enabled=true;
+                var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();if(game)game.enabled=true;
                 Time.timeScale=1;
             }
         }

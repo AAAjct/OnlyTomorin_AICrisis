@@ -16,7 +16,7 @@ namespace TomorinTrial.Editor
         public static void UpdateAssets()
         {
             if(EditorApplication.isPlaying)throw new System.InvalidOperationException("Leave Play Mode before updating assets.");
-            var game=Object.FindFirstObjectByType<TrialGame>();
+            var game=Object.FindAnyObjectByType<TrialGame>();
             if(!game || game.gameObject.scene.path!=TrialBuilder.ScenePath)
                 throw new System.InvalidOperationException("Open AshenCourt before updating the boss reference.");
             var model=AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);

@@ -561,7 +561,12 @@ namespace TomorinTrial
                 players[index++]=state;
             }
             var enemies = new TrialActorState[game.Enemies.Count];
-            for (int i = 0; i < enemies.Length; i++) { enemies[i] = game.Enemies[i].CaptureNetwork(game.IsRunStage?game.Enemies[i].GetInstanceID():i); enemies[i].awake = game.Enemies[i].Awakened; }
+            for (int i = 0; i < enemies.Length; i++)
+            {
+                var enemy = game.Enemies[i];
+                enemies[i] = enemy.CaptureNetwork(game.IsRunStage ? game.RunEnemyId(enemy) : i);
+                enemies[i].awake = enemy.Awakened;
+            }
             var fish=enemies.Length>0?game.Enemies[enemies.Length-1].Boss:null;
             var champions=game.IsChampionStage || game.IsRunStage?new TrialChampionState[enemies.Length]:Array.Empty<TrialChampionState>();
             for(int i=0;i<champions.Length;i++)champions[i]=game.Enemies[i].Champion?game.Enemies[i].Champion.CaptureNetwork():default;

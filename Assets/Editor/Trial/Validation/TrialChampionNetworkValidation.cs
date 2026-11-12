@@ -30,8 +30,8 @@ namespace TomorinTrial.Editor
                     client=new Telepathy.Client(65536){NoDelay=true};client.OnConnected=()=>{Send(new ReadyMessage());Send(new TrialHello{name="ChampionPeer"});};client.OnData=Receive;client.Connect("127.0.0.1",transport.port);
                     Until();while(Waiting(lobby && network.Members.Length==2))yield return .02f;
                     Check(receivedLevel==level,level+" lobby communicates selected stage");network.BeginTogether();
-                    Until();while(Waiting(sceneReceived && UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready==true))yield return .02f;
-                    Send(new ReadyMessage());var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+                    Until();while(Waiting(sceneReceived && UnityEngine.Object.FindAnyObjectByType<TrialGame>()?.Ready==true))yield return .02f;
+                    Send(new ReadyMessage());var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
                     Until();while(Waiting(network.Players.Count==2 && world.champions!=null && world.champions.Length==game.Enemies.Count))yield return .02f;
                     Check(game.Level==level && game.gameObject.scene.path==TrialChampionCatalog.Scene(level),level+" host loads intended scene");
                     Check(world.level==level && world.partySize==2,level+" peer receives authoritative stage and population");

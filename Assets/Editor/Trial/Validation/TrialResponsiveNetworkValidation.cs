@@ -13,7 +13,7 @@ namespace TomorinTrial.Editor
         [MenuItem("Tools/Tomorin/Verify responsive combat over real TCP")]
         public static void RunResponsiveNetwork()
         {
-            if(!EditorApplication.isPlaying || routine!=null || !UnityEngine.Object.FindFirstObjectByType<InkMainMenu>() || TrialNetworkManager.SessionActive)
+            if(!EditorApplication.isPlaying || routine!=null || !UnityEngine.Object.FindAnyObjectByType<InkMainMenu>() || TrialNetworkManager.SessionActive)
                 throw new InvalidOperationException("Start InkStart in Play Mode outside a network session.");
             results.Clear();events.Clear();runtimeErrors=0;reportName="ResponsiveNetworkValidation.txt";Status="Running responsive TCP combat";
             Application.logMessageReceived+=CaptureError;routine=ResponsiveNetworkChecks();resumeAt=heartbeat=0;EditorApplication.update+=Step;
@@ -31,9 +31,9 @@ namespace TomorinTrial.Editor
                 client.OnData=Receive;client.Connect("127.0.0.1",transport.port);
                 Until();while(Waiting(lobby && network.Members.Length==2))yield return .02f;
                 Check(remoteId!=network.LocalId,"Independent TCP peer joins the lobby with its own ID");
-                network.BeginTogether();Until();while(Waiting(sceneReceived && UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready==true))yield return .02f;
+                network.BeginTogether();Until();while(Waiting(sceneReceived && UnityEngine.Object.FindAnyObjectByType<TrialGame>()?.Ready==true))yield return .02f;
                 Send(new ReadyMessage());Until();while(Waiting(network.Players.Count()==2 && world.players!=null))yield return .02f;
-                var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();var remote=network.Players.First(p=>p!=game.Player);
+                var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();var remote=network.Players.First(p=>p!=game.Player);
                 game.Player.ChooseBoon(game.Player.OfferA);Send(new TrialChooseBoon{boon=remote.OfferA});
                 Until();while(Waiting(!remote.ChoosingBoon))yield return .02f;
                 foreach(var enemy in game.Enemies)enemy.Teleport(new Vector3(12,0,36));
@@ -62,14 +62,14 @@ namespace TomorinTrial.Editor
                 Check(impact.player==-1 && impact.forward.z==1,"World skill impact is broadcast once without assigning local-player feedback");
                 world.players=new[]{game.Player.CaptureNetwork(0),remote.CaptureNetwork(1)};
                 held=default;client.Disconnect();client=null;network.Leave();
-                Until();while(Waiting(UnityEngine.Object.FindFirstObjectByType<InkMainMenu>()!=null))yield return .03f;yield return .2f;
+                Until();while(Waiting(UnityEngine.Object.FindAnyObjectByType<InkMainMenu>()!=null))yield return .03f;yield return .2f;
 
                 incoming=new Unbatcher();peerReady=false;server=new Telepathy.Server(16384){NoDelay=true};
                 server.OnConnected=(id,address)=>serverPeer=id;server.OnData=(id,data)=>Receive(data);
                 Check(server.Start(18111),"Independent TCP authority starts for the real receiving-client test");
                 network=TrialNetworkManager.Current;((TelepathyTransport)network.transport).port=18111;network.networkAddress="127.0.0.1";network.Join();
-                Until();while(Waiting(UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready==true && peerReady))yield return .03f;
-                game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();Send(world);yield return .15f;
+                Until();while(Waiting(UnityEngine.Object.FindAnyObjectByType<TrialGame>()?.Ready==true && peerReady))yield return .03f;
+                game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();Send(world);yield return .15f;
                 Check(network.LocalId==1 && !NetworkServer.active,"The Unity game is a real receiving client with assigned ID 1");
                 var bearing=(Image)typeof(TrialHud).GetField("damageBearing",Private).GetValue(game.Hud);
                 var veil=(Image)typeof(TrialHud).GetField("damageVeil",Private).GetValue(game.Hud);

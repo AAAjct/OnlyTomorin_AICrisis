@@ -29,7 +29,7 @@ namespace TomorinTrial.Editor
                 "Run Anon shares standalone base health and posture");
             var opponent=typeof(TrialPlayer).GetProperty("TerraceOpponent",BindingFlags.Instance|BindingFlags.NonPublic);
             var rules=typeof(TrialPlayer).GetProperty("TerraceRules",BindingFlags.Instance|BindingFlags.NonPublic);
-            Check(opponent.GetValue(player)==boss && (bool)rules.GetValue(player),"Player finds run Anon after guards and enables sword-duel defenses");
+            Check(opponent.GetValue(player) as TrialEnemy == boss && (bool)rules.GetValue(player),"Player finds run Anon after guards and enables sword-duel defenses");
             boss.Teleport(new Vector3(18,0,42));player.Restore(new Vector3(18,0,37));Physics.SyncTransforms();
             brain.BeginMove(0);
             Check(brain.Move.name=="踏线挑斩" && Mathf.Approximately(brain.Move.windup,.68f),"Run Anon opens with the authored terrace slash and timing");
@@ -56,7 +56,7 @@ namespace TomorinTrial.Editor
         public static void VerifyEndless(){Debug.Log(Endless());}
         public static string Endless()
         {
-            passed.Clear();var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+            passed.Clear();var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
             Check(game && game.Ready && game.IsEndless,"Endless scene initialized");game.RestartTrial();
             var player=game.Player;Check(!player.ChoosingBoon,"Endless starts without the one-time entrance boon");
             player.AwardRunExperience(500);Check(player.PendingRunChoices>1,"Experience queues every earned level");
@@ -92,7 +92,7 @@ namespace TomorinTrial.Editor
             affixes[(int)TrialAffix.KillBlast]=5;first.ReceiveHit(player,100000,0);ChooseAll(player);
             Check(!first.Alive && game.Mode==TrialMode.Playing,"Area effects do not recursively end the endless run");
             game.RestartTrial();
-            int bosses=0,maxAlive=0;var bossIds=new HashSet<int>();
+            int bosses=0,maxAlive=0;var bossIds=new HashSet<TrialEnemy>();
             for(int step=0;step<600 && game.Run.Wave<11;step++)
             {
                 game.Run.Tick(.7f);int alive=0;
@@ -100,7 +100,7 @@ namespace TomorinTrial.Editor
                 foreach(var enemy in snapshot)
                 {
                     if(!enemy.Alive)continue;alive++;
-                    if(enemy.IsBoss){if(bossIds.Add(enemy.GetInstanceID()))bosses++;DefeatBoss(game,enemy);}
+                    if(enemy.IsBoss){if(bossIds.Add(enemy))bosses++;DefeatBoss(game,enemy);}
                     else enemy.ReceiveHit(player,1000000,0,true);
                     ChooseAll(player);
                 }
@@ -120,7 +120,7 @@ namespace TomorinTrial.Editor
         public static void VerifyBossRush(){Debug.Log(BossRush());}
         public static string BossRush()
         {
-            passed.Clear();var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+            passed.Clear();var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
             Check(game && game.Ready && game.IsBossRush,"Boss rush scene initialized");game.RestartTrial();var player=game.Player;
             Check(player.Flasks==3,"Full run starts with three flasks");if(player.ChoosingBoon)player.ChooseBoon(player.OfferA);
             Physics.SyncTransforms();

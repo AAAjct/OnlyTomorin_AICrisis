@@ -42,7 +42,7 @@ namespace TomorinTrial.Editor
             {
                 Status="Testing "+level;
                 var load=SceneManager.LoadSceneAsync(TrialChampionCatalog.Scene(level));while(!load.isDone)yield return null;
-                var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();while(!game || !game.Ready){yield return null;game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();}
+                var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();while(!game || !game.Ready){yield return null;game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();}
                 game.StartTrial();if(level==TrialLevel.BigFish)game.StartBossChallenge();
                 game.enabled=false;game.Input.enabled=false;
                 game.Player.transform.rotation=Quaternion.Euler(0,90,0);

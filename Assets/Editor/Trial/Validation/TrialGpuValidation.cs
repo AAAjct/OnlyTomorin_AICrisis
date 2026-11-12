@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEditor;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -22,6 +23,7 @@ namespace TomorinTrial.Editor
         static readonly FrameTiming[] timings=new FrameTiming[1];
         static readonly List<double> gpuTimes=new List<double>();
         static double triangles,batches;
+        static ProfilerRecorder batchCounter;
         static Result result;
         static Canvas hudCanvas;
         static bool canvasEnabled;
@@ -29,7 +31,7 @@ namespace TomorinTrial.Editor
         public static void Start()
         {
             if(Status=="Running")throw new InvalidOperationException("Benchmark already active.");
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();if(!game || !game.Ready)throw new InvalidOperationException("Start a trial scene first.");
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();if(!game || !game.Ready)throw new InvalidOperationException("Start a trial scene first.");
             game.StartTrial();if(game.Player.ChoosingBoon)game.Player.ChooseBoon(game.Player.OfferA);game.Pause();
             hudCanvas=game.Hud.GetComponentInChildren<Canvas>();canvasEnabled=hudCanvas && hudCanvas.enabled;if(hudCanvas)hudCanvas.enabled=false;
             EditorWindow.GetWindow(typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView")).Focus();
@@ -37,10 +39,11 @@ namespace TomorinTrial.Editor
             var renderer=AssetDatabase.LoadAssetAtPath<UniversalRendererData>("Assets/Settings/PC_Renderer.asset");
             foreach(var feature in renderer.rendererFeatures)if(feature.GetType().Name=="ScreenSpaceAmbientOcclusion")ao=feature;
             if(ao)aoJson=EditorJsonUtility.ToJson(ao);
-            budget=UnityEngine.Object.FindFirstObjectByType<TrialPowerBudget>();if(budget){previousBudget=budget.enabled;budget.enabled=false;}
+            budget=UnityEngine.Object.FindAnyObjectByType<TrialPowerBudget>();if(budget){previousBudget=budget.enabled;budget.enabled=false;}
             cap=Application.targetFrameRate;sync=QualitySettings.vSyncCount;QualitySettings.vSyncCount=0;Application.targetFrameRate=60;
             result=new Result{scene=UnityEngine.SceneManagement.SceneManager.GetActiveScene().path,gpu=SystemInfo.graphicsDeviceName,resolution=Screen.width+"x"+Screen.height};
             phase=frames=0;lastFrame=-1;lastTiming=0;gpuTimes.Clear();triangles=batches=0;Status="Running";
+            batchCounter = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Batches Count");
             Apply(true);RenderPipelineManager.endContextRendering+=Sample;EditorApplication.playModeStateChanged+=PlayChanged;
         }
         static void Apply(bool old)
@@ -56,7 +59,8 @@ namespace TomorinTrial.Editor
             if(frames<=45)return;
             if(FrameTimingManager.GetLatestTimings(1,timings)>0 && timings[0].gpuFrameTime>0 && timings[0].frameStartTimestamp!=lastTiming)
             {lastTiming=timings[0].frameStartTimestamp;gpuTimes.Add(timings[0].gpuFrameTime);}
-            triangles+=UnityStats.triangles;batches+=UnityStats.batches;
+            triangles+=UnityStats.triangles;
+            if (batchCounter.Valid) batches += batchCounter.LastValue;
             if(frames<165)return;
             gpuTimes.Sort();double median=gpuTimes.Count>0?gpuTimes[gpuTimes.Count/2]:0;
             if(phase==0)
@@ -68,6 +72,7 @@ namespace TomorinTrial.Editor
         static void PlayChanged(PlayModeStateChange state){if(state==PlayModeStateChange.ExitingPlayMode){Status="Cancelled";Stop();}}
         static void Stop()
         {
+            if (batchCounter.Valid) batchCounter.Dispose();
             RenderPipelineManager.endContextRendering-=Sample;EditorApplication.playModeStateChanged-=PlayChanged;
             if(pipeline && pipelineJson!=null)EditorJsonUtility.FromJsonOverwrite(pipelineJson,pipeline);
             if(ao && aoJson!=null)EditorJsonUtility.FromJsonOverwrite(aoJson,ao);

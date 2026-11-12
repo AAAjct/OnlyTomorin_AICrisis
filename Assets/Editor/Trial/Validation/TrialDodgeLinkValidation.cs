@@ -18,12 +18,12 @@ namespace TomorinTrial.Editor
         }
         static IEnumerator DodgeLinkFrames()
         {
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
             Check(game && game.Ready && !TrialNetworkManager.SessionActive,"Offline player initialized");
             var player=game.Player;bool enabled=game.enabled;game.StartTrial();if(player.ChoosingBoon)player.ChooseBoon(player.OfferA);
             game.enabled=false;Time.timeScale=1;
             var input=game.gameObject.AddComponent<TrialInput>();
-            var budget=UnityEngine.Object.FindFirstObjectByType<TrialPowerBudget>();bool budgetEnabled=budget && budget.enabled;
+            var budget=UnityEngine.Object.FindAnyObjectByType<TrialPowerBudget>();bool budgetEnabled=budget && budget.enabled;
             if(budget)budget.enabled=false;
             int cap=Application.targetFrameRate,sync=QualitySettings.vSyncCount;QualitySettings.vSyncCount=0;Application.targetFrameRate=60;
             try

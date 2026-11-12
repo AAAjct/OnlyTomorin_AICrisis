@@ -146,7 +146,8 @@ namespace TomorinTrial.Editor
             string meshPath=MeshFolder+"/"+kind+"_Skinned.asset";bool first=true;
             foreach(var renderer in visible)
             {
-                var mesh=UnityEngine.Object.Instantiate(MeshOf(renderer));mesh.name=kind+"_"+renderer.name+"_Weighted";
+                var mesh=UnityEngine.Object.Instantiate(MeshOf(renderer));
+                mesh.name=first?System.IO.Path.GetFileNameWithoutExtension(meshPath):kind+"_"+renderer.name+"_Weighted";
                 var verts=mesh.vertices;var weights=new BoneWeight[verts.Length];
                 // YaYa's numbered objects hide the meaning of the original parts. Hair,
                 // braids and ornaments must follow the head even below the shoulders.

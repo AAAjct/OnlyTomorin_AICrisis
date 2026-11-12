@@ -51,7 +51,7 @@ namespace TomorinTrial.Editor
             try
             {
                 SceneManager.LoadScene("InkStart");yield return .65f;
-                var menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();Field<Button>(menu,"multiplayer").onClick.Invoke();Canvas.ForceUpdateCanvases();
+                var menu=UnityEngine.Object.FindAnyObjectByType<InkMainMenu>();Field<Button>(menu,"multiplayer").onClick.Invoke();Canvas.ForceUpdateCanvases();
                 var labels=menu.GetComponentsInChildren<Text>(true);
                 var name=labels.First(t=>t.text=="你的名字");var hint=labels.First(t=>t.text.Contains("A / Enter 编辑"));
                 Check(!Bounds(name.rectTransform).Overlaps(Bounds(hint.rectTransform)),"LAN name label and navigation hint have disjoint layout bounds");
@@ -61,7 +61,7 @@ namespace TomorinTrial.Editor
                 {var m=TrialChampionCatalog.Move(kind,i);Check(m.shape!=ChampionShape.Leap && m.shape!=ChampionShape.Dive && m.shape!=ChampionShape.TwinPincer,kind+" slot "+i+" has no aerial slam");}
                 SceneManager.LoadScene("CrimsonSwordTerrace");yield return .8f;
                 double readyDeadline=EditorApplication.timeSinceStartup+25;
-                do{game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();if(game && game.Ready)break;yield return .1f;}while(EditorApplication.timeSinceStartup<readyDeadline);
+                do{game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();if(game && game.Ready)break;yield return .1f;}while(EditorApplication.timeSinceStartup<readyDeadline);
                 Check(game && game.Ready,"Anon arena initializes");
                 game.StartTrial();game.Player.ResetRunBoon();game.enabled=false;
                 int frame=Time.frameCount;yield return .12f;Check(Time.frameCount>frame,"Play Mode player loop advances");

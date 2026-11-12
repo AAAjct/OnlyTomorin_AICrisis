@@ -34,7 +34,7 @@ namespace TomorinTrial.Editor
         public static void Run()
         {
             if(!EditorApplication.isPlaying || routine!=null)throw new InvalidOperationException("Enter Play Mode first.");
-            panel=UnityEngine.Object.FindObjectsByType<TrialSettingsPanel>(FindObjectsInactive.Include,FindObjectsSortMode.None).First();
+            panel=UnityEngine.Object.FindObjectsByType<TrialSettingsPanel>(FindObjectsInactive.Include).First();
             module=EventSystem.current.GetComponent<InputSystemUIInputModule>();devices=module.actionsAsset.devices;
             background=InputSystem.settings.backgroundBehavior;editorInput=InputSystem.settings.editorInputBehaviorInPlayMode;
             InputSystem.settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;
@@ -51,7 +51,7 @@ namespace TomorinTrial.Editor
         static IEnumerator Checks()
         {
             int frame=Time.frameCount;
-            var menuAtStart=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();
+            var menuAtStart=UnityEngine.Object.FindAnyObjectByType<InkMainMenu>();
             var menuButtons=menuAtStart.GetComponentsInChildren<Button>();
             var solo=menuButtons.First(b=>b.name=="独行入庭" || b.name=="单人游玩");
             var multiplayer=menuButtons.First(b=>b.name=="局域网联机");
@@ -196,7 +196,7 @@ namespace TomorinTrial.Editor
             Directory.CreateDirectory("Logs/Trial");
             InkStartBuilder.Capture("Logs/Trial/SettingsFocus.png");
             controls.OfType<Button>().First(b=>b.name=="Back").onClick.Invoke();yield return .1f;
-            var menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();
+            var menu=UnityEngine.Object.FindAnyObjectByType<InkMainMenu>();
             var title=menu.GetComponentsInChildren<RawImage>(true).First(i=>i.name=="Ink calligraphy title");
             Check(title.gameObject.activeInHierarchy && title.texture && title.texture.width>1000 && !title.raycastTarget,"High-resolution calligraphy texture is visible without intercepting menu input");
             InkStartBuilder.Capture("Logs/Trial/InkTitle.png");

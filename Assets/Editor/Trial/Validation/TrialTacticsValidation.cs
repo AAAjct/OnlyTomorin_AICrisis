@@ -48,7 +48,7 @@ namespace TomorinTrial.Editor
             foreach(var level in new[]{TrialLevel.Twins,TrialLevel.Anon,TrialLevel.Taffy,TrialLevel.Penguin,TrialLevel.YaYa,TrialLevel.Remnant})
             {
                 SceneManager.LoadScene(TrialChampionCatalog.Scene(level));yield return .8f;
-                var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();Check(game && game.Ready,level+" scene starts");
+                var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();Check(game && game.Ready,level+" scene starts");
                 if(level==TrialLevel.Anon)
                 {
                     Check(TrialTerraceValidation.Run().StartsWith("PASS"),"Crimson Sword Terrace passes its dedicated combat checks");
@@ -110,7 +110,7 @@ namespace TomorinTrial.Editor
                 game.enabled=true;game.Input.enabled=true;
             }
             SceneManager.LoadScene(TrialChampionCatalog.Scene(TrialLevel.BigFish));yield return .8f;
-            var fishGame=UnityEngine.Object.FindFirstObjectByType<TrialGame>();fishGame.StartBossChallenge();fishGame.Player.ChooseBoon(fishGame.Player.OfferA);fishGame.enabled=false;
+            var fishGame=UnityEngine.Object.FindAnyObjectByType<TrialGame>();fishGame.StartBossChallenge();fishGame.Player.ChooseBoon(fishGame.Player.OfferA);fishGame.enabled=false;
             var fish=fishGame.Enemies[fishGame.Enemies.Count-1];fish.Tick(.01f);fish.Boss.StartSkill(DeepFishSkill.TailSweep);fish.Boss.Tick(2.1f);
             Check(fish.Boss.Regrouping && fish.Boss.Skill==DeepFishSkill.None,"Big fish also regroups after its attack");fishGame.enabled=true;
             SceneManager.LoadScene(TrialChampionCatalog.Scene(TrialLevel.Remnant));yield return .8f;

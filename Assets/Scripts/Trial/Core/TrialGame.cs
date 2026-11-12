@@ -67,7 +67,6 @@ namespace TomorinTrial
         void Start()
         {
             if(!tomorinModel || !deepSeekModel || !naiWaModel){Debug.LogError("Trial scene requires Tomorin, DeepSeek and NaiWa FBX references.",this);enabled=false;return;}
-            if(Application.isMobilePlatform)Screen.orientation=ScreenOrientation.LandscapeLeft;
             AudioListener.volume=PlayerPrefs.GetFloat("Ink.Volume",.7f);
             InkMainMenu.SetReducedMotion(PlayerPrefs.GetInt("Ink.ReducedMotion",0)==1);
             previousBackground=Application.runInBackground;Application.runInBackground=true;
@@ -174,10 +173,18 @@ namespace TomorinTrial
             }
             return found;
         }
+        int nextRunNetworkId;
+
+        internal int RunEnemyId(TrialEnemy enemy)
+        {
+            if (enemy.RunNetworkId == 0) enemy.RunNetworkId = ++nextRunNetworkId;
+            return enemy.RunNetworkId;
+        }
+
         internal int SpellTargetId(TrialFighter fighter)
         {
             if(fighter is TrialPlayer rival)return TrialNetworkManager.Current.IdOf(rival);
-            return IsRunStage?fighter.GetInstanceID():enemies.IndexOf(fighter as TrialEnemy);
+            return IsRunStage && fighter is TrialEnemy enemy ? RunEnemyId(enemy) : enemies.IndexOf(fighter as TrialEnemy);
         }
         internal TrialFighter SpellTarget(int id)
         {
@@ -185,7 +192,7 @@ namespace TomorinTrial
             if(!IsRunStage)return id>=0 && id<enemies.Count?enemies[id]:null;
             if(Mirror.NetworkClient.active && !Mirror.NetworkServer.active)
                 return runReplicas.TryGetValue(id,out var replica)?replica:null;
-            foreach(var enemy in enemies)if(enemy && enemy.GetInstanceID()==id)return enemy;
+            foreach(var enemy in enemies)if(enemy && enemy.RunNetworkId==id)return enemy;
             return null;
         }
         public void SealArena()

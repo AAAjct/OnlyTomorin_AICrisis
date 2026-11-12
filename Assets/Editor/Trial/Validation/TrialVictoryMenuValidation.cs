@@ -24,7 +24,7 @@ namespace TomorinTrial.Editor
 
         static IEnumerator VictoryMenuChecks()
         {
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
             Check(game && game.Ready,"Trial is ready");
             game.Input.SetDeviceFilter(new InputDevice[]{keyboard});game.StartBossChallenge();yield return .15f;
             var boss=game.Enemies[game.Enemies.Count-1];
@@ -61,7 +61,7 @@ namespace TomorinTrial.Editor
             Keys(UnityEngine.InputSystem.Key.DownArrow);yield return .12f;Keys();yield return .12f;
             Check(EventSystem.current.currentSelectedGameObject==title.gameObject,"Keyboard can select return to title");
             Keys(UnityEngine.InputSystem.Key.Enter);yield return .12f;Keys();yield return .5f;
-            Check(UnityEngine.Object.FindFirstObjectByType<InkMainMenu>() && !UnityEngine.Object.FindFirstObjectByType<TrialGame>(),"Confirming return loads the title scene");
+            Check(UnityEngine.Object.FindAnyObjectByType<InkMainMenu>() && !UnityEngine.Object.FindAnyObjectByType<TrialGame>(),"Confirming return loads the title scene");
             Check(Time.timeScale==1,"Return to title restores time scale");
         }
     }

@@ -17,7 +17,7 @@ namespace TomorinTrial.Editor
         [MenuItem("Tools/Tomorin/Verify ink verdict artwork and split")]
         public static void Run()
         {
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
             Require(EditorApplication.isPlaying && game && game.Ready,"Open a trial in Play Mode first.");
             var hud=game.Hud;bool enabled=hud.enabled;bool gameEnabled=game.enabled;
             bool reduced=InkMainMenu.ReducedMotion;float timeScale=Time.timeScale;

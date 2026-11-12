@@ -138,7 +138,7 @@ namespace TomorinTrial.Editor
                 Until();while(Waiting(receivedCapacity==2))yield return .02f;
                 Check(network.RoomCapacity==2 && NetworkServer.maxConnections==2 && network.Members.Length==2,
                     "Host can lower the live room cap to its current occupants and broadcast it");
-                var menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();
+                var menu=UnityEngine.Object.FindAnyObjectByType<InkMainMenu>();
                 var minus=(UnityEngine.UI.Button)typeof(InkMainMenu).GetField("decreaseCapacity",Private).GetValue(menu);
                 var plus=(UnityEngine.UI.Button)typeof(InkMainMenu).GetField("increaseCapacity",Private).GetValue(menu);
                 Check(!minus.interactable && plus.interactable,"Host lobby enables capacity editing and disables lowering below occupancy");
@@ -158,13 +158,13 @@ namespace TomorinTrial.Editor
                 network.BeginTogether();
                 network.AdjustRoomCapacity(1);
                 Check(network.RoomCapacity==originalCapacity,"Capacity changes are blocked once the host starts loading the match");
-                Until();while(Waiting(sceneReceived && UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready==true))yield return .02f;
+                Until();while(Waiting(sceneReceived && UnityEngine.Object.FindAnyObjectByType<TrialGame>()?.Ready==true))yield return .02f;
                 network.AdjustRoomCapacity(1);
                 Check(network.RoomCapacity==originalCapacity,"Capacity changes are restricted to the room lobby");
                 network.ServerChangeScene(TrialNetworkManager.MenuScene);
-                Until();while(Waiting(UnityEngine.Object.FindFirstObjectByType<InkMainMenu>()!=null && network.CanAdjustRoomCapacity))yield return .02f;
+                Until();while(Waiting(UnityEngine.Object.FindAnyObjectByType<InkMainMenu>()!=null && network.CanAdjustRoomCapacity))yield return .02f;
                 yield return .1f;
-                menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();
+                menu=UnityEngine.Object.FindAnyObjectByType<InkMainMenu>();
                 plus=(UnityEngine.UI.Button)typeof(InkMainMenu).GetField("increaseCapacity",Private).GetValue(menu);
                 Check(plus.interactable==(originalCapacity<TrialNetworkManager.MaxRoomCapacity),"Capacity controls refresh when the host returns to the lobby");
 
@@ -211,9 +211,9 @@ namespace TomorinTrial.Editor
                 Until(); while (Waiting(lobby && network.Members.Length == 2)) yield return .02f;
                 Check(remoteId != network.LocalId, "Independent TCP peer receives its own player ID");
                 network.BeginTogether();
-                Until(); while (Waiting(sceneReceived && UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready == true)) yield return .02f;
+                Until(); while (Waiting(sceneReceived && UnityEngine.Object.FindAnyObjectByType<TrialGame>()?.Ready == true)) yield return .02f;
                 Send(new ReadyMessage());
-                var game = UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+                var game = UnityEngine.Object.FindAnyObjectByType<TrialGame>();
                 Until(); while (Waiting(network.Players.Count() == 2 && world.players != null)) yield return .02f;
                 var remote = network.Players.First(p => p != game.Player);
                 game.Player.ChooseBoon(game.Player.OfferA);Send(new TrialChooseBoon{boon=remote.OfferA});
@@ -279,7 +279,7 @@ namespace TomorinTrial.Editor
                 // Capture a real host-produced world for the receiving-client test.
                 world.players = new[] { game.Player.CaptureNetwork(0), remote.CaptureNetwork(1) };
                 held = default; client.Disconnect(); client = null; network.Leave();
-                Until(); while (Waiting(UnityEngine.Object.FindFirstObjectByType<InkMainMenu>() != null)) yield return .03f;
+                Until(); while (Waiting(UnityEngine.Object.FindAnyObjectByType<InkMainMenu>() != null)) yield return .03f;
                 yield return .2f;
 
                 incoming = new Unbatcher(); peerReady = false;
@@ -288,8 +288,8 @@ namespace TomorinTrial.Editor
                 server.OnData = (id, data) => Receive(data);
                 Check(server.Start(18101), "Independent authority starts for the real receiving-client test");
                 network = TrialNetworkManager.Current; ((TelepathyTransport)network.transport).port = 18101; network.networkAddress = "127.0.0.1"; network.Join();
-                Until(); while (Waiting(UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready == true && peerReady)) yield return .03f;
-                game = UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+                Until(); while (Waiting(UnityEngine.Object.FindAnyObjectByType<TrialGame>()?.Ready == true && peerReady)) yield return .03f;
+                game = UnityEngine.Object.FindAnyObjectByType<TrialGame>();
                 Send(world); yield return .15f;
                 Check(network.LocalId == 1 && !NetworkServer.active, "Game runs as remote client with the assigned ID");
                 world.defeat=true;Send(world);yield return .15f;

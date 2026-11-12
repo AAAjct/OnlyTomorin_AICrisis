@@ -107,7 +107,7 @@ namespace TomorinTrial.Editor
         [MenuItem("Tools/Tomorin/Verify stamina rewards (Play Mode)")]
         public static void RunStamina()
         {
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
             if(!EditorApplication.isPlaying || !game || !game.Ready || TrialNetworkManager.SessionActive)
                 throw new InvalidOperationException("Start AshenCourt in offline Play Mode first.");
             results.Clear();var player=game.Player;var point=player.transform.position;
@@ -183,7 +183,7 @@ namespace TomorinTrial.Editor
         [MenuItem("Tools/Tomorin/Verify displacement driven fish gait (Play Mode)")]
         public static void RunMotion()
         {
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
             if(!EditorApplication.isPlaying || !game || !game.Ready || Time.deltaTime<=0 || TrialNetworkManager.SessionActive)
                 throw new InvalidOperationException("Run offline AshenCourt with time advancing.");
             results.Clear();var boss=game.Enemies.Last();var rig=boss.GetComponent<TrialBossRig>();

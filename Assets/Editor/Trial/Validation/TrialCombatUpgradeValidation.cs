@@ -42,7 +42,7 @@ namespace TomorinTrial.Editor
         static IEnumerator Checks()
         {
             SceneManager.LoadScene("AshenCourt");yield return .8f;
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();Check(game && game.Ready,"Courtyard initializes");
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();Check(game && game.Ready,"Courtyard initializes");
             game.StartTrial();game.Player.ChooseBoon(game.Player.OfferA);game.enabled=false;
             var input=game.gameObject.AddComponent<TrialInput>();var p=game.Player;var foe=game.Enemies[0];
             foreach(var enemy in game.Enemies)enemy.Teleport(new Vector3(12,0,36));
@@ -92,7 +92,7 @@ namespace TomorinTrial.Editor
                 Check(game.Hud.GetComponentsInChildren<Slider>(true).Count()==5,"Settings expose master plus four sound-effect category sliders");
                 game.Hud.CloseSettings();game.Resume();
                 Check(Resources.Load<AudioClip>("Trial/Audio/charge_0") && Resources.Load<AudioClip>("Trial/Audio/counter_0") && Resources.Load<AudioClip>("Trial/Audio/landing_0"),"New original charge, counter and landing sounds import successfully");
-                Check(UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None).Length<700,"Static batching releases redundant render components");
+                Check(UnityEngine.Object.FindObjectsByType<Renderer>().Length<700,"Static batching releases redundant render components");
                 Check(errors==0,"Gameplay and settings checks produce no runtime exceptions");
             }
             finally {if(game){game.enabled=true;game.RestartTrial();}if(input)UnityEngine.Object.Destroy(input);}

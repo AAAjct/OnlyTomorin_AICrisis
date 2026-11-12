@@ -36,7 +36,7 @@ namespace TomorinTrial.Editor
             try
             {
                 TrialBindings.ResetDefaults();Keys();yield return .2f;
-                var menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();Check(menu,"Main menu initialized");
+                var menu=UnityEngine.Object.FindAnyObjectByType<InkMainMenu>();Check(menu,"Main menu initialized");
                 menu.GetComponentsInChildren<UnityEngine.UI.Button>(true).First(b=>b.GetComponentInChildren<UnityEngine.UI.Text>().text=="设置").onClick.Invoke();yield return .2f;
                 var panel=menu.GetComponentInChildren<TrialSettingsPanel>();Check(panel && panel.IsOpen,"Main menu opens shared settings");
                 string layout=SettingsLayout(panel);Check(panel.GetComponentsInChildren<UnityEngine.UI.Button>().Any(b=>b.name=="VSync"),"Settings exposes the vertical sync control");
@@ -77,7 +77,7 @@ namespace TomorinTrial.Editor
                 Check(TrialBindings.TrySet(TrialBindings.Entries[0],0,"<Keyboard>/v",out error),"Movement composite part is configurable");
                 SettingsButton(panel,"Back").onClick.Invoke();yield return .12f;Check(!panel.IsOpen,"Back closes main settings");
                 InkMainMenu.AutoStartTrial=true;UnityEngine.SceneManagement.SceneManager.LoadScene(TrialNetworkManager.GameScene);yield return .8f;
-                game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();Check(game && game.Ready,"Gameplay loads after rebinding");game.Input.SetDeviceFilter(new InputDevice[]{keyboard,pad});
+                game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();Check(game && game.Ready,"Gameplay loads after rebinding");game.Input.SetDeviceFilter(new InputDevice[]{keyboard,pad});
                 if(game.Player.ChoosingBoon)game.Player.ChooseBoon(game.Player.OfferA);
                 yield return .12f;
                 Check(PlayerPrefs.GetString("Ink.Binding.Attack.0")=="<Keyboard>/f","Key preference survives scene transition");

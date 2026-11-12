@@ -47,7 +47,7 @@ namespace TomorinTrial
             canvas=obj.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=20;
             var scaler=obj.GetComponent<UnityEngine.UI.CanvasScaler>();scaler.uiScaleMode=UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1600,900);scaler.matchWidthOrHeight=Application.isMobilePlatform?1:.5f;
             root=obj.GetComponent<RectTransform>();
-            if(!FindFirstObjectByType<EventSystem>())new GameObject("EventSystem",typeof(EventSystem),typeof(InputSystemUIInputModule)).transform.SetParent(transform,false);
+            if(!FindAnyObjectByType<EventSystem>())new GameObject("EventSystem",typeof(EventSystem),typeof(InputSystemUIInputModule)).transform.SetParent(transform,false);
 
             stats=Panel("Vitals",root,new Vector2(0,0),new Vector2(42,224),new Vector2(480,120),new Color(0,0,0,.13f)).gameObject;
             var s=stats.GetComponent<RectTransform>();
@@ -97,7 +97,7 @@ namespace TomorinTrial
             secondaryButton=Button("Boss challenge or title",menu,new Vector2(66,-722),new Vector2(420,47),"直接挑战大肥鱼",()=>{if(game.Mode==TrialMode.Title)game.StartBossChallenge();else game.ReturnToTitle();});
             roomButton=Button("Return to room",menu,new Vector2(66,-785),new Vector2(420,47),"返回联机房间",()=>TrialNetworkManager.Current.ReturnToRoom());roomButton.gameObject.SetActive(false);
             footer=Label("Menu footer",menu,"Enter / A",new Vector2(0,1),new Vector2(66,-800),new Vector2(550,30),13,muted).gameObject;
-            uiModule=FindFirstObjectByType<InputSystemUIInputModule>();
+            uiModule=FindAnyObjectByType<InputSystemUIInputModule>();
             if(uiModule && uiModule.actionsAsset==null)uiModule.AssignDefaultActions();
             var nav=new UnityEngine.UI.Navigation{mode=UnityEngine.UI.Navigation.Mode.Explicit,selectOnDown=secondaryButton};mainButton.navigation=nav;
             nav.selectOnDown=null;nav.selectOnUp=mainButton;secondaryButton.navigation=nav;

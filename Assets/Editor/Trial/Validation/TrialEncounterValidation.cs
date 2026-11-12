@@ -54,15 +54,15 @@ namespace TomorinTrial.Editor
                 transport.port=18102;network.SelectLevel(TrialLevel.Arena);network.Host();
                 Until();while(Waiting(network.Members.Length==1))yield return .02f;
                 network.BeginTogether();yield return .05f;
-                Check(UnityEngine.Object.FindFirstObjectByType<InkMainMenu>() && network.Status.Contains("至少"),"Arena cannot start without a second player");
+                Check(UnityEngine.Object.FindAnyObjectByType<InkMainMenu>() && network.Status.Contains("至少"),"Arena cannot start without a second player");
                 ConnectEncounterPeer(network);
                 Until();while(Waiting(lobby && network.Members.Length==2))yield return .02f;
                 Check(receivedLevel==TrialLevel.Arena,"Independent TCP peer receives the host's arena selection");
                 network.BeginTogether();
-                Until();while(Waiting(sceneReceived && UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready==true))yield return .02f;
+                Until();while(Waiting(sceneReceived && UnityEngine.Object.FindAnyObjectByType<TrialGame>()?.Ready==true))yield return .02f;
                 Send(new ReadyMessage());
                 Until();while(Waiting(network.Players.Count()==2 && world.players!=null))yield return .02f;
-                var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+                var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
                 var host=game.Player;var remote=network.Players.First(p=>p!=host);
                 Check(game.IsArena && game.Enemies.All(e=>!e.gameObject.activeSelf) && world.level==TrialLevel.Arena,"Arena suppresses all PvE actors and replicates the selected rules");
                 Check((host.transform.position-remote.transform.position).sqrMagnitude>60,"Duelists start at separated spawn points");
@@ -91,7 +91,7 @@ namespace TomorinTrial.Editor
                 Until();while(Waiting(remote.Alive && remote.SpawnProtected))yield return .03f;
                 Check(remote.Health==remote.MaxHealth && remote.Deaths==1,"Arena death respawns with full resources, protection, and retained score");
                 client.Disconnect();client=null;network.Leave();
-                Until();while(Waiting(UnityEngine.Object.FindFirstObjectByType<InkMainMenu>()!=null))yield return .03f;
+                Until();while(Waiting(UnityEngine.Object.FindAnyObjectByType<InkMainMenu>()!=null))yield return .03f;
                 yield return .2f;
 
                 network=TrialNetworkManager.Current;((TelepathyTransport)network.transport).port=18102;
@@ -100,10 +100,10 @@ namespace TomorinTrial.Editor
                 Until();while(Waiting(lobby && network.Members.Length==2))yield return .02f;
                 Check(receivedLevel==TrialLevel.BigFish,"Changing the host's level is reflected in the next room handshake");
                 network.BeginTogether();
-                Until();while(Waiting(sceneReceived && UnityEngine.Object.FindFirstObjectByType<TrialGame>()?.Ready==true))yield return .02f;
+                Until();while(Waiting(sceneReceived && UnityEngine.Object.FindAnyObjectByType<TrialGame>()?.Ready==true))yield return .02f;
                 Send(new ReadyMessage());
                 Until();while(Waiting(network.Players.Count()==2 && world.players!=null))yield return .02f;
-                game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();host=game.Player;remote=network.Players.First(p=>p!=host);
+                game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();host=game.Player;remote=network.Players.First(p=>p!=host);
                 var boss=game.Enemies.Last();var brain=boss.Boss;
                 Check(!game.IsArena && !game.GateOpen && game.DefeatedGuards==0 && host.transform.position.z< -18 && game.Enemies.All(e=>e.Alive),"Courtyard selection starts at the entrance with all guards alive and the boss gate sealed");
                 Check(host.ChoosingBoon && remote.ChoosingBoon && host.OfferA!=host.OfferB && host.OfferB!=host.OfferC && host.OfferA!=host.OfferC,"Each co-op player receives three distinct run-boon choices");
@@ -160,7 +160,7 @@ namespace TomorinTrial.Editor
             finally
             {
                 foreach(var extra in encounterPeers)extra.Disconnect();encounterPeers.Clear();
-                var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();if(game)game.enabled=true;
+                var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();if(game)game.enabled=true;
                 if(TrialNetworkManager.Current)
                 {
                     if(TrialNetworkManager.SessionActive)TrialNetworkManager.Current.Leave();

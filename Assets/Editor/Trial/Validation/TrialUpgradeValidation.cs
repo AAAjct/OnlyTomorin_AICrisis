@@ -24,7 +24,7 @@ namespace TomorinTrial.Editor
         static IEnumerator UpgradeChecks()
         {
             var regression=Checks(false);while(regression.MoveNext())yield return regression.Current;
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
             game.RestartTrial();Keys();yield return .15f;
             var player=game.Player;var start=player.transform.position;
             Transform thigh=null;foreach(var t in player.Visual.GetComponentsInChildren<Transform>())if(t.name=="leftthigh")thigh=t;

@@ -34,12 +34,12 @@ namespace TomorinTrial.Editor
         }
         static IEnumerator Frames()
         {
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
             Check(game && game.Ready && !TrialNetworkManager.SessionActive,"Offline trial initialized");
             var p=game.Player;bool gameEnabled=game.enabled;float scale=Time.timeScale;
             game.StartTrial();if(p.ChoosingBoon)p.ChooseBoon(p.OfferA);game.enabled=false;Time.timeScale=1;
             var input=game.gameObject.AddComponent<TrialInput>();
-            var power=UnityEngine.Object.FindFirstObjectByType<TrialPowerBudget>();bool powerEnabled=power && power.enabled;
+            var power=UnityEngine.Object.FindAnyObjectByType<TrialPowerBudget>();bool powerEnabled=power && power.enabled;
             if(power)power.enabled=false;
             int cap=Application.targetFrameRate,sync=QualitySettings.vSyncCount;Application.targetFrameRate=60;QualitySettings.vSyncCount=0;
             var enemies=new List<Vector3>();foreach(var e in game.Enemies){enemies.Add(e.transform.position);e.Teleport(new Vector3(35,0,40));}

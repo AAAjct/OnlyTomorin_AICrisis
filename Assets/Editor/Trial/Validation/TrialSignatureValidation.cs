@@ -66,7 +66,7 @@ namespace TomorinTrial.Editor
             foreach(var level in new[]{TrialLevel.Twins,TrialLevel.Anon,TrialLevel.Taffy,TrialLevel.Penguin,TrialLevel.YaYa,TrialLevel.Remnant})
             {
                 SceneManager.LoadScene(TrialChampionCatalog.Scene(level));yield return .85f;
-                var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();Check(game && game.Ready,level+" initializes");
+                var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();Check(game && game.Ready,level+" initializes");
                 if(level==TrialLevel.Anon)
                 {
                     Check(TrialTerraceValidation.Run().StartsWith("PASS"),"Crimson Sword Terrace passes its dedicated combat checks");
@@ -141,7 +141,7 @@ namespace TomorinTrial.Editor
                 game.enabled=true;game.Input.enabled=true;
             }
             SceneManager.LoadScene(TrialChampionCatalog.Scene(TrialLevel.BigFish));yield return .85f;
-            var fishGame=UnityEngine.Object.FindFirstObjectByType<TrialGame>();fishGame.StartBossChallenge();fishGame.Player.ChooseBoon(fishGame.Player.OfferA);fishGame.enabled=false;
+            var fishGame=UnityEngine.Object.FindAnyObjectByType<TrialGame>();fishGame.StartBossChallenge();fishGame.Player.ChooseBoon(fishGame.Player.OfferA);fishGame.enabled=false;
             var fish=fishGame.Enemies[fishGame.Enemies.Count-1];fish.Tick(.01f);fish.Boss.StartSkill(DeepFishSkill.TailSweep);fish.ReceiveHit(fishGame.Player,1,0);
             float progress=fish.Boss.SkillProgress;fish.Tick(.06f);
             Check(fish.Flinching && fish.Boss.SkillProgress==progress,"Big fish also pauses its body during ordinary hit flinch");

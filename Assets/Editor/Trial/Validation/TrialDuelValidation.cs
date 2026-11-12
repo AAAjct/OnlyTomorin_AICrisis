@@ -74,7 +74,7 @@ namespace TomorinTrial.Editor
             if(!EditorApplication.isPlaying || !champion)throw new InvalidOperationException("Requires an initialized champion in Play Mode.");
             var results=new List<string>();var type=typeof(TrialChampion);
             var read=(TrialDuelRead)type.GetField("duel",Flags).GetValue(champion);
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();var player=game.CombatTarget;
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();var player=game.CombatTarget;
             champion.CancelAttack(true);Set(champion,"Phase",2);
             type.GetField("phaseAnnounced",Flags).SetValue(champion,2);
             Set(player,"Guarding",true);read.Tick(player,0);read.Tick(player,.5f);

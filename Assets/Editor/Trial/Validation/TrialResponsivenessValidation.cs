@@ -25,7 +25,7 @@ namespace TomorinTrial.Editor
         [MenuItem("Tools/Tomorin/Verify responsive combat and LAN controller navigation")]
         public static void Run()
         {
-            if(!EditorApplication.isPlaying || routine!=null || !UnityEngine.Object.FindFirstObjectByType<InkMainMenu>())throw new InvalidOperationException("Enter InkStart Play Mode first.");
+            if(!EditorApplication.isPlaying || routine!=null || !UnityEngine.Object.FindAnyObjectByType<InkMainMenu>())throw new InvalidOperationException("Enter InkStart Play Mode first.");
             checks.Clear();errors=0;Status="Running";Application.logMessageReceived+=OnLog;
             routine=Checks();resumeAt=0;EditorApplication.update+=Step;
         }
@@ -58,7 +58,7 @@ namespace TomorinTrial.Editor
                 InputSystem.settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus;
                 InputSystem.settings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
                 pad=InputSystem.AddDevice<Gamepad>("LAN regression controller");
-                var menu=UnityEngine.Object.FindFirstObjectByType<InkMainMenu>();
+                var menu=UnityEngine.Object.FindAnyObjectByType<InkMainMenu>();
                 Field<Button>(menu,"multiplayer").onClick.Invoke();yield return .15f;
                 Check(EventSystem.current.currentSelectedGameObject==Field<Button>(menu,"host").gameObject,"LAN entry selects Create Room instead of starting text editing");
                 var expected=new Selectable[]{Field<InputField>(menu,"port"),Field<InputField>(menu,"address"),Field<InputField>(menu,"nickname"),Field<Button>(menu,"back")};
@@ -77,7 +77,7 @@ namespace TomorinTrial.Editor
                 Check(!nickname.isFocused && EventSystem.current.currentSelectedGameObject==Field<InputField>(menu,"address").gameObject,"Controller navigation also escapes deliberate text editing without skipping fields");
                 Field<Button>(menu,"back").onClick.Invoke();
                 SceneManager.LoadScene("AshenCourt");yield return .65f;
-                game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();Check(game && game.Ready,"Courtyard and authored VFX resources initialize successfully");
+                game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();Check(game && game.Ready,"Courtyard and authored VFX resources initialize successfully");
                 game.StartTrial();game.enabled=false;input=game.gameObject.AddComponent<TrialInput>();
                 var player=game.Player;var foe=game.Enemies[0];
                 foreach(var enemy in game.Enemies)enemy.Teleport(new Vector3(10,0,32));

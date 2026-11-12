@@ -13,9 +13,9 @@ namespace TomorinTrial
         {
             var go=new GameObject("Frame budget");DontDestroyOnLoad(go);go.AddComponent<TrialPowerBudget>();
         }
-        void OnEnable(){SceneManager.sceneLoaded+=Loaded;game=FindFirstObjectByType<TrialGame>();}
+        void OnEnable(){SceneManager.sceneLoaded+=Loaded;game=FindAnyObjectByType<TrialGame>();}
         void OnDisable(){SceneManager.sceneLoaded-=Loaded;}
-        void Loaded(Scene scene,LoadSceneMode mode){game=FindFirstObjectByType<TrialGame>();nextCheck=0;}
+        void Loaded(Scene scene,LoadSceneMode mode){game=FindAnyObjectByType<TrialGame>();nextCheck=0;}
         public static int Budget(int requested,bool active,bool focused,bool session)
         {
             int limit=requested<=0?-1:requested;

@@ -625,7 +625,7 @@ public static partial class TrialComboFlowValidation
     }
     public static string Main()
     {
-        game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+        game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
         if(!Application.isPlaying || !game || !game.Ready || TrialNetworkManager.SessionActive)throw new Exception("Open offline AshenCourt in Play Mode first");
         bool enabled=game.enabled,gate=game.GateOpen;game.enabled=false;p=game.Player;
         typeof(TrialGame).GetProperty("GateOpen").SetValue(game,true);

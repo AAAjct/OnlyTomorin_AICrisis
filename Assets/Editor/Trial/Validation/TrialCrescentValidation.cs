@@ -23,7 +23,7 @@ namespace TomorinTrial.Editor
         [MenuItem("Tools/Tomorin/Verify black scarlet crescents")]
         public static void Run()
         {
-            var game=UnityEngine.Object.FindFirstObjectByType<TrialGame>();
+            var game=UnityEngine.Object.FindAnyObjectByType<TrialGame>();
             if(!EditorApplication.isPlaying || !game || !game.Ready || TrialNetworkManager.SessionActive)
                 throw new InvalidOperationException("Run an offline arena first.");
             checks.Clear();errors=0;Application.logMessageReceived+=OnLog;
